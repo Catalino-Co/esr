@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export function generateQuotationPDF(quotation, items) {
   const doc = new jsPDF();
@@ -40,7 +40,7 @@ export function generateQuotationPDF(quotation, items) {
     `$${Number(i.total).toFixed(2)}`
   ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: 70,
     head: [['Descripción', 'Cant.', 'Precio Unit.', 'Subtotal']],
     body: tableData,
@@ -126,7 +126,7 @@ export function generateWorkOrderPDF(wo, items) {
     i.quantity.toString()
   ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: 65,
     head: [['Código', 'Descripción del Ítem', 'Cantidad a Preparar']],
     body: tableData,
@@ -173,7 +173,7 @@ export function generateConducePDF(wo, items) {
     "" // Espacio para check manual si se desea
   ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: 60,
     head: [['Cant.', 'Descripción del Equipo', 'Verificado']],
     body: tableData,
