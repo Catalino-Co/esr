@@ -1,0 +1,159 @@
+<script>
+  import { onMount } from 'svelte';
+  import Modal from '$lib/components/Modal.svelte';
+
+  let users = [];
+  let showModal = false;
+  let isEditing = false;
+  
+  let currentUser = {
+    id: null,
+    username: '',
+    password: '',
+    name: '',
+    role: 'admin'
+  };
+
+  async function loadData() {
+    if (window.api && window.api.db) {
+      let query = "SELECT id, username, name, role FROM users WHERE is_active = 1 ORDER BY name ASC";
+      users = await window.api.db.get(query);
+    }
+  }
+
+  onMount(() => {
+    loadData();
+  });
+
+  function openCreate() {
+    isEditing = false;
+    currentUser = { id: null, username: '', password: '', name: '', role: 'admin' };
+    showModal = true;
+  }
+
+  function openEdit(u) {
+    isEditing = true;
+    currentUser = { ...u, password: '' }; // Don't fill password on edit for security
+    showModal = true;
+  }
+
+  async function saveUser() {
+    if (!currentUser.username || !currentUser.name || (!isEditing && !currentUser.password)) {
+      alert("Usuario, nombre y contraseña son requeridos.");
+      return;
+    }
+
+    if (isEditing) {
+      if (currentUser.password) {
+        await window.api.db.run(`UPDATE users SET username=?, name=?, role=?, password=? WHERE id=?`, 
+          [currentUser.username, currentUser.name, currentUser.role, currentUser.password, currentUser.id]);
+      } else {
+        await window.api.db.run(`UPDATE users SET username=?, name=?, role=? WHERE id=?`, 
+          [currentUser.username, currentUser.name, currentUser.role, currentUser.id]);
+      }
+    } else {
+      await window.api.db.run(`INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)`,
+        [currentUser.username, currentUser.password, currentUser.name, currentUser.role]);
+    }
+    
+    showModal = false;
+    loadData();
+  }
+
+  async function deactivateUser(id) {
+    // Prevent deleting oneself
+    const session = JSON.parse(sessionStorage.getItem('esr_user') || '{}');
+    if (session.id === id) {
+      alert("No puedes eliminar/desactivar tu propio usuario en sesión.");
+      return;
+    }
+
+    if (confirm("¿Desactivar/Eliminar este usuario? Perderá el acceso al sistema.")) {
+      await window.api.db.run("UPDATE users SET is_active = 0 WHERE id = ?", [id]);
+      loadData();
+    }
+  }
+</script>
+
+<div class="card">
+  <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
+    <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+    <span>Gestión de Usuarios</span>
+    <button class="btn btn-primary" style="margin-left: auto;" on:click={openCreate}>+ Crear Usuario</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre Completo</th>
+          <th>Usuario (Login)</th>
+          <th>Rol</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each users as u}
+          <tr>
+            <td style="font-weight: 500;">{u.name}</td>
+            <td>{u.username}</td>
+            <td><span class="badge badge-primary">{u.role}</span></td>
+            <td>
+              <button class="btn-icon" on:click={() => openEdit(u)}>✏️</button>
+              <button class="btn-icon text-danger" on:click={() => deactivateUser(u.id)}>❌</button>
+            </td>
+          </tr>
+        {:else}
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay usuarios.</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<Modal bind:show={showModal} title={isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}>
+  <div style="display: flex; flex-direction: column; gap: 15px;">
+    <div>
+      <label>Nombre Completo *</label>
+      <input type="text" bind:value={currentUser.name} class="form-control" placeholder="Ej. Juan Pérez">
+    </div>
+    
+    <div style="display: flex; gap: 15px;">
+      <div style="flex: 1;">
+        <label>Nombre de Usuario (Login) *</label>
+        <input type="text" bind:value={currentUser.username} class="form-control" placeholder="jperez">
+      </div>
+      <div style="flex: 1;">
+        <label>Contraseña {isEditing ? '(Déjalo vacío para no cambiar)' : '*'}</label>
+        <input type="password" bind:value={currentUser.password} class="form-control">
+      </div>
+    </div>
+    
+    <div>
+      <label>Rol del Sistema</label>
+      <select bind:value={currentUser.role} class="form-control">
+        <option value="admin">Administrador Principal</option>
+        <option value="operador">Operador (Reservas)</option>
+        <option value="almacen">Almacén (Solo Checklist)</option>
+      </select>
+    </div>
+  </div>
+
+  <div slot="footer">
+    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
+    <button class="btn btn-primary" on:click={saveUser}>Guardar Usuario</button>
+  </div>
+</Modal>
+
+<style>
+  .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
+  .form-control:focus { border-color: var(--primary); }
+  label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
+  .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s;}
+  .btn-icon:hover { opacity: 1; transform: scale(1.1); }
+  .text-danger { color: var(--danger); }
+  .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+  .badge-primary { background-color: rgba(67, 94, 190, 0.1); color: var(--primary); }
+</style>
