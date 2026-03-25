@@ -188,7 +188,31 @@ function initDB() {
         FOREIGN KEY(item_id) REFERENCES items(id)
       )`);
 
-      // 9. Checklist
+      // 9. Conduces (Delivery Notes)
+      db.run(`CREATE TABLE IF NOT EXISTS conduces (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_order_id INTEGER,
+        client_id INTEGER,
+        date TEXT,
+        status TEXT DEFAULT 'emitido',
+        driver_or_vehicle TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY(work_order_id) REFERENCES work_orders(id),
+        FOREIGN KEY(client_id) REFERENCES clients(id)
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS conduce_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conduce_id INTEGER,
+        item_id INTEGER,
+        quantity INTEGER DEFAULT 1,
+        FOREIGN KEY(conduce_id) REFERENCES conduces(id),
+        FOREIGN KEY(item_id) REFERENCES items(id)
+      )`);
+
+      // 10. Checklist
       db.run(`CREATE TABLE IF NOT EXISTS work_order_checklists (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         work_order_id INTEGER,

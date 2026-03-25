@@ -158,8 +158,14 @@ export function generateConducePDF(wo, items) {
   doc.setTextColor(0);
   doc.text("CONDUCE DE ENTREGA", 140, 20);
   doc.setFontSize(10);
-  doc.text(`Ref. WO-${String(wo.id).padStart(5, '0')}`, 140, 26);
-  doc.text(`Fecha: ${wo.date}`, 140, 31);
+  if (wo.conduce_id) {
+    doc.text(`COND-${String(wo.conduce_id).padStart(5, '0')}`, 140, 26);
+    doc.text(`Ref. WO-${String(wo.id).padStart(5, '0')}`, 140, 31);
+    doc.text(`Fecha: ${wo.date}`, 140, 36);
+  } else {
+    doc.text(`Ref. WO-${String(wo.id).padStart(5, '0')}`, 140, 26);
+    doc.text(`Fecha: ${wo.date}`, 140, 31);
+  }
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
@@ -192,5 +198,9 @@ export function generateConducePDF(wo, items) {
   doc.line(120, finalY, 180, finalY);
   doc.text("Recibido Conforme (Firma)", 125, finalY + 5);
 
-  doc.save(`Conduce_WO_${String(wo.id).padStart(5, '0')}.pdf`);
+  if (wo.conduce_id) {
+    doc.save(`Conduce_${String(wo.conduce_id).padStart(5, '0')}_WO_${String(wo.id).padStart(5, '0')}.pdf`);
+  } else {
+    doc.save(`Conduce_WO_${String(wo.id).padStart(5, '0')}.pdf`);
+  }
 }
