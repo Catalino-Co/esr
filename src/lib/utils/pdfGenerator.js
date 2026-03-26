@@ -197,7 +197,7 @@ export function generateChecklistPDF(workOrder, items, type = 'salida', action =
   renderCompanyHeader(doc, companyInfo);
 
   // Title
-  doc.setFontSize(17);
+  doc.setFontSize(9);
   doc.setTextColor(accentR, accentG, accentB);
   doc.text(isSalida ? 'CHECKLIST DE SALIDA' : 'CHECKLIST DE RETORNO', 140, 20);
 
@@ -218,9 +218,31 @@ export function generateChecklistPDF(workOrder, items, type = 'salida', action =
     doc.text(`Responsable: ${workOrder.responsible_person}`, 14, 67);
   }
 
+  // Helper: dibuja el checkbox visual en la celda de la columna 0 (B&N, apto para imprimir)
+  function drawCheckCell(data, isOk) {
+    if (data.section !== 'body' || data.column.index !== 0) return;
+    const cx   = data.cell.x + data.cell.width  / 2;
+    const cy   = data.cell.y + data.cell.height / 2;
+    const half = 1.5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(80, 80, 80);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(cx - half, cy - half, half * 2, half * 2, 0.5, 0.5, 'FD');
+    if (isOk) {
+      // Palomita negra
+      doc.setDrawColor(30, 30, 30);
+      doc.setLineWidth(0.6);
+      doc.line(cx - 1.3, cy,        cx - 0.2, cy + 1.3);
+      doc.line(cx - 0.2, cy + 1.3,  cx + 1.5, cy - 1.1);
+    }
+    doc.setLineWidth(0.4);
+    doc.setDrawColor(0);
+  }
+
   // ── Salida table ──────────────────────────────────────────────────────────
   if (isSalida) {
     const tableData = items.map(item => [
+      '',   // columna checkbox — contenido vacío, se pinta en didDrawCell
       item.internal_code || '-',
       item.item_name,
       String(item.expected_quantity),
@@ -230,26 +252,27 @@ export function generateChecklistPDF(workOrder, items, type = 'salida', action =
 
     autoTable(doc, {
       startY: 75,
-      head: [['Codigo', 'Descripcion del Item', 'Req.', 'Verif.', 'Observacion']],
+      head: [['Ok', 'Codigo', 'Descripcion del Item', 'Req.', 'Verif.', 'Observacion']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [accentR, accentG, accentB], fontSize: 9 },
       styles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 24, halign: 'center' },
-        2: { cellWidth: 16, halign: 'center' },
-        3: { cellWidth: 18, halign: 'center' },
-        4: { cellWidth: 46 }
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 24, halign: 'center' },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 44 }
       },
       didParseCell(data) {
         if (data.section !== 'body') return;
-        const item = items[data.row.index];
-        const qty  = item?.actual_quantity ?? item?.expected_quantity;
-        if (qty < item?.expected_quantity) {
-          data.cell.styles.fillColor = [255, 243, 205];   // amarillo claro
-        } else {
-          data.cell.styles.fillColor = [212, 237, 218];   // verde claro
-        }
+        data.cell.styles.fillColor = [255, 255, 255];
+      },
+      didDrawCell(data) {
+        if (data.section !== 'body' || data.column.index !== 0) return;
+        const item  = items[data.row.index];
+        const qty   = item?.actual_quantity ?? item?.expected_quantity;
+        drawCheckCell(data, qty >= item?.expected_quantity);
       }
     });
 
@@ -259,44 +282,46 @@ export function generateChecklistPDF(workOrder, items, type = 'salida', action =
     const tableData = items.map(item => {
       if (item.is_damaged || item.is_missing) incidents.push(item);
       return [
+        '',   // columna checkbox
         item.internal_code || '-',
         item.item_name,
         String(item.expected_quantity),
         String(item.actual_quantity ?? 0),
-        item.is_damaged  ? 'SI' : '-',
-        item.is_missing  ? 'SI' : '-',
+        item.is_damaged ? 'SI' : '-',
+        item.is_missing ? 'SI' : '-',
         item.notes || ''
       ];
     });
 
     autoTable(doc, {
       startY: 75,
-      head: [['Codigo', 'Descripcion del Item', 'Req.', 'Ret.', 'Dano', 'Falt.', 'Observacion']],
+      head: [['Ok', 'Codigo', 'Descripcion del Item', 'Req.', 'Ret.', 'Dano', 'Falt.', 'Observacion']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [accentR, accentG, accentB], fontSize: 9 },
       styles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 22, halign: 'center' },
-        2: { cellWidth: 14, halign: 'center' },
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
         3: { cellWidth: 14, halign: 'center' },
-        4: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        6: { cellWidth: 40 }
+        4: { cellWidth: 14, halign: 'center' },
+        5: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+        6: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+        7: { cellWidth: 38 }
       },
       didParseCell(data) {
         if (data.section !== 'body') return;
         const item = items[data.row.index];
-        if (item?.is_damaged || item?.is_missing) {
-          data.cell.styles.fillColor = [248, 215, 218];   // rojo claro
-        } else if ((item?.actual_quantity ?? 0) < item?.expected_quantity) {
-          data.cell.styles.fillColor = [255, 243, 205];   // amarillo
-        } else {
-          data.cell.styles.fillColor = [212, 237, 218];   // verde
-        }
-        // Resaltar celdas de daño/faltante positivas
-        if (data.column.index === 4 && item?.is_damaged) data.cell.styles.textColor = [185, 28, 28];
-        if (data.column.index === 5 && item?.is_missing) data.cell.styles.textColor = [185, 28, 28];
+        data.cell.styles.fillColor = [255, 255, 255];
+        // Texto en negrita para celdas de daño/faltante con "SI"
+        if (data.column.index === 5 && item?.is_damaged) data.cell.styles.fontStyle = 'bold';
+        if (data.column.index === 6 && item?.is_missing) data.cell.styles.fontStyle = 'bold';
+      },
+      didDrawCell(data) {
+        if (data.section !== 'body' || data.column.index !== 0) return;
+        const item = items[data.row.index];
+        const isOk = !item?.is_damaged && !item?.is_missing && (item?.actual_quantity ?? 0) >= item?.expected_quantity;
+        drawCheckCell(data, isOk);
       }
     });
 

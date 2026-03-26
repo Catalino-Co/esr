@@ -655,7 +655,7 @@
   /* ── Main panel ──────────────────────────────────────────────────────── */
   .main-panel {
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) minmax(420px, 520px);
+    grid-template-columns: minmax(240px, 0.75fr) minmax(460px, 1fr);
     gap: 16px;
     align-items: start;
   }
