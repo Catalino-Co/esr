@@ -14,7 +14,6 @@
     { name: 'Órdenes de Trabajo', path: '/work_orders', icon: '🚚' },
     { name: 'Conduces', path: '/conduces', icon: '🧾' },
     { name: 'Incidencias', path: '/incidents', icon: '⚠️' },
-    { name: 'Suplidores', path: '/suppliers', icon: '🤝' },
     { name: 'Reportes', path: '/reports', icon: '📈' },
     { name: 'Ajustes', path: '/settings', icon: '⚙️' }
   ];

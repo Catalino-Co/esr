@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let users = [];
   let showModal = false;
   let isEditing = false;
@@ -16,8 +17,8 @@
 
   async function loadData() {
     if (window.api && window.api.db) {
-      let query = "SELECT id, username, name, role FROM users WHERE is_active = 1 ORDER BY name ASC";
-      users = await window.api.db.get(query);
+      let query = "SELECT id, username, name, role FROM users WHERE is_active = ? ORDER BY name ASC";
+      users = await window.api.db.get(query, [parseInt(viewState)]);
     }
   }
 
@@ -60,16 +61,19 @@
     loadData();
   }
 
-  async function deactivateUser(id) {
-    // Prevent deleting oneself
+  async function changeState(id, newState) {
+    // Prevent modifying oneself
     const session = JSON.parse(sessionStorage.getItem('esr_user') || '{}');
     if (session.id === id) {
-      alert("No puedes eliminar/desactivar tu propio usuario en sesión.");
+      alert("No puedes modificar el estado de tu propio usuario en sesión.");
       return;
     }
 
-    if (confirm("¿Desactivar/Eliminar este usuario? Perderá el acceso al sistema.")) {
-      await window.api.db.run("UPDATE users SET is_active = 0 WHERE id = ?", [id]);
+    let msg = newState === 0 ? "¿Archivar este usuario? Perderá el acceso al sistema." 
+            : newState === 1 ? "¿Restaurar este usuario a Activo?"
+            : "¿Marcar usuario como inactivo?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE users SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }
   }
@@ -79,6 +83,13 @@
   <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
     <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
     <span>Gestión de Usuarios</span>
+    
+    <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left: 20px;">
+      <option value="1">🟢 Activos</option>
+      <option value="2">🟠 Inactivos</option>
+      <option value="0">📁 Archivados</option>
+    </select>
+    
     <button class="btn btn-primary" style="margin-left: auto;" on:click={openCreate}>+ Crear Usuario</button>
   </div>
 
@@ -99,8 +110,16 @@
             <td>{u.username}</td>
             <td><span class="badge badge-primary">{u.role}</span></td>
             <td>
-              <button class="btn-icon" on:click={() => openEdit(u)}>✏️</button>
-              <button class="btn-icon text-danger" on:click={() => deactivateUser(u.id)}>❌</button>
+              <button class="btn-icon" title="Editar" on:click={() => openEdit(u)}>✏️</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(u.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(u.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(u.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(u.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(u.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -116,24 +135,24 @@
 <Modal bind:show={showModal} title={isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}>
   <div style="display: flex; flex-direction: column; gap: 15px;">
     <div>
-      <label>Nombre Completo *</label>
-      <input type="text" bind:value={currentUser.name} class="form-control" placeholder="Ej. Juan Pérez">
+      <label for="u-name">Nombre Completo *</label>
+      <input id="u-name" type="text" bind:value={currentUser.name} class="form-control" placeholder="Ej. Juan Pérez">
     </div>
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Nombre de Usuario (Login) *</label>
-        <input type="text" bind:value={currentUser.username} class="form-control" placeholder="jperez">
+        <label for="u-login">Nombre de Usuario (Login) *</label>
+        <input id="u-login" type="text" bind:value={currentUser.username} class="form-control" placeholder="jperez">
       </div>
       <div style="flex: 1;">
-        <label>Contraseña {isEditing ? '(Déjalo vacío para no cambiar)' : '*'}</label>
-        <input type="password" bind:value={currentUser.password} class="form-control">
+        <label for="u-pass">Contraseña {isEditing ? '(Déjalo vacío para no cambiar)' : '*'}</label>
+        <input id="u-pass" type="password" bind:value={currentUser.password} class="form-control">
       </div>
     </div>
     
     <div>
-      <label>Rol del Sistema</label>
-      <select bind:value={currentUser.role} class="form-control">
+      <label for="u-role">Rol del Sistema</label>
+      <select id="u-role" bind:value={currentUser.role} class="form-control">
         <option value="admin">Administrador Principal</option>
         <option value="operador">Operador (Reservas)</option>
         <option value="almacen">Almacén (Solo Checklist)</option>

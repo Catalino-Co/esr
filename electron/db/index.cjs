@@ -53,6 +53,7 @@ function initDB() {
         db.run("ALTER TABLE events ADD COLUMN pickup_date TEXT", () => {});
         db.run("ALTER TABLE events ADD COLUMN quotation_id INTEGER", () => {});
         db.run("ALTER TABLE events ADD COLUMN work_order_id INTEGER", () => {});
+        db.run("ALTER TABLE events ADD COLUMN is_active INTEGER DEFAULT 1", () => {});
       });
 
       // 3.5 Event Types
@@ -60,20 +61,28 @@ function initDB() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
         is_active INTEGER DEFAULT 1
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE event_types ADD COLUMN color TEXT DEFAULT '#6366f1'", () => {});
+        db.run("ALTER TABLE event_types ADD COLUMN description TEXT", () => {});
+      });
 
       // 4. Categories & Subcategories
       db.run(`CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE categories ADD COLUMN is_active INTEGER DEFAULT 1", () => {});
+        db.run("ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#6366f1'", () => {});
+      });
       
       db.run(`CREATE TABLE IF NOT EXISTS subcategories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER,
         name TEXT NOT NULL,
         FOREIGN KEY(category_id) REFERENCES categories(id)
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE subcategories ADD COLUMN is_active INTEGER DEFAULT 1", () => {});
+      });
 
       // 4. Items (Inventory)
       db.run(`CREATE TABLE IF NOT EXISTS items (
@@ -188,7 +197,7 @@ function initDB() {
         FOREIGN KEY(item_id) REFERENCES items(id)
       )`);
 
-      // 9. Conduces (Delivery Notes)
+      // 9. Conduces (Delivery Notes / Invoices)
       db.run(`CREATE TABLE IF NOT EXISTS conduces (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         work_order_id INTEGER,
@@ -197,20 +206,30 @@ function initDB() {
         status TEXT DEFAULT 'emitido',
         driver_or_vehicle TEXT,
         notes TEXT,
+        subtotal REAL DEFAULT 0.0,
+        discount REAL DEFAULT 0.0,
+        total REAL DEFAULT 0.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         is_active INTEGER DEFAULT 1,
         FOREIGN KEY(work_order_id) REFERENCES work_orders(id),
         FOREIGN KEY(client_id) REFERENCES clients(id)
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE conduces ADD COLUMN subtotal REAL DEFAULT 0.0", () => {});
+        db.run("ALTER TABLE conduces ADD COLUMN discount REAL DEFAULT 0.0", () => {});
+        db.run("ALTER TABLE conduces ADD COLUMN total REAL DEFAULT 0.0", () => {});
+      });
 
       db.run(`CREATE TABLE IF NOT EXISTS conduce_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conduce_id INTEGER,
         item_id INTEGER,
         quantity INTEGER DEFAULT 1,
+        price REAL DEFAULT 0.0,
         FOREIGN KEY(conduce_id) REFERENCES conduces(id),
         FOREIGN KEY(item_id) REFERENCES items(id)
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE conduce_items ADD COLUMN price REAL DEFAULT 0.0", () => {});
+      });
 
       // 10. Checklist
       db.run(`CREATE TABLE IF NOT EXISTS work_order_checklists (
@@ -245,7 +264,9 @@ function initDB() {
         FOREIGN KEY(item_id) REFERENCES items(id),
         FOREIGN KEY(client_id) REFERENCES clients(id),
         FOREIGN KEY(work_order_id) REFERENCES work_orders(id)
-      )`);
+      )`, () => {
+        db.run("ALTER TABLE incidents ADD COLUMN is_active INTEGER DEFAULT 1", () => {});
+      });
 
       // 11. Collaborators
       db.run(`CREATE TABLE IF NOT EXISTS collaborators (
@@ -269,6 +290,20 @@ function initDB() {
         notes TEXT,
         is_active INTEGER DEFAULT 1
       )`);
+
+      // 13. Company Info
+      db.run(`CREATE TABLE IF NOT EXISTS company_info (
+        id INTEGER PRIMARY KEY CHECK (id = 1), -- Only one row
+        name TEXT NOT NULL DEFAULT 'Tu Empresa',
+        rnc TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        logo_base64 TEXT
+      )`, () => {
+        // Insert default row if not exists
+        db.run(`INSERT OR IGNORE INTO company_info (id, name) VALUES (1, 'Tu Empresa')`);
+      });
 
     });
   });

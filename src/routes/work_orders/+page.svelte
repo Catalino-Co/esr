@@ -1,7 +1,14 @@
 <script>
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
 
+  let showPdfPreview = false;
+  let pdfPreviewUrl = "";
+  let pdfPreviewFilename = "";
+  let pdfPreviewTitle = "";
+
+  let viewState = "1";
   let workOrders = [];
   let clients = [];
   let events = [];
@@ -41,10 +48,10 @@
       SELECT w.*, c.name as client_name 
       FROM work_orders w
       LEFT JOIN clients c ON w.client_id = c.id
-      WHERE w.is_active = 1
+      WHERE w.is_active = ?
       ORDER BY w.id DESC
     `;
-    workOrders = await window.api.db.get(query);
+    workOrders = await window.api.db.get(query, [parseInt(viewState)]);
   }
 
   async function loadWOItems(woId) {
@@ -206,9 +213,12 @@
     }
   }
 
-  async function deactivateWO(id) {
-    if (confirm("¿Desactivar/Eliminar esta orden de trabajo?")) {
-      await window.api.db.run("UPDATE work_orders SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar esta orden de trabajo?" 
+            : newState === 1 ? "¿Restaurar esta orden de trabajo?"
+            : "¿Marcar orden de trabajo como inactiva?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE work_orders SET is_active = ? WHERE id = ?", [newState, id]);
       loadWorkOrders();
     }
   }
@@ -227,7 +237,13 @@
       wo.client_document = c.document_id;
       wo.client_phone = c.phone;
     }
-    generateWorkOrderPDF(wo, items);
+    const companyData = await window.api.db.get("SELECT * FROM company_info WHERE id = 1");
+    const company = companyData && companyData.length > 0 ? companyData[0] : null;
+    const { url, filename } = generateWorkOrderPDF(wo, items, 'preview', company);
+    pdfPreviewUrl = url;
+    pdfPreviewFilename = filename;
+    pdfPreviewTitle = `Vista Previa - Orden de Trabajo WO-${String(wo.id).padStart(5, '0')}`;
+    showPdfPreview = true;
   }
 
   async function printConduce(wo) {
@@ -242,13 +258,26 @@
       wo.client_document = c.document_id;
       wo.client_phone = c.phone;
     }
-    generateConducePDF(wo, items);
+    const companyData = await window.api.db.get("SELECT * FROM company_info WHERE id = 1");
+    const company = companyData && companyData.length > 0 ? companyData[0] : null;
+    const { url, filename } = generateConducePDF(wo, items, 'preview', company);
+    pdfPreviewUrl = url;
+    pdfPreviewFilename = filename;
+    pdfPreviewTitle = `Vista Previa - Conduce WO-${String(wo.id).padStart(5, '0')}`;
+    showPdfPreview = true;
   }
 </script>
 
 <div class="card">
-  <div class="card-title">
-    <span>Órdenes de Trabajo (Operaciones)</span>
+  <div class="card-title" style="align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <span>Órdenes de Trabajo (Operaciones)</span>
+      <select bind:value={viewState} on:change={loadWorkOrders} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
+        <option value="1">🟢 Activas</option>
+        <option value="2">🟠 Inactivas</option>
+        <option value="0">📁 Archivadas</option>
+      </select>
+    </div>
     <button class="btn btn-primary" on:click={openCreate}>+ Crear Orden de Trabajo</button>
   </div>
 
@@ -278,19 +307,29 @@
               <button class="btn-icon text-primary" title="Generar Conduce" on:click={() => printConduce(wo)}>📝</button>
               <a href={`/checklist?wo=${wo.id}`} class="btn-icon" title="Checklist Salida/Retorno" style="text-decoration: none;">📋</a>
               
-              {#if wo.status === 'pendiente'}
-                <button class="btn-icon text-info" title="Marcar Preparado" on:click={() => changeStatus(wo.id, 'preparado')}>📦</button>
-              {:else if wo.status === 'preparado'}
-                <button class="btn-icon text-info" title="Marcar Cargado" on:click={() => changeStatus(wo.id, 'cargado')}>🚛</button>
-              {:else if wo.status === 'cargado'}
-                <button class="btn-icon text-success" title="Marcar Entregado" on:click={() => changeStatus(wo.id, 'entregado')}>✅</button>
-              {:else if wo.status === 'entregado'}
-                <button class="btn-icon text-warning" title="En Recogida" on:click={() => changeStatus(wo.id, 'en recogida')}>↩️</button>
-              {:else if wo.status === 'en recogida'}
-                <button class="btn-icon text-primary" title="Retornado (Checklist pendiente)" on:click={() => changeStatus(wo.id, 'retornado')}>🏢</button>
+              {#if viewState === '1'}
+                {#if wo.status === 'pendiente'}
+                  <button class="btn-icon text-info" title="Marcar Preparado" on:click={() => changeStatus(wo.id, 'preparado')}>📦</button>
+                {:else if wo.status === 'preparado'}
+                  <button class="btn-icon text-info" title="Marcar Cargado" on:click={() => changeStatus(wo.id, 'cargado')}>🚛</button>
+                {:else if wo.status === 'cargado'}
+                  <button class="btn-icon text-success" title="Marcar Entregado" on:click={() => changeStatus(wo.id, 'entregado')}>✅</button>
+                {:else if wo.status === 'entregado'}
+                  <button class="btn-icon text-warning" title="En Recogida" on:click={() => changeStatus(wo.id, 'en recogida')}>↩️</button>
+                {:else if wo.status === 'en recogida'}
+                  <button class="btn-icon text-primary" title="Retornado (Checklist pendiente)" on:click={() => changeStatus(wo.id, 'retornado')}>🏢</button>
+                {/if}
               {/if}
 
-              <button class="btn-icon text-danger" title="Eliminar" on:click={() => deactivateWO(wo.id)}>❌</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(wo.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(wo.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(wo.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(wo.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(wo.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -308,9 +347,9 @@
     
     {#if !isEditing}
     <div style="background: rgba(67, 94, 190, 0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--primary);">
-      <label style="color: var(--primary);">Generar desde Cotización Aprobada (Opcional)</label>
+      <label for="wo-qt-import" style="color: var(--primary);">Generar desde Cotización Aprobada (Opcional)</label>
       <div style="display: flex; gap: 10px; margin-top: 5px;">
-        <select class="form-control" bind:value={currentWO.quotation_id}>
+        <select id="wo-qt-import" class="form-control" bind:value={currentWO.quotation_id}>
           <option value="">Seleccione Cotización...</option>
           {#each quotations as qt}
             <option value={qt.id}>Cotización #{String(qt.id).padStart(5,'0')} - ${qt.total.toFixed(2)}</option>
@@ -323,8 +362,8 @@
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Cliente *</label>
-        <select class="form-control" bind:value={currentWO.client_id}>
+        <label for="wo-client">Cliente *</label>
+        <select id="wo-client" class="form-control" bind:value={currentWO.client_id}>
           <option value="">Seleccione un cliente...</option>
           {#each clients as client}
             <option value={client.id}>{client.name}</option>
@@ -332,35 +371,35 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Fecha de Operación</label>
-        <input type="date" bind:value={currentWO.date} class="form-control">
+        <label for="wo-date">Fecha de Operación</label>
+        <input id="wo-date" type="date" bind:value={currentWO.date} class="form-control">
       </div>
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Responsable / Chofer</label>
-        <input type="text" bind:value={currentWO.responsible_person} class="form-control">
+        <label for="wo-resp">Responsable / Chofer</label>
+        <input id="wo-resp" type="text" bind:value={currentWO.responsible_person} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Vehículo asignado</label>
-        <input type="text" bind:value={currentWO.vehicle} class="form-control">
+        <label for="wo-veh">Vehículo asignado</label>
+        <input id="wo-veh" type="text" bind:value={currentWO.vehicle} class="form-control">
       </div>
     </div>
     
     <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 0;">
     
-    <label style="color: var(--text-main); font-weight: 600;">Lista de Equipos a Preparar:</label>
+    <label for="wo-item-sel" style="color: var(--text-main); font-weight: 600;">Lista de Equipos a Preparar:</label>
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1; display: flex; gap: 5px;">
-        <select class="form-control" bind:value={selectedItemId}>
+        <select id="wo-item-sel" class="form-control" bind:value={selectedItemId}>
           <option value="">Buscar ítem en inventario...</option>
           {#each availableItems as item}
             <option value={item.id}>[{item.internal_code}] {item.name}</option>
           {/each}
         </select>
-        <input type="number" min="1" bind:value={selectedItemQty} class="form-control" style="width: 80px;" placeholder="Cant.">
+        <input aria-label="Cantidad de Ítem" type="number" min="1" bind:value={selectedItemQty} class="form-control" style="width: 80px;" placeholder="Cant.">
         <button class="btn btn-secondary" on:click={addItemToWO}>Add</button>
       </div>
     </div>
@@ -393,8 +432,8 @@
     </div>
 
     <div>
-      <label>Instrucciones de Montaje / Observaciones</label>
-      <textarea bind:value={currentWO.notes} class="form-control" rows="2"></textarea>
+      <label for="wo-notes">Instrucciones de Montaje / Observaciones</label>
+      <textarea id="wo-notes" bind:value={currentWO.notes} class="form-control" rows="2"></textarea>
     </div>
 
   </div>
@@ -404,6 +443,8 @@
     <button class="btn btn-primary" on:click={saveWorkOrder}>Guardar Orden de Trabajo</button>
   </div>
 </Modal>
+
+<PdfPreviewModal bind:show={showPdfPreview} pdfUrl={pdfPreviewUrl} filename={pdfPreviewFilename} title={pdfPreviewTitle} />
 
 <style>
   .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }

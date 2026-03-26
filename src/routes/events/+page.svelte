@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let events = [];
   let clients = [];
   let quotations = [];
@@ -77,7 +78,7 @@
       clients = await window.api.db.get("SELECT id, name FROM clients WHERE is_active = 1 ORDER BY name ASC");
       quotations = await window.api.db.get("SELECT id FROM quotations WHERE is_active = 1 AND status != 'borrador' ORDER BY id DESC");
       workOrders = await window.api.db.get("SELECT id FROM work_orders WHERE is_active = 1 ORDER BY id DESC");
-      eventTypes = await window.api.db.get("SELECT name FROM event_types WHERE is_active = 1 ORDER BY name ASC");
+      eventTypes = await window.api.db.get("SELECT id, name, color FROM event_types WHERE is_active = 1 ORDER BY name ASC");
       loadEvents();
     }
   }
@@ -87,9 +88,10 @@
       SELECT e.*, c.name as client_name 
       FROM events e
       LEFT JOIN clients c ON e.client_id = c.id
+      WHERE e.is_active = ?
       ORDER BY e.date DESC
     `;
-    events = await window.api.db.get(query);
+    events = await window.api.db.get(query, [parseInt(viewState)]);
   }
 
   onMount(() => {
@@ -147,11 +149,29 @@
     loadEvents();
   }
 
-  async function deleteEvent(id) {
-    if (confirm("¿Desactivar/Eliminar este evento permanentemente?")) {
-      await window.api.db.run("DELETE FROM events WHERE id = ?", [id]);
-      loadEvents();
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este evento?" 
+            : newState === 1 ? "¿Marcar este evento como Activo?"
+            : "¿Marcar este evento como Inactivo?";
+    if (confirm(msg)) {
+      try {
+        await window.api.db.run("UPDATE events SET is_active = ? WHERE id = ?", [newState, id]);
+        loadEvents();
+      } catch (e) {
+        if (e.message.includes("no such column")) {
+          await window.api.db.run("ALTER TABLE events ADD COLUMN is_active INTEGER DEFAULT 1");
+          await window.api.db.run("UPDATE events SET is_active = ? WHERE id = ?", [newState, id]);
+          loadEvents();
+        } else {
+          console.error(e);
+        }
+      }
     }
+  }
+
+  function getEventTypeColor(typeName) {
+    const et = eventTypes.find(t => t.name === typeName);
+    return et?.color || '#6c757d';
   }
 
   function getStatusBadgeClass(status) {
@@ -168,12 +188,17 @@
 <div class="card">
   <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
     <span>Agenda de Eventos</span>
-    <div style="display: flex; gap: 10px;">
-      <div class="btn-group" style="display: flex; background: var(--surface-color, #fff); border: 1px solid var(--border-color, #dee2e6); border-radius: var(--radius-sm, 4px); overflow: hidden;">
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <select bind:value={viewState} on:change={loadEvents} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; height: 35px;">
+        <option value="1">🟢 Activos</option>
+        <option value="2">🟠 Inactivos</option>
+        <option value="0">📁 Archivados</option>
+      </select>
+      <div class="btn-group" style="display: flex; background: var(--surface-color, #fff); border: 1px solid var(--border-color, #dee2e6); border-radius: var(--radius-sm, 4px); overflow: hidden; height: 35px;">
         <button class="btn-toggle {viewMode === 'list' ? 'active' : ''}" on:click={() => viewMode = 'list'}>Lista</button>
         <button class="btn-toggle {viewMode === 'calendar' ? 'active' : ''}" on:click={() => viewMode = 'calendar'}>Calendario</button>
       </div>
-      <button class="btn btn-primary" on:click={openCreate}>+ Crear Evento</button>
+      <button class="btn btn-primary" style="height: 35px;" on:click={openCreate}>+ Crear Evento</button>
     </div>
   </div>
 
@@ -193,10 +218,13 @@
       <tbody>
         {#each events as ev}
           <tr>
-            <td style="font-weight: 500;">{ev.date}</td>
+            <td style="font-weight: 500; border-left: 3px solid {getEventTypeColor(ev.event_type)}; padding-left: 10px;">{ev.date}</td>
             <td>
               <span style="font-weight: 600;">{ev.name}</span><br>
-              <small style="color: var(--text-muted);">{ev.event_type}</small>
+              <small style="display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted);">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: {getEventTypeColor(ev.event_type)}; display: inline-block; flex-shrink: 0;"></span>
+                {ev.event_type}
+              </small>
             </td>
             <td>{ev.client_name}</td>
             <td>{ev.location || '-'}</td>
@@ -205,10 +233,18 @@
             </td>
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(ev)}>✏️</button>
-              {#if ev.status !== 'completado'}
+              {#if ev.status !== 'completado' && viewState === '1'}
                 <button class="btn-icon text-success" title="Marcar como Completado" on:click={() => changeStatus(ev.id, 'completado')}>✅</button>
               {/if}
-              <button class="btn-icon text-danger" title="Eliminar" on:click={() => deleteEvent(ev.id)}>❌</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(ev.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(ev.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(ev.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(ev.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(ev.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -242,7 +278,13 @@
             <div class="day-events">
               {#if day.isCurrentMonth}
                 {#each day.events as ev}
-                  <button class="event-badge bg-{getStatusBadgeClass(ev.status).replace('badge-', '')}" on:click|stopPropagation={() => openEdit(ev)} type="button">
+                  {@const typeColor = getEventTypeColor(ev.event_type)}
+                  <button
+                    class="event-badge"
+                    style="background: {typeColor}22; color: {typeColor}; border-left: 3px solid {typeColor};"
+                    on:click|stopPropagation={() => openEdit(ev)}
+                    type="button"
+                  >
                     {ev.name}
                   </button>
                 {/each}
@@ -260,26 +302,29 @@
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Nombre del Evento *</label>
-        <input type="text" bind:value={currentEvent.name} class="form-control" placeholder="Ej. Boda Rivas-Gomez">
+        <label for="ev-name">Nombre del Evento *</label>
+        <input id="ev-name" type="text" bind:value={currentEvent.name} class="form-control" placeholder="Ej. Boda Rivas-Gomez">
       </div>
       <div style="flex: 1;">
-        <label>Tipo de Evento</label>
-        <select bind:value={currentEvent.event_type} class="form-control">
-          {#each eventTypes as et}
-            <option value={et.name}>{et.name}</option>
-          {/each}
-          {#if eventTypes.length === 0}
-            <option value="General">General</option>
-          {/if}
-        </select>
+        <label for="ev-type">Tipo de Evento</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <select id="ev-type" bind:value={currentEvent.event_type} class="form-control" style="flex: 1;">
+            {#each eventTypes as et}
+              <option value={et.name}>{et.name}</option>
+            {/each}
+            {#if eventTypes.length === 0}
+              <option value="General">General</option>
+            {/if}
+          </select>
+          <div style="width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; border: 1px solid var(--border-color); background: {getEventTypeColor(currentEvent.event_type)};"></div>
+        </div>
       </div>
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Cliente Asignado *</label>
-        <select bind:value={currentEvent.client_id} class="form-control">
+        <label for="ev-client">Cliente Asignado *</label>
+        <select id="ev-client" bind:value={currentEvent.client_id} class="form-control">
           <option value="">Seleccione Cliente...</option>
           {#each clients as client}
             <option value={client.id}>{client.name}</option>
@@ -287,8 +332,8 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Fecha Principal</label>
-        <input type="date" bind:value={currentEvent.date} class="form-control">
+        <label for="ev-date">Fecha Principal</label>
+        <input id="ev-date" type="date" bind:value={currentEvent.date} class="form-control">
       </div>
     </div>
 
@@ -296,34 +341,34 @@
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Hora de Salida (Almacén)</label>
-        <input type="time" bind:value={currentEvent.departure_time} class="form-control">
+        <label for="ev-dep">Hora de Salida (Almacén)</label>
+        <input id="ev-dep" type="time" bind:value={currentEvent.departure_time} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Hora de Montaje</label>
-        <input type="time" bind:value={currentEvent.setup_time} class="form-control">
+        <label for="ev-setup">Hora de Montaje</label>
+        <input id="ev-setup" type="time" bind:value={currentEvent.setup_time} class="form-control">
       </div>
     </div>
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Fecha de Recogida/Desmontaje</label>
-        <input type="date" bind:value={currentEvent.pickup_date} class="form-control">
+        <label for="ev-pdate">Fecha de Recogida/Desmontaje</label>
+        <input id="ev-pdate" type="date" bind:value={currentEvent.pickup_date} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Hora de Recogida</label>
-        <input type="time" bind:value={currentEvent.pickup_time} class="form-control">
+        <label for="ev-ptime">Hora de Recogida</label>
+        <input id="ev-ptime" type="time" bind:value={currentEvent.pickup_time} class="form-control">
       </div>
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Lugar / Locación</label>
-        <input type="text" bind:value={currentEvent.location} class="form-control" placeholder="Dirección exacta o venue">
+        <label for="ev-loc">Lugar / Locación</label>
+        <input id="ev-loc" type="text" bind:value={currentEvent.location} class="form-control" placeholder="Dirección exacta o venue">
       </div>
       <div style="flex: 1;">
-        <label>Responsable Comercial</label>
-        <input type="text" bind:value={currentEvent.responsible_person} class="form-control">
+        <label for="ev-resp">Responsable Comercial</label>
+        <input id="ev-resp" type="text" bind:value={currentEvent.responsible_person} class="form-control">
       </div>
     </div>
 
@@ -331,8 +376,8 @@
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Vincular Cotización</label>
-        <select bind:value={currentEvent.quotation_id} class="form-control">
+        <label for="ev-qt">Vincular Cotización</label>
+        <select id="ev-qt" bind:value={currentEvent.quotation_id} class="form-control">
           <option value="">(Ninguna)</option>
           {#each quotations as qt}
             <option value={qt.id}>Cotización #{String(qt.id).padStart(5,'0')}</option>
@@ -340,8 +385,8 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Vincular Orden de Trabajo</label>
-        <select bind:value={currentEvent.work_order_id} class="form-control">
+        <label for="ev-wo">Vincular Orden de Trabajo</label>
+        <select id="ev-wo" bind:value={currentEvent.work_order_id} class="form-control">
           <option value="">(Ninguna)</option>
           {#each workOrders as wo}
             <option value={wo.id}>WO-{String(wo.id).padStart(5,'0')}</option>
@@ -351,14 +396,14 @@
     </div>
 
     <div>
-      <label>Condiciones o Notas del Evento</label>
-      <textarea bind:value={currentEvent.notes} class="form-control" rows="2"></textarea>
+      <label for="ev-notes">Condiciones o Notas del Evento</label>
+      <textarea id="ev-notes" bind:value={currentEvent.notes} class="form-control" rows="2"></textarea>
     </div>
 
     {#if isEditing}
     <div>
-      <label>Estado del Evento</label>
-      <select bind:value={currentEvent.status} class="form-control">
+      <label for="ev-status">Estado del Evento</label>
+      <select id="ev-status" bind:value={currentEvent.status} class="form-control">
         <option value="tentativo">Tentativo (Cotizando)</option>
         <option value="confirmado">Confirmado</option>
         <option value="completado">Completado</option>

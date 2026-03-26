@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let packages = [];
   let availableItems = [];
   
@@ -35,11 +36,11 @@
       SELECT p.*, COUNT(pi.item_id) as total_items
       FROM packages p
       LEFT JOIN package_items pi ON p.id = pi.package_id
-      WHERE p.is_active = 1
+      WHERE p.is_active = ?
       GROUP BY p.id
       ORDER BY p.name ASC
     `;
-    packages = await window.api.db.get(query);
+    packages = await window.api.db.get(query, [parseInt(viewState)]);
   }
 
   async function loadPackageItems(packageId) {
@@ -137,17 +138,27 @@
     packageItems = packageItems.filter(p => p.item_id !== itemId);
   }
 
-  async function deactivatePackage(id) {
-    if (confirm("¿Eliminar este paquete?")) {
-      await window.api.db.run("UPDATE packages SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este paquete?" 
+            : newState === 1 ? "¿Marcar este paquete como Activo?"
+            : "¿Marcar este paquete como Inactivo?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE packages SET is_active = ? WHERE id = ?", [newState, id]);
       loadPackages();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title">
-    <span>Paquetes / Planes Predeterminados</span>
+  <div class="card-title" style="align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <span>Paquetes / Planes Predeterminados</span>
+      <select bind:value={viewState} on:change={loadPackages} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
+        <option value="1">🟢 Activos</option>
+        <option value="2">🟠 Inactivos</option>
+        <option value="0">📁 Archivados</option>
+      </select>
+    </div>
     <button class="btn btn-primary" on:click={openCreate}>+ Nuevo Paquete</button>
   </div>
 
@@ -170,8 +181,16 @@
             <td><span class="badge badge-primary">{pkg.total_items} ítems</span></td>
             <td style="font-weight: bold; color: var(--success);">${pkg.suggested_price.toFixed(2)}</td>
             <td>
-              <button class="btn-icon" on:click={() => openEdit(pkg)}>✏️</button>
-              <button class="btn-icon text-danger" on:click={() => deactivatePackage(pkg.id)}>❌</button>
+              <button class="btn-icon" title="Editar" on:click={() => openEdit(pkg)}>✏️</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(pkg.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(pkg.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(pkg.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(pkg.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(pkg.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -187,18 +206,18 @@
 <Modal bind:show={showModal} title={isEditing ? 'Editar Paquete' : 'Nuevo Paquete'}>
   <div style="display: flex; flex-direction: column; gap: 15px;">
     <div>
-      <label>Nombre del Paquete *</label>
-      <input type="text" bind:value={currentPackage.name} class="form-control" placeholder="Ej. Paquete Boda Esencial">
+      <label for="pkg-name">Nombre del Paquete *</label>
+      <input id="pkg-name" type="text" bind:value={currentPackage.name} class="form-control" placeholder="Ej. Paquete Boda Esencial">
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Descripción Breve</label>
-        <input type="text" bind:value={currentPackage.description} class="form-control">
+        <label for="pkg-desc">Descripción Breve</label>
+        <input id="pkg-desc" type="text" bind:value={currentPackage.description} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Precio Sugerido</label>
-        <input type="number" step="0.01" bind:value={currentPackage.suggested_price} class="form-control">
+        <label for="pkg-price">Precio Sugerido</label>
+        <input id="pkg-price" type="number" step="0.01" bind:value={currentPackage.suggested_price} class="form-control">
       </div>
     </div>
     
@@ -208,8 +227,8 @@
     
     <div style="display: flex; gap: 10px; align-items: flex-end; background: #f8f9fa; padding: 15px; border-radius: 8px;">
       <div style="flex: 2;">
-        <label>Buscar Ítem</label>
-        <select class="form-control" bind:value={selectedItemId}>
+        <label for="pkg-item-sel">Buscar Ítem</label>
+        <select id="pkg-item-sel" class="form-control" bind:value={selectedItemId}>
           <option value="">Seleccione un ítem...</option>
           {#each availableItems as item}
             <option value={item.id}>[{item.internal_code}] {item.name}</option>
@@ -217,8 +236,8 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Cantidad</label>
-        <input type="number" min="1" bind:value={selectedItemQty} class="form-control">
+        <label for="pkg-item-qty">Cantidad</label>
+        <input id="pkg-item-qty" type="number" min="1" bind:value={selectedItemQty} class="form-control">
       </div>
       <button class="btn btn-secondary" on:click={addItemToPackage} disabled={!selectedItemId}>Agregar</button>
     </div>
@@ -255,8 +274,8 @@
     </div>
 
     <div>
-      <label>Observaciones Internas</label>
-      <textarea bind:value={currentPackage.notes} class="form-control" rows="2"></textarea>
+      <label for="pkg-notes">Observaciones Internas</label>
+      <textarea id="pkg-notes" bind:value={currentPackage.notes} class="form-control" rows="2"></textarea>
     </div>
   </div>
 

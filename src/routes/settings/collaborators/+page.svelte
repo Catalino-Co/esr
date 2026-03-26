@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let collaborators = [];
   let showModal = false;
   let isEditing = false;
@@ -17,8 +18,8 @@
 
   async function loadData() {
     if (window.api && window.api.db) {
-      let query = "SELECT * FROM collaborators WHERE is_active = 1 ORDER BY name ASC";
-      collaborators = await window.api.db.get(query);
+      let query = "SELECT * FROM collaborators WHERE is_active = ? ORDER BY name ASC";
+      collaborators = await window.api.db.get(query, [parseInt(viewState)]);
     }
   }
 
@@ -60,19 +61,29 @@
     loadData();
   }
 
-  async function deactivateCollaborator(id) {
-    if (confirm("¿Desactivar/Eliminar este colaborador?")) {
-      await window.api.db.run("UPDATE collaborators SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este colaborador?" 
+            : newState === 1 ? "¿Restaurar este colaborador?"
+            : "¿Marcar colaborador como inactivo?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE collaborators SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
-    <span>Colaboradores (Staff)</span>
-    <button class="btn btn-primary" style="margin-left: auto;" on:click={openCreate}>+ Nuevo Colaborador</button>
+  <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+      <span>Colaboradores (Staff)</span>
+      <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left:10px;">
+        <option value="1">🟢 Activos</option>
+        <option value="2">🟠 Inactivos</option>
+        <option value="0">📁 Archivados</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" on:click={openCreate}>+ Nuevo Colaborador</button>
   </div>
 
   <div class="table-wrapper">
@@ -93,7 +104,15 @@
             <td>{c.phone || '-'}</td>
             <td>
               <button class="btn-icon" on:click={() => openEdit(c)}>✏️</button>
-              <button class="btn-icon text-danger" on:click={() => deactivateCollaborator(c.id)}>❌</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(c.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(c.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(c.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(c.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(c.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -109,22 +128,22 @@
 <Modal bind:show={showModal} title={isEditing ? 'Editar Colaborador' : 'Nuevo Colaborador'}>
   <div style="display: flex; flex-direction: column; gap: 15px;">
     <div>
-      <label>Nombre Completo *</label>
-      <input type="text" bind:value={currentPerson.name} class="form-control">
+      <label for="col-name">Nombre Completo *</label>
+      <input id="col-name" type="text" bind:value={currentPerson.name} class="form-control">
     </div>
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Teléfono</label>
-        <input type="text" bind:value={currentPerson.phone} class="form-control">
+        <label for="col-phone">Teléfono</label>
+        <input id="col-phone" type="text" bind:value={currentPerson.phone} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Correo Electrónico</label>
-        <input type="email" bind:value={currentPerson.email} class="form-control">
+        <label for="col-email">Correo Electrónico</label>
+        <input id="col-email" type="email" bind:value={currentPerson.email} class="form-control">
       </div>
     </div>
     <div>
-      <label>Rol / Especialidad</label>
-      <select bind:value={currentPerson.role} class="form-control">
+      <label for="col-role">Rol / Especialidad</label>
+      <select id="col-role" bind:value={currentPerson.role} class="form-control">
         <option value="">(Ninguno Especificado)</option>
         <option value="Montador">Montador</option>
         <option value="Chofer">Chofer</option>
@@ -134,8 +153,8 @@
       </select>
     </div>
     <div>
-      <label>Observaciones</label>
-      <textarea bind:value={currentPerson.notes} class="form-control" rows="2"></textarea>
+      <label for="col-notes">Observaciones</label>
+      <textarea id="col-notes" bind:value={currentPerson.notes} class="form-control" rows="2"></textarea>
     </div>
   </div>
   <div slot="footer">

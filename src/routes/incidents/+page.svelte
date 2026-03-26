@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let incidents = [];
   let availableItems = [];
   let clients = [];
@@ -39,9 +40,10 @@
       FROM incidents inc
       LEFT JOIN items i ON inc.item_id = i.id
       LEFT JOIN clients c ON inc.client_id = c.id
+      WHERE inc.is_active = ?
       ORDER BY inc.id DESC
     `;
-    incidents = await window.api.db.get(query);
+    incidents = await window.api.db.get(query, [parseInt(viewState)]);
   }
 
   onMount(() => {
@@ -115,17 +117,27 @@
     return 'var(--info)';
   }
 
-  async function deleteIncident(id) {
-    if (confirm("¿Eliminar este registro de incidencia permanentemente?")) {
-      await window.api.db.run("DELETE FROM incidents WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este registro de incidencia?" 
+            : newState === 1 ? "¿Restaurar este registro de incidencia?"
+            : "¿Marcar incidencia como inactiva?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE incidents SET is_active = ? WHERE id = ?", [newState, id]);
       loadIncidents();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title">
-    <span>Centro de Incidencias (Daños y Faltantes)</span>
+  <div class="card-title" style="align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <span>Centro de Incidencias (Daños y Faltantes)</span>
+      <select bind:value={viewState} on:change={loadIncidents} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
+        <option value="1">🟢 Activas</option>
+        <option value="2">🟠 Inactivas</option>
+        <option value="0">📁 Archivadas</option>
+      </select>
+    </div>
     <button class="btn btn-primary" on:click={openCreate}>+ Reportar Incidencia</button>
   </div>
 
@@ -164,14 +176,26 @@
             </td>
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(inc)}>✏️</button>
-              {#if inc.status === 'reportado'}
-                <button class="btn-icon text-warning" title="En Reparación" on:click={() => changeStatus(inc.id, 'en reparación')}>🔧</button>
-                <button class="btn-icon text-success" title="Resuelto / Cobrado" on:click={() => changeStatus(inc.id, 'cobrado')}>💰</button>
+              
+              {#if viewState === '1'}
+                {#if inc.status === 'reportado'}
+                  <button class="btn-icon text-warning" title="En Reparación" on:click={() => changeStatus(inc.id, 'en reparación')}>🔧</button>
+                  <button class="btn-icon text-success" title="Resuelto / Cobrado" on:click={() => changeStatus(inc.id, 'cobrado')}>💰</button>
+                {/if}
+                {#if inc.status === 'en reparación'}
+                  <button class="btn-icon text-success" title="Resuelto" on:click={() => changeStatus(inc.id, 'resuelto')}>✅</button>
+                {/if}
               {/if}
-              {#if inc.status === 'en reparación'}
-                <button class="btn-icon text-success" title="Resuelto" on:click={() => changeStatus(inc.id, 'resuelto')}>✅</button>
+
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(inc.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(inc.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(inc.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(inc.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(inc.id, 1)}>🔄</button>
               {/if}
-              <button class="btn-icon text-danger" title="Eliminar" on:click={() => deleteIncident(inc.id)}>❌</button>
             </td>
           </tr>
         {:else}
@@ -189,8 +213,8 @@
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Tipo de Incidencia *</label>
-        <select bind:value={currentIncident.type} class="form-control">
+        <label for="inc-type">Tipo de Incidencia *</label>
+        <select id="inc-type" bind:value={currentIncident.type} class="form-control">
           <option value="daño">Daño Estructural / Visual</option>
           <option value="avería">Avería Técnica</option>
           <option value="faltante">Faltante (Retorno Incompleto)</option>
@@ -198,8 +222,8 @@
         </select>
       </div>
       <div style="flex: 2;">
-        <label>Equipo Afectado *</label>
-        <select class="form-control" bind:value={currentIncident.item_id}>
+        <label for="inc-item">Equipo Afectado *</label>
+        <select id="inc-item" class="form-control" bind:value={currentIncident.item_id}>
           <option value="">Seleccione equipo...</option>
           {#each availableItems as item}
             <option value={item.id}>[{item.internal_code}] {item.name}</option>
@@ -210,8 +234,8 @@
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Relacionado a Orden (Opcional)</label>
-        <select bind:value={currentIncident.work_order_id} class="form-control">
+        <label for="inc-wo">Relacionado a Orden (Opcional)</label>
+        <select id="inc-wo" bind:value={currentIncident.work_order_id} class="form-control">
           <option value="">Ninguna</option>
           {#each workOrders as wo}
             <option value={wo.id}>WO-{String(wo.id).padStart(5,'0')}</option>
@@ -219,8 +243,8 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Cliente (Si aplica)</label>
-        <select bind:value={currentIncident.client_id} class="form-control">
+        <label for="inc-client">Cliente (Si aplica)</label>
+        <select id="inc-client" bind:value={currentIncident.client_id} class="form-control">
           <option value="">Ninguno</option>
           {#each clients as client}
             <option value={client.id}>{client.name}</option>
@@ -231,37 +255,37 @@
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Gravedad / Severidad</label>
-        <select bind:value={currentIncident.severity} class="form-control">
+        <label for="inc-severity">Gravedad / Severidad</label>
+        <select id="inc-severity" bind:value={currentIncident.severity} class="form-control">
           <option value="baja">Baja</option>
           <option value="media">Media</option>
           <option value="alta">Alta</option>
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Costo Estimado ($)</label>
-        <input type="number" step="0.01" bind:value={currentIncident.estimated_cost} class="form-control">
+        <label for="inc-cost">Costo Estimado ($)</label>
+        <input id="inc-cost" type="number" step="0.01" bind:value={currentIncident.estimated_cost} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Fecha del Reporte</label>
-        <input type="date" bind:value={currentIncident.date} class="form-control">
+        <label for="inc-date">Fecha del Reporte</label>
+        <input id="inc-date" type="date" bind:value={currentIncident.date} class="form-control">
       </div>
     </div>
 
     <div>
-      <label>Descripción del Problema</label>
-      <textarea bind:value={currentIncident.description} class="form-control" rows="3" placeholder="Detalles de cómo ocurrió el daño o faltante..."></textarea>
+      <label for="inc-desc">Descripción del Problema</label>
+      <textarea id="inc-desc" bind:value={currentIncident.description} class="form-control" rows="3" placeholder="Detalles de cómo ocurrió el daño o faltante..."></textarea>
     </div>
 
     <div>
-      <label>Resolución / Notas Internas</label>
-      <input type="text" bind:value={currentIncident.notes} class="form-control" placeholder="Acciones a tomar...">
+      <label for="inc-notes">Resolución / Notas Internas</label>
+      <input id="inc-notes" type="text" bind:value={currentIncident.notes} class="form-control" placeholder="Acciones a tomar...">
     </div>
 
     {#if isEditing}
     <div>
-      <label>Estado Actual</label>
-      <select bind:value={currentIncident.status} class="form-control">
+      <label for="inc-status">Estado Actual</label>
+      <select id="inc-status" bind:value={currentIncident.status} class="form-control">
         <option value="reportado">Reportado</option>
         <option value="en reparación">En Reparación</option>
         <option value="cobrado">Cobrado al Cliente</option>

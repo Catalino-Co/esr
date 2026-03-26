@@ -1,7 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
 
+  let showPdfPreview = false;
+  let pdfPreviewUrl = "";
+  let pdfPreviewFilename = "";
+
+  let viewState = "1";
   let quotations = [];
   let clients = [];
   let events = []; // Ideally linked to clients, but we don't have Events CRUD fully active yet.
@@ -48,10 +54,10 @@
       SELECT q.*, c.name as client_name 
       FROM quotations q
       LEFT JOIN clients c ON q.client_id = c.id
-      WHERE q.is_active = 1
+      WHERE q.is_active = ?
       ORDER BY q.id DESC
     `;
-    quotations = await window.api.db.get(query);
+    quotations = await window.api.db.get(query, [parseInt(viewState)]);
   }
 
   async function loadQuoteItems(quoteId) {
@@ -244,20 +250,36 @@
       quote.client_phone = c.phone;
     }
 
-    generateQuotationPDF(quote, items);
+    const companyData = await window.api.db.get("SELECT * FROM company_info WHERE id = 1");
+    const company = companyData && companyData.length > 0 ? companyData[0] : null;
+
+    const { url, filename } = generateQuotationPDF(quote, items, 'preview', company);
+    pdfPreviewUrl = url;
+    pdfPreviewFilename = filename;
+    showPdfPreview = true;
   }
 
-  async function deactivateQuotation(id) {
-    if (confirm("¿Desactivar/Eliminar esta cotización?")) {
-      await window.api.db.run("UPDATE quotations SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar esta cotización?" 
+            : newState === 1 ? "¿Restaurar esta cotización?"
+            : "¿Marcar cotización como inactiva?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE quotations SET is_active = ? WHERE id = ?", [newState, id]);
       loadQuotations();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title">
-    <span>Historial de Cotizaciones</span>
+  <div class="card-title" style="align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <span>Historial de Cotizaciones</span>
+      <select bind:value={viewState} on:change={loadQuotations} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
+        <option value="1">🟢 Activas</option>
+        <option value="2">🟠 Inactivas</option>
+        <option value="0">📁 Archivadas</option>
+      </select>
+    </div>
     <button class="btn btn-primary" on:click={openCreate}>+ Crear Cotización</button>
   </div>
 
@@ -286,10 +308,18 @@
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(quote)}>✏️</button>
               <button class="btn-icon" title="Imprimir PDF" on:click={() => generatePDF(quote)}>🖨️</button>
-              {#if quote.status === 'borrador'}
+              {#if quote.status === 'borrador' && viewState === '1'}
                 <button class="btn-icon text-success" title="Marcar Aprobada" on:click={() => changeStatus(quote.id, 'aprobada')}>✔️</button>
               {/if}
-              <button class="btn-icon text-danger" title="Eliminar" on:click={() => deactivateQuotation(quote.id)}>❌</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(quote.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(quote.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(quote.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(quote.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(quote.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -307,8 +337,8 @@
     
     <div style="display: flex; gap: 15px;">
       <div style="flex: 2;">
-        <label>Cliente *</label>
-        <select class="form-control" bind:value={currentQuotation.client_id}>
+        <label for="qt-client">Cliente *</label>
+        <select id="qt-client" class="form-control" bind:value={currentQuotation.client_id}>
           <option value="">Seleccione un cliente...</option>
           {#each clients as client}
             <option value={client.id}>{client.name}</option>
@@ -316,12 +346,12 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Fecha</label>
-        <input type="date" bind:value={currentQuotation.date} class="form-control">
+        <label for="qt-date">Fecha</label>
+        <input id="qt-date" type="date" bind:value={currentQuotation.date} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Validez (Días)</label>
-        <input type="number" bind:value={currentQuotation.validity_days} class="form-control">
+        <label for="qt-validity">Validez (Días)</label>
+        <input id="qt-validity" type="number" bind:value={currentQuotation.validity_days} class="form-control">
       </div>
     </div>
     
@@ -330,7 +360,7 @@
     <label style="color: var(--text-main); font-weight: 600;">Agregar a la cotización:</label>
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1; display: flex; gap: 5px;">
-        <select class="form-control" bind:value={selectedItemId}>
+        <select aria-label="Añadir ítem individual" class="form-control" bind:value={selectedItemId}>
           <option value="">+ Ítem individual</option>
           {#each availableItems as item}
             <option value={item.id}>{item.name}</option>
@@ -339,7 +369,7 @@
         <button class="btn btn-secondary" on:click={addItemToQuote}>Add</button>
       </div>
       <div style="flex: 1; display: flex; gap: 5px;">
-        <select class="form-control" bind:value={selectedPackageId}>
+        <select aria-label="Añadir paquete" class="form-control" bind:value={selectedPackageId}>
           <option value="">+ Paquete</option>
           {#each availablePackages as pkg}
             <option value={pkg.id}>{pkg.name}</option>
@@ -365,8 +395,8 @@
           {#each quoteItems as qItem, i}
             <tr>
               <td>{qItem.name}</td>
-              <td><input type="number" class="form-control" style="padding: 4px;" bind:value={qItem.quantity} on:input={() => updateItemTotal(i)} min="1"></td>
-              <td><input type="number" class="form-control" style="padding: 4px;" step="0.01" bind:value={qItem.price} on:input={() => updateItemTotal(i)}></td>
+              <td><input aria-label="Cantidad" type="number" class="form-control" style="padding: 4px;" bind:value={qItem.quantity} on:input={() => updateItemTotal(i)} min="1"></td>
+              <td><input aria-label="Precio" type="number" class="form-control" style="padding: 4px;" step="0.01" bind:value={qItem.price} on:input={() => updateItemTotal(i)}></td>
               <td style="font-weight: 500;">${qItem.total.toFixed(2)}</td>
               <td><button class="btn-icon text-danger" on:click={() => removeQuoteItem(i)}>🗑️</button></td>
             </tr>
@@ -397,12 +427,12 @@
     <!-- Details -->
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Observaciones (Internas)</label>
-        <textarea bind:value={currentQuotation.notes} class="form-control" rows="2"></textarea>
+        <label for="qt-notes">Observaciones (Internas)</label>
+        <textarea id="qt-notes" bind:value={currentQuotation.notes} class="form-control" rows="2"></textarea>
       </div>
       <div style="flex: 1;">
-        <label>Condiciones (Visibles en PDF)</label>
-        <textarea bind:value={currentQuotation.conditions} class="form-control" rows="2"></textarea>
+        <label for="qt-cond">Condiciones (Visibles en PDF)</label>
+        <textarea id="qt-cond" bind:value={currentQuotation.conditions} class="form-control" rows="2"></textarea>
       </div>
     </div>
 
@@ -413,6 +443,8 @@
     <button class="btn btn-primary" on:click={saveQuotation}>Guardar Cotización</button>
   </div>
 </Modal>
+
+<PdfPreviewModal bind:show={showPdfPreview} pdfUrl={pdfPreviewUrl} filename={pdfPreviewFilename} title="Vista Previa de Cotización" />
 
 <style>
   .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }

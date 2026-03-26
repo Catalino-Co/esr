@@ -2,6 +2,13 @@
   // Menú principal de ajustes
   const settingModules = [
     {
+      title: 'Datos de la Empresa',
+      description: 'Configurar el nombre, logo, RNC y datos de contacto para los PDFs.',
+      icon: '🏢',
+      path: '/settings/company',
+      color: '#0ea5e9' // sky azulado
+    },
+    {
       title: 'Usuarios del Sistema',
       description: 'Gestión de accesos, contraseñas y roles administrativos.',
       icon: '🔐',
@@ -28,6 +35,13 @@
       icon: '📁',
       path: '/settings/categories',
       color: '#e83e8c'
+    },
+    {
+      title: 'Agenda de Suplidores',
+      description: 'Directorio de empresas de transporte, personal de apoyo y otros servicios subcontratados.',
+      icon: '🤝',
+      path: '/settings/suppliers',
+      color: '#8b5cf6'
     }
   ];
 </script>

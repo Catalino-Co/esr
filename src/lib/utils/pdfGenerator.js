@@ -1,17 +1,49 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export function generateQuotationPDF(quotation, items) {
+function renderCompanyHeader(doc, companyInfo) {
+  let textY = 20;
+  
+  if (companyInfo && companyInfo.logo_base64) {
+    try {
+      let format = 'JPEG';
+      if (companyInfo.logo_base64.startsWith('data:image/png')) format = 'PNG';
+      doc.addImage(companyInfo.logo_base64, format, 14, 10, 45, 20);
+      textY = 36;
+    } catch(e) {
+      console.warn("Error rendering logo", e);
+    }
+  }
+
+  doc.setFontSize(16);
+  doc.setTextColor(67, 94, 190);
+  doc.text(companyInfo && companyInfo.name ? companyInfo.name : "ESR APP", 14, textY);
+
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  textY += 5;
+  
+  if (companyInfo) {
+    if (companyInfo.rnc) { doc.text(`RNC: ${companyInfo.rnc}`, 14, textY); textY += 4; }
+    if (companyInfo.phone || companyInfo.email) { 
+      let ctext = [];
+      if(companyInfo.phone) ctext.push(`Tel: ${companyInfo.phone}`);
+      if(companyInfo.email) ctext.push(`Email: ${companyInfo.email}`);
+      doc.text(ctext.join(' | '), 14, textY); 
+      textY += 4; 
+    }
+    if (companyInfo.address) { 
+      doc.text(doc.splitTextToSize(companyInfo.address, 100), 14, textY); 
+    }
+  } else {
+    doc.text("Events Stock & Rentals", 14, textY);
+  }
+}
+
+export function generateQuotationPDF(quotation, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
   
-  // Header
-  doc.setFontSize(22);
-  doc.setTextColor(67, 94, 190); // Primary color
-  doc.text("ESR APP", 14, 20);
-  
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text("Events Stock & Rentals", 14, 26);
+  renderCompanyHeader(doc, companyInfo);
   
   // Doc Title
   doc.setFontSize(18);
@@ -26,11 +58,11 @@ export function generateQuotationPDF(quotation, items) {
   // Client Info
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text("Cliente:", 14, 45);
+  doc.text("Cliente:", 14, 55);
   doc.setFont("helvetica", "normal");
-  doc.text(quotation.client_name || "N/A", 14, 51);
-  if (quotation.client_document) doc.text(`ID/RNC: ${quotation.client_document}`, 14, 56);
-  if (quotation.client_phone) doc.text(`Tel: ${quotation.client_phone}`, 14, 61);
+  doc.text(quotation.client_name || "N/A", 14, 61);
+  if (quotation.client_document) doc.text(`ID/RNC: ${quotation.client_document}`, 14, 66);
+  if (quotation.client_phone) doc.text(`Tel: ${quotation.client_phone}`, 14, 71);
   
   // Items Table
   const tableData = items.map(i => [
@@ -41,7 +73,7 @@ export function generateQuotationPDF(quotation, items) {
   ]);
 
   autoTable(doc, {
-    startY: 70,
+    startY: 80,
     head: [['Descripción', 'Cant.', 'Precio Unit.', 'Subtotal']],
     body: tableData,
     theme: 'striped',
@@ -55,7 +87,7 @@ export function generateQuotationPDF(quotation, items) {
   });
 
   // Totals
-  const finalY = doc.lastAutoTable.finalY || 70;
+  const finalY = doc.lastAutoTable.finalY || 80;
   
   doc.setFontSize(10);
   doc.text(`Subtotal:`, 140, finalY + 10);
@@ -91,19 +123,20 @@ export function generateQuotationPDF(quotation, items) {
   doc.line(14, 280, 80, 280);
   doc.text("Firma de Aceptación", 30, 285);
 
+  const filename = `Cotizacion_${String(quotation.id).padStart(5, '0')}.pdf`;
+
+  if (action === 'preview') {
+    return { url: doc.output('bloburl'), filename };
+  }
+  
   // Save PDF
-  doc.save(`Cotizacion_${String(quotation.id).padStart(5, '0')}.pdf`);
+  doc.save(filename);
 }
 
-export function generateWorkOrderPDF(wo, items) {
+export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
   
-  doc.setFontSize(22);
-  doc.setTextColor(67, 94, 190);
-  doc.text("ESR APP", 14, 20);
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text("Events Stock & Rentals", 14, 26);
+  renderCompanyHeader(doc, companyInfo);
   
   doc.setFontSize(18);
   doc.setTextColor(0);
@@ -115,10 +148,10 @@ export function generateWorkOrderPDF(wo, items) {
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text("Cliente / Evento:", 14, 45);
+  doc.text("Cliente / Evento:", 14, 55);
   doc.setFont("helvetica", "normal");
-  doc.text(wo.client_name || "N/A", 14, 51);
-  doc.text(`Responsable: ${wo.responsible_person || 'No asignado'}`, 14, 56);
+  doc.text(wo.client_name || "N/A", 14, 61);
+  doc.text(`Responsable: ${wo.responsible_person || 'No asignado'}`, 14, 66);
   
   const tableData = items.map(i => [
     i.internal_code,
@@ -127,7 +160,7 @@ export function generateWorkOrderPDF(wo, items) {
   ]);
 
   autoTable(doc, {
-    startY: 65,
+    startY: 75,
     head: [['Código', 'Descripción del Ítem', 'Cantidad a Preparar']],
     body: tableData,
     theme: 'grid',
@@ -144,19 +177,23 @@ export function generateWorkOrderPDF(wo, items) {
     doc.text(doc.splitTextToSize(wo.notes, 180), 14, finalY + 6);
   }
 
-  doc.save(`Orden_Trabajo_${String(wo.id).padStart(5, '0')}.pdf`);
+  const filename = `Orden_Trabajo_${String(wo.id).padStart(5, '0')}.pdf`;
+
+  if (action === 'preview') {
+    return { url: doc.output('bloburl'), filename };
+  }
+
+  doc.save(filename);
 }
 
-export function generateConducePDF(wo, items) {
+export function generateConducePDF(wo, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
   
-  doc.setFontSize(22);
-  doc.setTextColor(67, 94, 190);
-  doc.text("ESR APP", 14, 20);
+  renderCompanyHeader(doc, companyInfo);
   
   doc.setFontSize(18);
   doc.setTextColor(0);
-  doc.text("CONDUCE DE ENTREGA", 140, 20);
+  doc.text("CONDUCE", 140, 20);
   doc.setFontSize(10);
   if (wo.conduce_id) {
     doc.text(`COND-${String(wo.conduce_id).padStart(5, '0')}`, 140, 26);
@@ -169,38 +206,61 @@ export function generateConducePDF(wo, items) {
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text("Entregado a:", 14, 45);
+  doc.text("Entregado a:", 14, 55);
   doc.setFont("helvetica", "normal");
-  doc.text(wo.client_name || "N/A", 14, 51);
+  doc.text(wo.client_name || "N/A", 14, 61);
 
   const tableData = items.map(i => [
     i.quantity.toString(),
     i.name,
-    "" // Espacio para check manual si se desea
+    `$${Number(i.price || 0).toFixed(2)}`,
+    `$${Number((i.quantity || 0) * (i.price || 0)).toFixed(2)}`
   ]);
 
   autoTable(doc, {
-    startY: 60,
-    head: [['Cant.', 'Descripción del Equipo', 'Verificado']],
+    startY: 70,
+    head: [['Cant.', 'Descripción del Equipo', 'Precio Unit.', 'Subtotal']],
     body: tableData,
-    theme: 'plain',
-    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [200, 200, 200] },
-    bodyStyles: { lineWidth: 0.1, lineColor: [200, 200, 200] },
-    columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { cellWidth: 30 } }
+    theme: 'striped',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 20 },
+      2: { halign: 'right', cellWidth: 30 },
+      3: { halign: 'right', cellWidth: 30 }
+    }
   });
 
-  const finalY = doc.lastAutoTable.finalY + 40;
+  const finalY = doc.lastAutoTable.finalY || 70;
+  
+  doc.setFontSize(10);
+  doc.text(`Subtotal:`, 140, finalY + 10);
+  doc.text(`$${Number(wo.subtotal || 0).toFixed(2)}`, 180, finalY + 10, { align: "right" });
+  
+  doc.text(`Descuento:`, 140, finalY + 16);
+  doc.text(`-$${Number(wo.discount || 0).toFixed(2)}`, 180, finalY + 16, { align: "right" });
+  
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text(`TOTAL:`, 140, finalY + 24);
+  doc.text(`$${Number(wo.total || 0).toFixed(2)}`, 180, finalY + 24, { align: "right" });
+
+  const signatureY = finalY + 45;
   
   doc.setLineWidth(0.5);
-  doc.line(20, finalY, 80, finalY);
-  doc.text("Entregado por (Firma)", 25, finalY + 5);
+  doc.line(20, signatureY, 80, signatureY);
+  doc.text("Entregado por (Firma)", 25, signatureY + 5);
 
-  doc.line(120, finalY, 180, finalY);
-  doc.text("Recibido Conforme (Firma)", 125, finalY + 5);
+  doc.line(120, signatureY, 180, signatureY);
+  doc.text("Recibido Conforme (Firma)", 125, signatureY + 5);
 
-  if (wo.conduce_id) {
-    doc.save(`Conduce_${String(wo.conduce_id).padStart(5, '0')}_WO_${String(wo.id).padStart(5, '0')}.pdf`);
-  } else {
-    doc.save(`Conduce_WO_${String(wo.id).padStart(5, '0')}.pdf`);
+  const filename = wo.conduce_id 
+    ? `Conduce_${String(wo.conduce_id).padStart(5, '0')}_WO_${String(wo.id).padStart(5, '0')}.pdf`
+    : `Conduce_WO_${String(wo.id).padStart(5, '0')}.pdf`;
+
+  if (action === 'preview') {
+    return { url: doc.output('bloburl'), filename };
   }
+
+  doc.save(filename);
 }

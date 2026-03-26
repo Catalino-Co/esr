@@ -2,94 +2,137 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let eventTypes = [];
   let showModal = false;
   let isEditing = false;
-  
-  let currentType = {
-    id: null,
-    name: ''
-  };
+
+  let currentType = { id: null, name: '', color: '#6366f1', description: '' };
 
   async function loadData() {
     if (window.api && window.api.db) {
-      let query = "SELECT * FROM event_types WHERE is_active = 1 ORDER BY name ASC";
-      eventTypes = await window.api.db.get(query);
+      eventTypes = await window.api.db.get(
+        "SELECT * FROM event_types WHERE is_active = ? ORDER BY name ASC",
+        [parseInt(viewState)]
+      );
     }
   }
 
-  onMount(() => {
-    loadData();
-  });
+  onMount(() => loadData());
 
   function openCreate() {
     isEditing = false;
-    currentType = { id: null, name: '' };
+    currentType = { id: null, name: '', color: '#6366f1', description: '' };
     showModal = true;
   }
 
   function openEdit(type) {
     isEditing = true;
-    currentType = { ...type };
+    currentType = { ...type, color: type.color || '#6366f1', description: type.description || '' };
     showModal = true;
   }
 
   async function saveType() {
-    if (!currentType.name) {
+    if (!currentType.name.trim()) {
       alert("El nombre es obligatorio");
       return;
     }
-
     try {
       if (isEditing) {
-        await window.api.db.run(`UPDATE event_types SET name=? WHERE id=?`, [currentType.name, currentType.id]);
+        try {
+          await window.api.db.run(
+            `UPDATE event_types SET name=?, color=?, description=? WHERE id=?`,
+            [currentType.name.trim(), currentType.color, currentType.description || null, currentType.id]
+          );
+        } catch {
+          await window.api.db.run(
+            `UPDATE event_types SET name=? WHERE id=?`,
+            [currentType.name.trim(), currentType.id]
+          );
+        }
       } else {
-        await window.api.db.run(`INSERT INTO event_types (name) VALUES (?)`, [currentType.name]);
+        try {
+          await window.api.db.run(
+            `INSERT INTO event_types (name, color, description) VALUES (?, ?, ?)`,
+            [currentType.name.trim(), currentType.color, currentType.description || null]
+          );
+        } catch {
+          await window.api.db.run(
+            `INSERT INTO event_types (name) VALUES (?)`,
+            [currentType.name.trim()]
+          );
+        }
       }
       showModal = false;
       loadData();
-    } catch(err) {
+    } catch (err) {
       alert("Ocurrió un error. Verifica que el nombre no esté duplicado.");
     }
   }
 
-  async function deactivateType(id) {
-    if (confirm("¿Desactivar este tipo de evento?")) {
-      await window.api.db.run("UPDATE event_types SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este tipo de evento?"
+            : newState === 1 ? "¿Restaurar este tipo de evento?"
+            : "¿Marcar tipo de evento como inactivo?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE event_types SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
-    <span>Tipos de Eventos</span>
-    <button class="btn btn-primary" style="margin-left: auto;" on:click={openCreate}>+ Nuevo Tipo</button>
+  <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+      <span>Tipos de Eventos</span>
+      <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left: 10px;">
+        <option value="1">🟢 Activos</option>
+        <option value="2">🟠 Inactivos</option>
+        <option value="0">📁 Archivados</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" on:click={openCreate}>+ Nuevo Tipo</button>
   </div>
 
   <div class="table-wrapper">
     <table class="table">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Nombre del Tipo de Evento</th>
-          <th style="width: 100px; text-align: center;">Acciones</th>
+          <th style="width: 36px;"></th>
+          <th style="width: 220px;">Nombre del Tipo de Evento</th>
+          <th>Descripción</th>
+          <th style="width: 96px; text-align: right;">Acciones</th>
         </tr>
       </thead>
       <tbody>
         {#each eventTypes as t}
           <tr>
-            <td style="color: var(--text-muted);">#{t.id}</td>
-            <td style="font-weight: 500;">{t.name}</td>
-            <td style="text-align: center;">
-              <button class="btn-icon" on:click={() => openEdit(t)}>✏️</button>
-              <button class="btn-icon text-danger" on:click={() => deactivateType(t.id)}>❌</button>
+            <td style="padding: 0 0 0 8px;">
+              <div class="color-dot" style="background: {t.color || '#6366f1'};"></div>
+            </td>
+            <td>
+              <span class="type-pill" style="border-left: 3px solid {t.color || '#6366f1'}; background: {t.color || '#6366f1'}18;">
+                {t.name}
+              </span>
+            </td>
+            <td style="color: var(--text-muted); font-size: 0.88rem;">{t.description || '—'}</td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button class="btn-icon" title="Editar" on:click={() => openEdit(t)}>✏️</button>
+              {#if viewState === '1'}
+                <button class="btn-icon" title="Inactivar" on:click={() => changeState(t.id, 2)}>⏸️</button>
+                <button class="btn-icon" title="Archivar" on:click={() => changeState(t.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon" title="Activar" on:click={() => changeState(t.id, 1)}>▶️</button>
+                <button class="btn-icon" title="Archivar" on:click={() => changeState(t.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar" on:click={() => changeState(t.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
           <tr>
-            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay tipos de eventos registrados.</td>
+            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay tipos de eventos registrados.</td>
           </tr>
         {/each}
       </tbody>
@@ -97,12 +140,29 @@
   </div>
 </div>
 
-<Modal bind:show={showModal} title={isEditing ? 'Editar Tipo' : 'Nuevo Tipo'}>
-  <div style="display: flex; flex-direction: column; gap: 15px;">
+<Modal bind:show={showModal} title={isEditing ? 'Editar Tipo de Evento' : 'Nuevo Tipo de Evento'} maxWidth="480px">
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+
     <div>
-      <label>Nombre del Tipo de Evento *</label>
-      <input type="text" bind:value={currentType.name} class="form-control" placeholder="Ej. Boda, Corporativo, Concierto...">
+      <label for="event-type-name">Nombre *</label>
+      <input id="event-type-name" type="text" bind:value={currentType.name} class="form-control" placeholder="Ej. Boda, Corporativo, Concierto...">
     </div>
+
+    <div>
+      <label>Color identificador</label>
+      <div class="color-row">
+        <input type="color" class="color-input" bind:value={currentType.color} />
+        <div class="color-preview" style="border-left: 4px solid {currentType.color}; background: {currentType.color}18;">
+          <span style="color: {currentType.color}; font-weight: 600;">{currentType.name || 'Vista previa'}</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <label for="event-type-desc">Descripción <span style="font-weight: 400; opacity: 0.7;">(opcional)</span></label>
+      <textarea id="event-type-desc" bind:value={currentType.description} class="form-control" rows="2" placeholder="Breve descripción del tipo de evento..."></textarea>
+    </div>
+
   </div>
 
   <div slot="footer">
@@ -112,10 +172,56 @@
 </Modal>
 
 <style>
-  .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
+  .color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .type-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .color-input {
+    width: 48px;
+    height: 38px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 2px;
+    cursor: pointer;
+    background: white;
+  }
+  .color-preview {
+    flex: 1;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+  }
+  .form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    outline: none;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+    font-family: inherit;
+    resize: vertical;
+  }
   .form-control:focus { border-color: var(--primary); }
   label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
-  .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s;}
+  .btn-icon { background: none; border: none; cursor: pointer; padding: 4px 5px; opacity: 0.6; transition: 0.2s; }
   .btn-icon:hover { opacity: 1; transform: scale(1.1); }
-  .text-danger { color: var(--danger); }
 </style>

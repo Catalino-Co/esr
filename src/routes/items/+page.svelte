@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
 
+  let viewState = "1";
   let items = [];
   let categories = [];
   let subcategories = [];
@@ -38,9 +39,9 @@
       FROM items i 
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN subcategories s ON i.subcategory_id = s.id
-      WHERE i.is_active = 1
+      WHERE i.is_active = ?
     `;
-    let params = [];
+    let params = [parseInt(viewState)];
     if (filterCategory) {
       query += ` AND i.category_id = ?`;
       params.push(filterCategory);
@@ -112,17 +113,27 @@
     loadItems();
   }
 
-  async function deactivateItem(id) {
-    if (confirm("¿Eliminar este ítem del inventario?")) {
-      await window.api.db.run("UPDATE items SET is_active = 0 WHERE id = ?", [id]);
+  async function changeState(id, newState) {
+    let msg = newState === 0 ? "¿Archivar este ítem?" 
+            : newState === 1 ? "¿Marcar este ítem como Activo?"
+            : "¿Marcar este ítem como Inactivo?";
+    if (confirm(msg)) {
+      await window.api.db.run("UPDATE items SET is_active = ? WHERE id = ?", [newState, id]);
       loadItems();
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title">
-    <span>Inventario de Ítems</span>
+  <div class="card-title" style="align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center;">
+      <span>Inventario de Ítems</span>
+      <select bind:value={viewState} on:change={loadItems} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
+        <option value="1">🟢 Activos</option>
+        <option value="2">🟠 Inactivos</option>
+        <option value="0">📁 Archivados</option>
+      </select>
+    </div>
     <div style="display: flex; gap: 10px;">
       <select class="form-control" bind:value={filterCategory} on:change={loadItems} style="width: 200px;">
         <option value="">Todas las Categorías</option>
@@ -166,8 +177,16 @@
             </td>
             <td>${item.rental_price.toFixed(2)}</td>
             <td>
-              <button class="btn-icon" on:click={() => openEdit(item)}>✏️</button>
-              <button class="btn-icon text-danger" on:click={() => deactivateItem(item.id)}>❌</button>
+              <button class="btn-icon" title="Editar" on:click={() => openEdit(item)}>✏️</button>
+              {#if viewState === '1'}
+                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(item.id, 2)}>⏸️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(item.id, 0)}>📁</button>
+              {:else if viewState === '2'}
+                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(item.id, 1)}>▶️</button>
+                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(item.id, 0)}>📁</button>
+              {:else}
+                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(item.id, 1)}>🔄</button>
+              {/if}
             </td>
           </tr>
         {:else}
@@ -184,19 +203,19 @@
   <div style="display: flex; flex-direction: column; gap: 15px;">
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Código Interno</label>
-        <input type="text" bind:value={currentItem.internal_code} class="form-control" placeholder="Ej. AUD-001">
+        <label for="itm-code">Código Interno</label>
+        <input id="itm-code" type="text" bind:value={currentItem.internal_code} class="form-control" placeholder="Ej. AUD-001">
       </div>
       <div style="flex: 2;">
-        <label>Nombre *</label>
-        <input type="text" bind:value={currentItem.name} class="form-control" placeholder="Ej. Bocina Activa 15&quot;">
+        <label for="itm-name">Nombre *</label>
+        <input id="itm-name" type="text" bind:value={currentItem.name} class="form-control" placeholder="Ej. Bocina Activa 15&quot;">
       </div>
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
-        <label>Categoría *</label>
-        <select class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange}>
+        <label for="itm-cat">Categoría *</label>
+        <select id="itm-cat" class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange}>
           <option value="">Seleccione...</option>
           {#each categories as cat}
             <option value={cat.id}>{cat.name}</option>
@@ -204,8 +223,8 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Subcategoría</label>
-        <select class="form-control" bind:value={currentItem.subcategory_id} disabled={!currentItem.category_id}>
+        <label for="itm-subcat">Subcategoría</label>
+        <select id="itm-subcat" class="form-control" bind:value={currentItem.subcategory_id} disabled={!currentItem.category_id}>
           <option value="">Ninguna</option>
           {#each subcategories as sub}
             <option value={sub.id}>{sub.name}</option>
@@ -216,37 +235,37 @@
 
     <div style="display: flex; gap: 15px; align-items: flex-end;">
       <div style="flex: 1;">
-        <label>Tipo de Ítem</label>
-        <select class="form-control" bind:value={currentItem.item_type}>
+        <label for="itm-type">Tipo de Ítem</label>
+        <select id="itm-type" class="form-control" bind:value={currentItem.item_type}>
           <option value="cantidad">General (Por Cantidad)</option>
           <option value="serializado">Unitario (Serializado)</option>
         </select>
       </div>
       <div style="flex: 1;">
-        <label>Cantidad Total</label>
-        <input type="number" bind:value={currentItem.total_quantity} min="1" class="form-control">
+        <label for="itm-qty">Cantidad Total</label>
+        <input id="itm-qty" type="number" bind:value={currentItem.total_quantity} min="1" class="form-control">
       </div>
       <div style="flex: 1;">
-        <label>Precio Alquiler</label>
-        <input type="number" step="0.01" bind:value={currentItem.rental_price} class="form-control">
+        <label for="itm-price">Precio Alquiler</label>
+        <input id="itm-price" type="number" step="0.01" bind:value={currentItem.rental_price} class="form-control">
       </div>
     </div>
     
     <div>
-      <label>¿Controla Seriales Individuales?</label>
+      <span style="display:block; font-size:0.85rem; font-weight:500; color:var(--text-muted); margin-bottom:5px;">¿Controla Seriales Individuales?</span>
       <div style="display: flex; gap: 10px; margin-top: 5px;">
-        <label style="display: inline-flex; align-items: center; gap: 5px;">
+        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
           <input type="radio" bind:group={currentItem.uses_serial} value={0}> No
         </label>
-        <label style="display: inline-flex; align-items: center; gap: 5px;">
+        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
           <input type="radio" bind:group={currentItem.uses_serial} value={1}> Sí
         </label>
       </div>
     </div>
 
     <div>
-      <label>Descripción / Observaciones</label>
-      <textarea bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
+      <label for="itm-notes">Descripción / Observaciones</label>
+      <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
     </div>
   </div>
 
