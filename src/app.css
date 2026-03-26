@@ -56,42 +56,100 @@ a {
   width: 100vw;
 }
 
-/* Sidebar */
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
 .sidebar {
   width: 260px;
+  min-width: 260px;
   background-color: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s;
+  transition: width 0.25s ease, min-width 0.25s ease;
+  overflow: hidden;
 }
 
 .sidebar-header {
   height: 70px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  color: white;
-  font-size: 1.25rem;
-  font-weight: 700;
+  justify-content: space-between;
+  padding: 0 16px 0 20px;
   border-bottom: 1px solid var(--sidebar-hover);
+}
+
+.sidebar-brand {
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.sidebar-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--sidebar-text);
+  border-radius: 5px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.68rem;
+  transition: all 0.2s;
+  padding: 0;
+}
+.sidebar-toggle:hover {
+  background: var(--sidebar-hover);
+  color: white;
+  border-color: rgba(255,255,255,0.3);
+}
+
+.sidebar-user {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+.sidebar-user-role {
+  font-size: 0.75rem;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.sidebar-user-name {
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.92rem;
+  margin-top: 2px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 20px 0;
+  padding: 12px 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
+  padding: 11px 20px;
   color: var(--sidebar-text);
   font-weight: 500;
-  transition: all 0.2s;
+  transition: all 0.18s;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
 }
-
 .nav-item:hover, .nav-item.active {
   background-color: var(--sidebar-hover);
   color: var(--sidebar-text-active);
@@ -99,9 +157,90 @@ a {
 }
 
 .nav-icon {
+  flex-shrink: 0;
   margin-right: 12px;
-  width: 20px;
+  width: 22px;
   text-align: center;
+  font-size: 1rem;
+  transition: margin 0.2s;
+}
+.nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.15s;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding: 16px 14px;
+  margin-top: auto;
+}
+.logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: rgba(220,53,69,0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(220,53,69,0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.logout-btn:hover { background: rgba(220,53,69,0.22); }
+
+/* ── Sidebar collapsed state ─────────────────────────────────────────────── */
+.sidebar.collapsed {
+  width: 64px;
+  min-width: 64px;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar.collapsed .sidebar-brand {
+  display: none;
+}
+.sidebar.collapsed .sidebar-user {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 13px 0;
+  border-left: none !important;
+}
+.sidebar.collapsed .nav-item:hover,
+.sidebar.collapsed .nav-item.active {
+  border-left: none !important;
+  border-right: 3px solid var(--primary);
+}
+.sidebar.collapsed .nav-icon {
+  margin-right: 0;
+  font-size: 1.15rem;
+  width: auto;
+}
+.sidebar.collapsed .nav-label {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 12px 8px;
+}
+.sidebar.collapsed .logout-btn {
+  padding: 9px 0;
+  gap: 0;
+  justify-content: center;
+}
+.sidebar.collapsed .logout-btn .nav-label {
+  display: none;
 }
 
 /* Main Content Area */

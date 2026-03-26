@@ -32,6 +32,14 @@
   // Computed: ids ya agregados para resaltarlos en la tabla
   $: addedIds = new Set(packageItems.map(p => p.item_id));
 
+  // Mapa reactivo: item_id → cantidad asignada al paquete
+  $: pkgQtyMap = Object.fromEntries(packageItems.map(pi => [pi.item_id, pi.quantity]));
+
+  // Devuelve true si la cantidad asignada >= stock disponible del ítem
+  function isOverStock(item) {
+    return (pkgQtyMap[item.id] || 0) >= item.available_quantity;
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
   onMount(async () => {
     const params = new URLSearchParams(window.location.search);
@@ -248,8 +256,12 @@
                   <input type="number" min="1" class="qty-input"
                          bind:value={addQty[item.id]}
                          aria-label="Cantidad a agregar">
-                  <button class="btn-add" on:click={() => addItem(item)}
-                          title={addedIds.has(item.id) ? 'Agregar más' : 'Agregar al paquete'}>
+                  <button class="btn-add"
+                          class:btn-add-over={isOverStock(item)}
+                          on:click={() => addItem(item)}
+                          title={isOverStock(item)
+                            ? `⚠️ Ya tienes ${pkgQtyMap[item.id]} asignado(s) y el stock disponible es ${item.available_quantity}`
+                            : addedIds.has(item.id) ? 'Agregar más unidades' : 'Agregar al paquete'}>
                     {addedIds.has(item.id) ? '+' : '+ Add'}
                   </button>
                 </div>
@@ -467,6 +479,11 @@
     transition: 0.2s;
   }
   .btn-add:hover { filter: brightness(1.1); }
+  .btn-add.btn-add-over {
+    background: #f59e0b;
+    color: #fff;
+  }
+  .btn-add.btn-add-over:hover { background: #d97706; }
 
   /* ── Stock badge ─────────────────────────────────────────────────────────── */
   .stock { font-weight: 600; font-size: 0.85rem; }

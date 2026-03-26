@@ -187,6 +187,165 @@ export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = n
   doc.save(filename);
 }
 
+export function generateChecklistPDF(workOrder, items, type = 'salida', action = 'save', companyInfo = null) {
+  const doc      = new jsPDF();
+  const isSalida = type === 'salida';
+  const accentR  = isSalida ? 67  : 202;
+  const accentG  = isSalida ? 94  : 87;
+  const accentB  = isSalida ? 190 : 0;
+
+  renderCompanyHeader(doc, companyInfo);
+
+  // Title
+  doc.setFontSize(17);
+  doc.setTextColor(accentR, accentG, accentB);
+  doc.text(isSalida ? 'CHECKLIST DE SALIDA' : 'CHECKLIST DE RETORNO', 140, 20);
+
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text(`WO-${String(workOrder.id).padStart(5, '0')}`, 140, 27);
+  doc.text(`Fecha: ${workOrder.date}`, 140, 33);
+  if (workOrder.vehicle) doc.text(`Vehiculo: ${workOrder.vehicle}`, 140, 39);
+
+  // Client / Responsible
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cliente:', 14, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(workOrder.client_name || 'N/A', 14, 61);
+  if (workOrder.responsible_person) {
+    doc.text(`Responsable: ${workOrder.responsible_person}`, 14, 67);
+  }
+
+  // ── Salida table ──────────────────────────────────────────────────────────
+  if (isSalida) {
+    const tableData = items.map(item => [
+      item.internal_code || '-',
+      item.item_name,
+      String(item.expected_quantity),
+      String(item.actual_quantity ?? item.expected_quantity),
+      item.notes || ''
+    ]);
+
+    autoTable(doc, {
+      startY: 75,
+      head: [['Codigo', 'Descripcion del Item', 'Req.', 'Verif.', 'Observacion']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [accentR, accentG, accentB], fontSize: 9 },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 24, halign: 'center' },
+        2: { cellWidth: 16, halign: 'center' },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 46 }
+      },
+      didParseCell(data) {
+        if (data.section !== 'body') return;
+        const item = items[data.row.index];
+        const qty  = item?.actual_quantity ?? item?.expected_quantity;
+        if (qty < item?.expected_quantity) {
+          data.cell.styles.fillColor = [255, 243, 205];   // amarillo claro
+        } else {
+          data.cell.styles.fillColor = [212, 237, 218];   // verde claro
+        }
+      }
+    });
+
+  // ── Retorno table ─────────────────────────────────────────────────────────
+  } else {
+    const incidents = [];
+    const tableData = items.map(item => {
+      if (item.is_damaged || item.is_missing) incidents.push(item);
+      return [
+        item.internal_code || '-',
+        item.item_name,
+        String(item.expected_quantity),
+        String(item.actual_quantity ?? 0),
+        item.is_damaged  ? 'SI' : '-',
+        item.is_missing  ? 'SI' : '-',
+        item.notes || ''
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 75,
+      head: [['Codigo', 'Descripcion del Item', 'Req.', 'Ret.', 'Dano', 'Falt.', 'Observacion']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [accentR, accentG, accentB], fontSize: 9 },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 14, halign: 'center' },
+        4: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+        5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+        6: { cellWidth: 40 }
+      },
+      didParseCell(data) {
+        if (data.section !== 'body') return;
+        const item = items[data.row.index];
+        if (item?.is_damaged || item?.is_missing) {
+          data.cell.styles.fillColor = [248, 215, 218];   // rojo claro
+        } else if ((item?.actual_quantity ?? 0) < item?.expected_quantity) {
+          data.cell.styles.fillColor = [255, 243, 205];   // amarillo
+        } else {
+          data.cell.styles.fillColor = [212, 237, 218];   // verde
+        }
+        // Resaltar celdas de daño/faltante positivas
+        if (data.column.index === 4 && item?.is_damaged) data.cell.styles.textColor = [185, 28, 28];
+        if (data.column.index === 5 && item?.is_missing) data.cell.styles.textColor = [185, 28, 28];
+      }
+    });
+
+    // Resumen de incidencias
+    if (incidents.length > 0) {
+      let incY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(185, 28, 28);
+      doc.text('Incidencias Registradas:', 14, incY);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(0);
+      incY += 6;
+      for (const inc of incidents) {
+        let line = `  - [${inc.internal_code}] ${inc.item_name}:`;
+        if (inc.is_damaged) line += ' DANIO REPORTADO';
+        if (inc.is_damaged && inc.is_missing) line += ' /';
+        if (inc.is_missing) line += ' FALTANTE';
+        if (inc.notes) line += `  (${inc.notes})`;
+        doc.text(line, 14, incY);
+        incY += 5;
+      }
+    }
+  }
+
+  // Firmas
+  const tableBottom = doc.lastAutoTable.finalY;
+  const signY = Math.min(tableBottom + 22, 268);
+
+  doc.setDrawColor(150);
+  doc.setLineWidth(0.5);
+  doc.setFontSize(9);
+  doc.setTextColor(80);
+
+  doc.line(14, signY, 85, signY);
+  doc.text('Responsable de Operacion (Firma)', 14, signY + 5);
+
+  doc.line(115, signY, 186, signY);
+  doc.text('Supervisor / Recibido Conforme (Firma)', 115, signY + 5);
+
+  const filename = `Checklist_${isSalida ? 'Salida' : 'Retorno'}_WO-${String(workOrder.id).padStart(5, '0')}.pdf`;
+
+  if (action === 'preview') {
+    return { url: doc.output('bloburl'), filename };
+  }
+  doc.save(filename);
+}
+
 export function generateConducePDF(wo, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
   
