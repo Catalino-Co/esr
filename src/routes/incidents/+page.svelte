@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import { fmt } from '$lib/utils/format';
 
   let viewState = "1";
   let incidents = [];
@@ -170,7 +171,7 @@
               {#if inc.work_order_id}WO-{String(inc.work_order_id).padStart(5,'0')}<br>{/if}
               <small style="color: var(--text-muted);">{inc.client_name || 'Sin Asignar'}</small>
             </td>
-            <td style="font-weight: bold; color: var(--danger);">${inc.estimated_cost.toFixed(2)}</td>
+            <td style="font-weight: bold; color: var(--danger);">${fmt(inc.estimated_cost)}</td>
             <td>
               <span class="badge {getStatusBadgeClass(inc.status)}">{inc.status.toUpperCase()}</span>
             </td>

@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import { fmt, fmtN } from '$lib/utils/format';
 
   let viewState = "1";
   let items = [];
@@ -173,9 +174,9 @@
               </span>
             </td>
             <td style="font-weight: bold; color: {item.available_quantity > 0 ? 'var(--success)' : 'var(--danger)'};">
-              {item.available_quantity} / {item.total_quantity}
+              {fmtN(item.available_quantity)} / {fmtN(item.total_quantity)}
             </td>
-            <td>${item.rental_price.toFixed(2)}</td>
+            <td>${fmt(item.rental_price)}</td>
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(item)}>✏️</button>
               {#if viewState === '1'}

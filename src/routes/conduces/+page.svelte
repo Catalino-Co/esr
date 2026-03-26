@@ -3,6 +3,7 @@
   import Modal from '$lib/components/Modal.svelte';
   import { generateConducePDF } from '$lib/utils/pdfGenerator';
   import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { fmt } from '$lib/utils/format';
 
   let showPdfPreview = false;
   let pdfPreviewUrl = "";
@@ -358,7 +359,7 @@
               <td>
                 <input aria-label="Precio" type="number" step="0.01" bind:value={cItem.price} on:input={() => updateItemTotal(i)} class="form-control" style="padding: 4px; height: 30px;">
               </td>
-              <td style="font-weight: 500;">${cItem.total.toFixed(2)}</td>
+              <td style="font-weight: 500;">${fmt(cItem.total)}</td>
               <td><button class="btn-icon text-danger" on:click={() => removeConduceItem(i)}>🗑️</button></td>
             </tr>
           {/each}
@@ -373,7 +374,7 @@
     <div style="align-self: flex-end; width: 250px; background: var(--bg-color); padding: 15px; border-radius: 8px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
         <span style="color: var(--text-muted);">Subtotal:</span>
-        <span style="font-weight: 500;">${currentConduce.subtotal.toFixed(2)}</span>
+        <span style="font-weight: 500;">${fmt(currentConduce.subtotal)}</span>
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
         <span style="color: var(--text-muted);">Descuento:</span>
@@ -381,7 +382,7 @@
       </div>
       <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700; color: var(--primary); margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
         <span>Total:</span>
-        <span>${currentConduce.total.toFixed(2)}</span>
+        <span>${fmt(currentConduce.total)}</span>
       </div>
     </div>
 

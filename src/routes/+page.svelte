@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { fmtN } from '$lib/utils/format';
 
   let stats = {
     clients: 0,
@@ -48,22 +49,22 @@
 <div class="row" style="display: flex; gap: 20px; flex-wrap: wrap;">
   <div class="card" style="flex: 1; min-width: 200px; border-left: 4px solid var(--primary);">
     <h3 style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase;">Total Clientes</h3>
-    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{stats.clients}</div>
+    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{fmtN(stats.clients)}</div>
   </div>
-  
+
   <div class="card" style="flex: 1; min-width: 200px; border-left: 4px solid var(--success);">
     <h3 style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase;">Eventos Registrados</h3>
-    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{stats.events}</div>
+    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{fmtN(stats.events)}</div>
   </div>
-  
+
   <div class="card" style="flex: 1; min-width: 200px; border-left: 4px solid var(--warning);">
     <h3 style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase;">Ítems en Inventario</h3>
-    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{stats.items}</div>
+    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{fmtN(stats.items)}</div>
   </div>
 
   <div class="card" style="flex: 1; min-width: 200px; border-left: 4px solid var(--info);">
     <h3 style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase;">Paquetes Armados</h3>
-    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{stats.packages}</div>
+    <div style="font-size: 2rem; font-weight: 700; margin-top: 5px; color: var(--text-main);">{fmtN(stats.packages)}</div>
   </div>
 </div>
 

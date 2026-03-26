@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { fmt, fmtN } from '$lib/utils/format';
 
   let summary = {
     totalQuotations: 0,
@@ -60,19 +61,19 @@
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
     <div class="stat-card">
       <div class="stat-title">Ingresos Proyectados (Cotiz. Aprobadas)</div>
-      <div class="stat-value text-success">${summary.totalRevenue.toFixed(2)}</div>
+      <div class="stat-value text-success">${fmt(summary.totalRevenue)}</div>
     </div>
     <div class="stat-card">
       <div class="stat-title">Cotizaciones Totales</div>
-      <div class="stat-value">{summary.totalQuotations}</div>
+      <div class="stat-value">{fmtN(summary.totalQuotations)}</div>
     </div>
     <div class="stat-card">
       <div class="stat-title">Órdenes de Trabajo Activas</div>
-      <div class="stat-value text-primary">{summary.totalWorkOrders}</div>
+      <div class="stat-value text-primary">{fmtN(summary.totalWorkOrders)}</div>
     </div>
     <div class="stat-card">
       <div class="stat-title">Costo en Incidencias</div>
-      <div class="stat-value text-danger">-${summary.incidentsCost.toFixed(2)}</div>
+      <div class="stat-value text-danger">-${fmt(summary.incidentsCost)}</div>
     </div>
   </div>
 
@@ -94,7 +95,7 @@
           {#each topItems as item}
             <tr>
               <td><span style="font-size: 0.8rem; color: var(--text-muted);">{item.internal_code}</span><br>{item.name}</td>
-              <td style="text-align: center; font-weight: bold;">{item.rented_times}</td>
+              <td style="text-align: center; font-weight: bold;">{fmtN(item.rented_times)}</td>
             </tr>
           {:else}
             <tr><td colspan="2" style="text-align: center; color: var(--text-muted);">Sin data suficiente.</td></tr>
@@ -122,7 +123,7 @@
                 <span style="font-size: 0.8rem; text-transform: capitalize; font-weight: 600;">{inc.type}</span><br>
                 {inc.item_name}
               </td>
-              <td style="text-align: right; color: var(--danger); font-weight: bold;">${inc.estimated_cost.toFixed(2)}</td>
+              <td style="text-align: right; color: var(--danger); font-weight: bold;">${fmt(inc.estimated_cost)}</td>
             </tr>
           {:else}
             <tr><td colspan="2" style="text-align: center; color: var(--text-muted);">Sin incidencias registradas.</td></tr>

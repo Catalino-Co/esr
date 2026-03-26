@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Modal from '$lib/components/Modal.svelte';
   import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { fmt } from '$lib/utils/format';
 
   let showPdfPreview = false;
   let pdfPreviewUrl = "";
@@ -301,7 +302,7 @@
             <td style="font-weight: 500;">#{String(quote.id).padStart(5, '0')}</td>
             <td>{quote.client_name}</td>
             <td>{quote.date}</td>
-            <td style="font-weight: bold;">${quote.total.toFixed(2)}</td>
+            <td style="font-weight: bold;">${fmt(quote.total)}</td>
             <td>
               <span class="badge {getStatusBadgeClass(quote.status)}">{quote.status.toUpperCase()}</span>
             </td>
@@ -397,7 +398,7 @@
               <td>{qItem.name}</td>
               <td><input aria-label="Cantidad" type="number" class="form-control" style="padding: 4px;" bind:value={qItem.quantity} on:input={() => updateItemTotal(i)} min="1"></td>
               <td><input aria-label="Precio" type="number" class="form-control" style="padding: 4px;" step="0.01" bind:value={qItem.price} on:input={() => updateItemTotal(i)}></td>
-              <td style="font-weight: 500;">${qItem.total.toFixed(2)}</td>
+              <td style="font-weight: 500;">${fmt(qItem.total)}</td>
               <td><button class="btn-icon text-danger" on:click={() => removeQuoteItem(i)}>🗑️</button></td>
             </tr>
           {/each}
@@ -412,7 +413,7 @@
     <div style="align-self: flex-end; width: 250px; background: var(--bg-color); padding: 15px; border-radius: 8px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
         <span style="color: var(--text-muted);">Subtotal:</span>
-        <span style="font-weight: 500;">${currentQuotation.subtotal.toFixed(2)}</span>
+        <span style="font-weight: 500;">${fmt(currentQuotation.subtotal)}</span>
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
         <span style="color: var(--text-muted);">Descuento:</span>
@@ -420,7 +421,7 @@
       </div>
       <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700; color: var(--primary); margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
         <span>Total:</span>
-        <span>${currentQuotation.total.toFixed(2)}</span>
+        <span>${fmt(currentQuotation.total)}</span>
       </div>
     </div>
 

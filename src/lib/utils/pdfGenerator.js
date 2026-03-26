@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { fmt } from './format.js';
 
 function renderCompanyHeader(doc, companyInfo) {
   let textY = 20;
@@ -68,8 +69,8 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
   const tableData = items.map(i => [
     i.name,
     i.quantity.toString(),
-    `$${Number(i.price).toFixed(2)}`,
-    `$${Number(i.total).toFixed(2)}`
+    `$${fmt(i.price)}`,
+    `$${fmt(i.total)}`
   ]);
 
   autoTable(doc, {
@@ -91,15 +92,15 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
   
   doc.setFontSize(10);
   doc.text(`Subtotal:`, 140, finalY + 10);
-  doc.text(`$${Number(quotation.subtotal).toFixed(2)}`, 180, finalY + 10, { align: "right" });
+  doc.text(`$${fmt(quotation.subtotal)}`, 180, finalY + 10, { align: "right" });
   
   doc.text(`Descuento:`, 140, finalY + 16);
-  doc.text(`-$${Number(quotation.discount).toFixed(2)}`, 180, finalY + 16, { align: "right" });
+  doc.text(`-$${fmt(quotation.discount)}`, 180, finalY + 16, { align: "right" });
   
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL:`, 140, finalY + 24);
-  doc.text(`$${Number(quotation.total).toFixed(2)}`, 180, finalY + 24, { align: "right" });
+  doc.text(`$${fmt(quotation.total)}`, 180, finalY + 24, { align: "right" });
 
   // Notes & Conditions
   doc.setFontSize(9);
@@ -213,8 +214,8 @@ export function generateConducePDF(wo, items, action = 'save', companyInfo = nul
   const tableData = items.map(i => [
     i.quantity.toString(),
     i.name,
-    `$${Number(i.price || 0).toFixed(2)}`,
-    `$${Number((i.quantity || 0) * (i.price || 0)).toFixed(2)}`
+    `$${fmt(i.price || 0)}`,
+    `$${fmt((i.quantity || 0) * (i.price || 0))}`
   ]);
 
   autoTable(doc, {
@@ -235,15 +236,15 @@ export function generateConducePDF(wo, items, action = 'save', companyInfo = nul
   
   doc.setFontSize(10);
   doc.text(`Subtotal:`, 140, finalY + 10);
-  doc.text(`$${Number(wo.subtotal || 0).toFixed(2)}`, 180, finalY + 10, { align: "right" });
+  doc.text(`$${fmt(wo.subtotal || 0)}`, 180, finalY + 10, { align: "right" });
   
   doc.text(`Descuento:`, 140, finalY + 16);
-  doc.text(`-$${Number(wo.discount || 0).toFixed(2)}`, 180, finalY + 16, { align: "right" });
+  doc.text(`-$${fmt(wo.discount || 0)}`, 180, finalY + 16, { align: "right" });
   
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL:`, 140, finalY + 24);
-  doc.text(`$${Number(wo.total || 0).toFixed(2)}`, 180, finalY + 24, { align: "right" });
+  doc.text(`$${fmt(wo.total || 0)}`, 180, finalY + 24, { align: "right" });
 
   const signatureY = finalY + 45;
   
