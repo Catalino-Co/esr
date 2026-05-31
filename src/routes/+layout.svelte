@@ -57,8 +57,9 @@
   }
 
   $: pageTitle = (() => {
+    const p = $page.url.pathname;
     for (const m of menuItems) {
-      if (isActive(m.path)) return m.name;
+      if (m.path === '/' ? p === '/' : (p === m.path || p.startsWith(m.path + '/'))) return m.name;
     }
     return 'Control Operativo';
   })();

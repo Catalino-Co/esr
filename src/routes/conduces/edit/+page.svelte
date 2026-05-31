@@ -122,6 +122,7 @@
     const params = new URLSearchParams(window.location.search);
     conduceId = params.get('id');
     isEditing = !!conduceId;
+    const preloadWoId = params.get('wo');   // viene desde WO edit cuando no hay conduce
 
     if (!window.api?.db) return;
 
@@ -131,6 +132,19 @@
       LEFT JOIN clients c ON w.client_id = c.id
       WHERE w.is_active = 1
       ORDER BY w.id DESC`);
+
+    // Si viene con ?wo=X preseleccionar esa WO y cargar sus equipos
+    if (!isEditing && preloadWoId) {
+      const wo = workOrders.find(w => w.id === parseInt(preloadWoId))
+              || await window.api.db.getOne(`
+                   SELECT w.id, w.client_id, w.date, c.name as client_name
+                   FROM work_orders w LEFT JOIN clients c ON w.client_id = c.id
+                   WHERE w.id = ?`, [preloadWoId]);
+      if (wo) {
+        selectWO(wo);
+        await importFromWO();
+      }
+    }
 
     if (isEditing) {
       const cond = await window.api.db.getOne('SELECT * FROM conduces WHERE id = ?', [conduceId]);

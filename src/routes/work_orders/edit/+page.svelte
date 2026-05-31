@@ -160,18 +160,26 @@
     const items   = woItems.map(w => ({ ...w, price: 0 }));
     const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
     const woData  = { ...currentWO, client_name: selectedClient?.name || clientSearch };
-    if (type === 'wo') {
-      const { url, filename } = generateWorkOrderPDF(woData, items, 'preview', company);
-      pdfPreviewUrl   = url;
-      pdfPreviewFile  = filename;
-      pdfPreviewTitle = `Orden de Trabajo WO-${String(currentWO.id).padStart(5,'0')}`;
+    const { url, filename } = generateWorkOrderPDF(woData, items, 'preview', company);
+    pdfPreviewUrl   = url;
+    pdfPreviewFile  = filename;
+    pdfPreviewTitle = `Orden de Trabajo WO-${String(currentWO.id).padStart(5,'0')}`;
+    showPdfPreview  = true;
+  }
+
+  async function handleConduceBtn() {
+    // Buscar si ya existe un conduce activo para esta WO
+    const existing = await window.api.db.getOne(
+      'SELECT id FROM conduces WHERE work_order_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1',
+      [currentWO.id]
+    );
+    if (existing) {
+      // Ir a editar el conduce existente (con precios reales)
+      goto(`/conduces/edit?id=${existing.id}`);
     } else {
-      const { url, filename } = generateConducePDF(woData, items, 'preview', company);
-      pdfPreviewUrl   = url;
-      pdfPreviewFile  = filename;
-      pdfPreviewTitle = `Conduce WO-${String(currentWO.id).padStart(5,'0')}`;
+      // Ir a crear uno nuevo con la WO preseleccionada
+      goto(`/conduces/edit?wo=${currentWO.id}`);
     }
-    showPdfPreview = true;
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -285,7 +293,7 @@
   <div style="display:flex;gap:10px;">
     {#if isEditing}
       <button class="btn btn-secondary" on:click={() => openPDF('wo')} title="Imprimir Orden de Trabajo">🖨️ WO</button>
-      <button class="btn btn-secondary" on:click={() => openPDF('conduce')} title="Generar Conduce">📝 Conduce</button>
+      <button class="btn btn-secondary" on:click={handleConduceBtn} title="Ver / Crear Conduce">🧾 Conduce</button>
     {/if}
     <button class="btn btn-primary" on:click={saveWO} disabled={isSaving}>
       {isSaving ? 'Guardando…' : '💾 Guardar'}
