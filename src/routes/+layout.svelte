@@ -109,7 +109,7 @@
 
       <!-- Header / brand -->
       <div class="sidebar-header">
-        <span class="sidebar-brand">🏢 ESR APP</span>
+        <span class="sidebar-brand">🏢 ESR Pro</span>
         <button class="sidebar-toggle" on:click={toggleSidebar}
                 title={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}>
           {sidebarCollapsed ? '▶' : '◀'}

@@ -1,42 +1,87 @@
-# sv
+# ESR Pro
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+ESR Pro is the current desktop/offline version of ESR, built with SvelteKit, Electron and SQLite. The project is being prepared to evolve into a monorepo with a shared business core and two product surfaces:
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
+```text
+ESR Core
+  -> ESR Pro Desktop   (SQLite + Electron)
+  -> ESR Cloud Web     (PostgreSQL + Browser)
 ```
 
-To recreate this project with the same configuration:
+## Current Status
 
-```sh
-# recreate this project
-npx sv@0.12.8 create --template minimal --no-types --no-install .
+The working ESR Pro app still lives at the repository root. This is intentional during the first migration phases so the desktop app keeps running while shared packages are introduced gradually.
+
+Current runtime entry points:
+
+- SvelteKit app: `src/`
+- Electron app shell: `electron/`
+- SQLite schema and seed data: `electron/db/`
+- Reusable Svelte components: `src/lib/components/`
+- Formatting and PDF generation utilities: `src/lib/utils/`
+
+## Target Structure
+
+The repository is being prepared for this structure:
+
+```text
+esr/
+├── apps/
+│   ├── desktop/       # Future home of ESR Pro
+│   └── cloud/         # Future ESR Cloud web app
+│
+├── packages/
+│   ├── core/          # Shared business rules
+│   ├── ui/            # Shared visual components
+│   ├── schemas/       # Shared validation schemas and types
+│   ├── db-sqlite/     # SQLite data access for ESR Pro
+│   ├── db-postgres/   # PostgreSQL data access for ESR Cloud
+│   ├── reports/       # PDFs, contracts, quotations and report templates
+│   └── config/        # Shared project configuration
+│
+├── package.json
+├── pnpm-workspace.yaml
+└── README.md
 ```
 
-## Developing
+## Migration Rules
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- Do not break ESR Pro during the migration.
+- Move code in small, reversible phases.
+- Do not duplicate business logic between ESR Pro and ESR Cloud.
+- Move business rules gradually into `packages/core`.
+- Isolate SQLite access in `packages/db-sqlite`.
+- Prepare PostgreSQL support in `packages/db-postgres` without blocking desktop work.
+- Move reusable UI into `packages/ui`.
+- Move shared validation contracts into `packages/schemas`.
+- Move PDF/report generation into `packages/reports`.
+
+## Development
+
+Install dependencies:
+
+```sh
+npm install
+```
+
+Run ESR Pro in development:
 
 ```sh
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
-
-To create a production version of your app:
+Build the SvelteKit app:
 
 ```sh
 npm run build
 ```
 
-You can preview the production build with `npm run preview`.
+Build the Electron package:
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+```sh
+npm run build:electron
+```
+
+## Notes
+
+The monorepo folders exist as migration targets only. The app has not yet been moved into `apps/desktop`, and package imports have not yet been rewired.

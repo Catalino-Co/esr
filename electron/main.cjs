@@ -8,7 +8,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: "ESR APP - Events Stock & Rentals",
+    title: "ESR Pro - Events Stock & Rentals",
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

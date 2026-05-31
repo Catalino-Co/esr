@@ -18,7 +18,7 @@ function renderCompanyHeader(doc, companyInfo) {
 
   doc.setFontSize(16);
   doc.setTextColor(67, 94, 190);
-  doc.text(companyInfo && companyInfo.name ? companyInfo.name : "ESR APP", 14, textY);
+  doc.text(companyInfo && companyInfo.name ? companyInfo.name : "ESR Pro", 14, textY);
 
   doc.setFontSize(9);
   doc.setTextColor(100);

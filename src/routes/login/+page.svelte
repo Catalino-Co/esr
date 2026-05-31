@@ -37,7 +37,7 @@
   <div class="login-box">
     <div class="login-header">
       🏢
-      <h1>ESR APP</h1>
+      <h1>ESR Pro</h1>
       <p>Events Stock & Rentals</p>
     </div>
 
@@ -62,7 +62,7 @@
     </form>
     
     <div class="login-footer">
-      <small>v0.0.1 - Control Operativo</small>
+      <small>v0.0.1 - Desktop Offline</small>
     </div>
   </div>
 </div>
