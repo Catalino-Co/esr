@@ -116,14 +116,6 @@
         </button>
       </div>
 
-      <!-- User info -->
-      {#if user}
-        <div class="sidebar-user">
-          <div class="sidebar-user-role">Sesión Iniciada</div>
-          <div class="sidebar-user-name">{user.name || user.username}</div>
-        </div>
-      {/if}
-
       <!-- Navigation -->
       <nav class="sidebar-nav">
         {#each menuItems as item}

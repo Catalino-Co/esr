@@ -147,30 +147,6 @@ a {
   border-color: rgba(255,255,255,0.3);
 }
 
-.sidebar-user {
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  margin-bottom: 8px;
-  overflow: hidden;
-  transition: opacity 0.2s;
-}
-.sidebar-user-role {
-  font-size: 0.75rem;
-  color: #a0aec0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-.sidebar-user-name {
-  font-weight: 600;
-  color: white;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.92rem;
-  margin-top: 2px;
-}
-
 .sidebar-nav {
   flex: 1;
   padding: var(--sidebar-nav-y) 0;
@@ -283,10 +259,6 @@ a {
 .sidebar.collapsed .sidebar-brand {
   display: none;
 }
-.sidebar.collapsed .sidebar-user {
-  display: none;
-}
-
 .sidebar.collapsed .nav-item {
   justify-content: center;
   padding: var(--nav-collapsed-y) 0;

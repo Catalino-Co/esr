@@ -9,6 +9,7 @@
   let isEditing = false;
   let isSaving  = false;
   let woId      = null;
+  let originalStatus = 'pendiente';
 
   let currentWO = {
     id: null, client_id: '', event_id: null, quotation_id: null,
@@ -150,6 +151,10 @@
     woItems = [...woItems];
   }
 
+  function shouldReserveStock(status) {
+    return status === 'preparado' || status === 'cargado';
+  }
+
   // ── PDF ───────────────────────────────────────────────────────────────────
   let showPdfPreview  = false;
   let pdfPreviewUrl   = '';
@@ -213,6 +218,7 @@
       const wo = await window.api.db.getOne('SELECT * FROM work_orders WHERE id = ?', [woId]);
       if (wo) {
         currentWO = { ...wo };
+        originalStatus = wo.status || 'pendiente';
         const cl = clients.find(c => c.id === wo.client_id);
         if (cl) { selectedClient = cl; clientSearch = cl.name; loadClientEvents(cl.id); }
         if (wo.quotation_id) {
@@ -234,6 +240,10 @@
     isSaving = true;
     try {
       let id;
+      const targetStatus = currentWO.status;
+      const isNewReservation = shouldReserveStock(targetStatus) && !shouldReserveStock(originalStatus);
+      const statusForSave = isNewReservation ? originalStatus : targetStatus;
+
       if (isEditing) {
         await window.api.db.run(`
           UPDATE work_orders SET
@@ -242,7 +252,7 @@
           WHERE id=?`,
           [currentWO.client_id, currentWO.event_id || null, currentWO.quotation_id || null,
            currentWO.date, currentWO.responsible_person, currentWO.vehicle,
-           currentWO.notes, currentWO.status, currentWO.id]);
+           currentWO.notes, statusForSave, currentWO.id]);
         await window.api.db.run('DELETE FROM work_order_items WHERE work_order_id=?', [currentWO.id]);
         id = currentWO.id;
       } else {
@@ -252,7 +262,7 @@
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [currentWO.client_id, currentWO.event_id || null, currentWO.quotation_id || null,
            currentWO.date, currentWO.responsible_person, currentWO.vehicle,
-           currentWO.notes, currentWO.status]);
+           currentWO.notes, statusForSave]);
         id = res.id;
       }
       for (const wi of woItems) {
@@ -260,9 +270,14 @@
           'INSERT INTO work_order_items (work_order_id, item_id, quantity) VALUES (?, ?, ?)',
           [id, wi.item_id, wi.quantity]);
       }
+
+      if (shouldReserveStock(targetStatus)) {
+        await window.api.inventory.reserveWorkOrderStock(id, targetStatus);
+      }
+
       goto('/work_orders');
     } catch (err) {
-      alert('Error al guardar la orden de trabajo.');
+      alert(err?.message || 'Error al guardar la orden de trabajo.');
       console.error(err);
     } finally {
       isSaving = false;

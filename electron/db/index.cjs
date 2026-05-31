@@ -163,10 +163,7 @@ function initDB() {
         FOREIGN KEY(quotation_id) REFERENCES quotations(id),
         FOREIGN KEY(item_id) REFERENCES items(id),
         FOREIGN KEY(package_id) REFERENCES packages(id)
-      )`, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      )`);
 
       // 8. Work Orders
       db.run(`CREATE TABLE IF NOT EXISTS work_orders (
@@ -193,6 +190,18 @@ function initDB() {
         work_order_id INTEGER,
         item_id INTEGER,
         quantity INTEGER DEFAULT 1,
+        FOREIGN KEY(work_order_id) REFERENCES work_orders(id),
+        FOREIGN KEY(item_id) REFERENCES items(id)
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS work_order_stock_reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_order_id INTEGER NOT NULL,
+        item_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        status TEXT DEFAULT 'reserved',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(work_order_id, item_id),
         FOREIGN KEY(work_order_id) REFERENCES work_orders(id),
         FOREIGN KEY(item_id) REFERENCES items(id)
       )`);
@@ -300,9 +309,17 @@ function initDB() {
         email TEXT,
         address TEXT,
         logo_base64 TEXT
-      )`, () => {
+      )`, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
         // Insert default row if not exists
-        db.run(`INSERT OR IGNORE INTO company_info (id, name) VALUES (1, 'Tu Empresa')`);
+        db.run(`INSERT OR IGNORE INTO company_info (id, name) VALUES (1, 'Tu Empresa')`, (insertErr) => {
+          if (insertErr) reject(insertErr);
+          else resolve();
+        });
       });
 
     });

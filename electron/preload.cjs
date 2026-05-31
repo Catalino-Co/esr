@@ -12,5 +12,9 @@ contextBridge.exposeInMainWorld('api', {
   users: {
     create: (user) => ipcRenderer.invoke('users:create', user),
     update: (user) => ipcRenderer.invoke('users:update', user)
+  },
+  inventory: {
+    reserveWorkOrderStock: (workOrderId, status) =>
+      ipcRenderer.invoke('inventory:reserveWorkOrderStock', workOrderId, status)
   }
 });

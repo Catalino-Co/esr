@@ -38,9 +38,22 @@
     }
   }
 
+  function shouldReserveStock(status) {
+    return status === 'preparado' || status === 'cargado';
+  }
+
   async function changeStatus(id, newStatus) {
-    await window.api.db.run('UPDATE work_orders SET status = ? WHERE id = ?', [newStatus, id]);
-    loadWorkOrders();
+    try {
+      if (shouldReserveStock(newStatus)) {
+        await window.api.inventory.reserveWorkOrderStock(id, newStatus);
+      } else {
+        await window.api.db.run('UPDATE work_orders SET status = ? WHERE id = ?', [newStatus, id]);
+      }
+      loadWorkOrders();
+    } catch (err) {
+      alert(err?.message || 'No se pudo reservar el stock de la orden.');
+      console.error(err);
+    }
   }
 
   async function changeState(id, newState) {
