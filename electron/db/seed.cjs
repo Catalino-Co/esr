@@ -1,4 +1,5 @@
 const { runQuery, getQuery } = require('./index.cjs');
+const { resetAdminUser } = require('../auth.cjs');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,15 +43,8 @@ async function insertItem(code, name, catId, subId, desc, type, qty, price, cost
 
 async function seedDB() {
   try {
-    // Usuario admin por defecto
-    const userCount = await getQuery("SELECT COUNT(*) as count FROM users");
-    if (userCount[0].count === 0) {
-      console.log("Creando usuario administrador por defecto...");
-      await runQuery(
-        "INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)",
-        ['admin', 'admin123', 'Administrador Principal', 'admin']
-      );
-    }
+    // Reset admin access on startup after auth hardening.
+    await resetAdminUser();
 
     // Seed base: categorías, subcategorías, clientes, paquete demo
     const { count } = (await getQuery("SELECT COUNT(*) as count FROM categories"))[0];

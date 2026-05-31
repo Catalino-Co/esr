@@ -5,5 +5,12 @@ contextBridge.exposeInMainWorld('api', {
     run: (sql, params) => ipcRenderer.invoke('db:run', sql, params),
     get: (sql, params) => ipcRenderer.invoke('db:get', sql, params),
     getOne: (sql, params) => ipcRenderer.invoke('db:getOne', sql, params)
+  },
+  auth: {
+    login: (credentials) => ipcRenderer.invoke('auth:login', credentials)
+  },
+  users: {
+    create: (user) => ipcRenderer.invoke('users:create', user),
+    update: (user) => ipcRenderer.invoke('users:update', user)
   }
 });

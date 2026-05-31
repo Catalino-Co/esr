@@ -45,16 +45,9 @@
     }
 
     if (isEditing) {
-      if (currentUser.password) {
-        await window.api.db.run(`UPDATE users SET username=?, name=?, role=?, password=? WHERE id=?`, 
-          [currentUser.username, currentUser.name, currentUser.role, currentUser.password, currentUser.id]);
-      } else {
-        await window.api.db.run(`UPDATE users SET username=?, name=?, role=? WHERE id=?`, 
-          [currentUser.username, currentUser.name, currentUser.role, currentUser.id]);
-      }
+      await window.api.users.update(currentUser);
     } else {
-      await window.api.db.run(`INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)`,
-        [currentUser.username, currentUser.password, currentUser.name, currentUser.role]);
+      await window.api.users.create(currentUser);
     }
     
     showModal = false;

@@ -22,7 +22,32 @@
   let isAuthChecked    = false;
   let sidebarCollapsed = false;
 
+  const appearanceKey = 'esr_appearance_size';
+
+  function getAppearanceScale(value = 'auto') {
+    if (value === 'compact') return 0.9;
+    if (value === 'normal') return 1;
+    if (value === 'comfortable') return 1.06;
+    if (typeof window !== 'undefined' && window.devicePixelRatio >= 1.5) return 0.9;
+    if (typeof window !== 'undefined' && window.devicePixelRatio >= 1.25) return 0.96;
+    return 1;
+  }
+
+  function applyAppearance() {
+    const selectedSize = localStorage.getItem(appearanceKey) || 'auto';
+    const scale = getAppearanceScale(selectedSize);
+    const resolvedSize = scale < 0.95 ? 'compact' : scale > 1 ? 'comfortable' : 'normal';
+
+    document.documentElement.style.setProperty('--ui-font-scale', String(scale));
+    document.documentElement.dataset.uiSize = resolvedSize;
+    document.documentElement.dataset.uiPreference = selectedSize;
+  }
+
   onMount(() => {
+    applyAppearance();
+    window.addEventListener('resize', applyAppearance);
+    window.addEventListener('esr:appearance-changed', applyAppearance);
+
     const session = sessionStorage.getItem('esr_user');
     if (session) user = JSON.parse(session);
 
@@ -36,6 +61,11 @@
 
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') sidebarCollapsed = true;
+
+    return () => {
+      window.removeEventListener('resize', applyAppearance);
+      window.removeEventListener('esr:appearance-changed', applyAppearance);
+    };
   });
 
   function toggleSidebar() {

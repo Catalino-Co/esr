@@ -16,7 +16,7 @@
 
     loading = true;
     try {
-      const user = await window.api.db.getOne("SELECT id, username, name, role FROM users WHERE username = ? AND password = ? AND is_active = 1", [username, password]);
+      const user = await window.api.auth.login({ username, password });
       
       if (user) {
         sessionStorage.setItem('esr_user', JSON.stringify(user));

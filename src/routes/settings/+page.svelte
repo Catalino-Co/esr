@@ -1,4 +1,28 @@
 <script>
+  import { onMount } from 'svelte';
+
+  const appearanceKey = 'esr_appearance_size';
+  const appearanceOptions = [
+    { value: 'auto', label: 'Automático', detail: 'Ajusta según la escala del sistema' },
+    { value: 'normal', label: 'Normal', detail: 'Tamaño estándar' },
+    { value: 'compact', label: 'Compacto', detail: 'Más espacio útil en pantalla' },
+    { value: 'comfortable', label: 'Cómodo', detail: 'Texto ligeramente mayor' }
+  ];
+
+  let appearanceSize = 'auto';
+  let displayScale = '100%';
+
+  function saveAppearance(value) {
+    appearanceSize = value;
+    localStorage.setItem(appearanceKey, value);
+    window.dispatchEvent(new CustomEvent('esr:appearance-changed'));
+  }
+
+  onMount(() => {
+    appearanceSize = localStorage.getItem(appearanceKey) || 'auto';
+    displayScale = `${Math.round((window.devicePixelRatio || 1) * 100)}%`;
+  });
+
   // Menú principal de ajustes
   const settingModules = [
     {
@@ -51,6 +75,27 @@
     <span>Configuración del Sistema</span>
   </div>
 
+  <div class="appearance-panel">
+    <div>
+      <div class="appearance-title">Apariencia</div>
+      <div class="appearance-meta">Escala detectada: {displayScale}</div>
+    </div>
+
+    <div class="appearance-options" role="group" aria-label="Tamaño de interfaz">
+      {#each appearanceOptions as option}
+        <button
+          type="button"
+          class="appearance-option"
+          class:active={appearanceSize === option.value}
+          on:click={() => saveAppearance(option.value)}
+        >
+          <span>{option.label}</span>
+          <small>{option.detail}</small>
+        </button>
+      {/each}
+    </div>
+  </div>
+
   <div class="settings-grid">
     {#each settingModules as mod}
       <a href={mod.path} class="settings-card" style="--accent: {mod.color};">
@@ -67,6 +112,71 @@
 </div>
 
 <style>
+  .appearance-panel {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: center;
+    padding: 16px;
+    margin-bottom: 22px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+  }
+
+  .appearance-title {
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 2px;
+  }
+
+  .appearance-meta {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+
+  .appearance-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .appearance-option {
+    text-align: left;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-main);
+    transition: all 0.15s ease;
+  }
+
+  .appearance-option:hover {
+    border-color: rgba(67,94,190,.45);
+    transform: translateY(-1px);
+  }
+
+  .appearance-option.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(67,94,190,.12);
+    background: rgba(67,94,190,.04);
+  }
+
+  .appearance-option span {
+    display: block;
+    font-weight: 700;
+    font-size: 0.88rem;
+  }
+
+  .appearance-option small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.25;
+  }
+
   .settings-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -116,5 +226,15 @@
     font-size: 0.85rem;
     color: var(--text-muted);
     line-height: 1.4;
+  }
+
+  @media (max-width: 1100px) {
+    .appearance-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .appearance-options {
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+    }
   }
 </style>
