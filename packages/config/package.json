@@ -1,0 +1,10 @@
+{
+	"name": "@esr/config",
+	"private": true,
+	"version": "0.0.1",
+	"description": "Shared ESR project configuration.",
+	"scripts": {
+		"lint": "echo \"config lint pending\"",
+		"check": "echo \"config check pending\""
+	}
+}

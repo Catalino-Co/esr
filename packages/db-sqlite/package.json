@@ -1,0 +1,20 @@
+{
+	"name": "@esr/db-sqlite",
+	"private": true,
+	"version": "0.0.1",
+	"description": "SQLite data access for ESR Pro.",
+	"type": "commonjs",
+	"main": "src/index.cjs",
+	"exports": {
+		".": "./src/index.cjs"
+	},
+	"scripts": {
+		"lint": "echo \"db-sqlite lint pending\"",
+		"check": "echo \"db-sqlite check pending\""
+	},
+	"dependencies": {
+		"@esr/core": "workspace:*",
+		"@esr/schemas": "workspace:*",
+		"sqlite3": "^6.0.1"
+	}
+}

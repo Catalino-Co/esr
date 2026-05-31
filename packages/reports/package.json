@@ -1,0 +1,10 @@
+{
+	"name": "@esr/reports",
+	"private": true,
+	"version": "0.0.1",
+	"description": "Shared ESR reports, PDFs and document templates.",
+	"scripts": {
+		"lint": "echo \"reports lint pending\"",
+		"check": "echo \"reports check pending\""
+	}
+}

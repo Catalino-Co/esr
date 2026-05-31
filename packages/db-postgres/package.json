@@ -1,0 +1,10 @@
+{
+	"name": "@esr/db-postgres",
+	"private": true,
+	"version": "0.0.1",
+	"description": "PostgreSQL data access for ESR Cloud.",
+	"scripts": {
+		"lint": "echo \"db-postgres lint pending\"",
+		"check": "echo \"db-postgres check pending\""
+	}
+}

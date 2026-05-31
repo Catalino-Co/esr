@@ -1,0 +1,12 @@
+{
+	"name": "cloud",
+	"private": true,
+	"version": "0.0.1",
+	"description": "ESR Cloud web app placeholder.",
+	"scripts": {
+		"dev": "echo \"cloud app not implemented yet\"",
+		"build": "echo \"cloud app not implemented yet\"",
+		"lint": "echo \"cloud lint pending\"",
+		"check": "echo \"cloud check pending\""
+	}
+}

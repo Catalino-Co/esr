@@ -10,15 +10,15 @@ ESR Core
 
 ## Current Status
 
-The working ESR Pro app still lives at the repository root. This is intentional during the first migration phases so the desktop app keeps running while shared packages are introduced gradually.
+The working ESR Pro app now lives in `apps/desktop`. Shared packages exist as migration targets and will receive code gradually.
 
 Current runtime entry points:
 
-- SvelteKit app: `src/`
-- Electron app shell: `electron/`
-- SQLite schema and seed data: `electron/db/`
-- Reusable Svelte components: `src/lib/components/`
-- Formatting and PDF generation utilities: `src/lib/utils/`
+- SvelteKit app: `apps/desktop/src/`
+- Electron app shell: `apps/desktop/electron/`
+- SQLite schema and seed data: `apps/desktop/electron/db/`
+- Reusable Svelte components: `apps/desktop/src/lib/components/`
+- Formatting and PDF generation utilities: `apps/desktop/src/lib/utils/`
 
 ## Target Structure
 
@@ -64,24 +64,37 @@ Install dependencies:
 npm install
 ```
 
-Run ESR Pro in development:
+Run ESR Pro in development from the root:
 
 ```sh
-npm run dev
+pnpm dev:desktop
 ```
 
-Build the SvelteKit app:
+Build the SvelteKit app from the root:
 
 ```sh
-npm run build
+pnpm build:desktop
 ```
 
 Build the Electron package:
 
 ```sh
-npm run build:electron
+pnpm --filter desktop build:electron
 ```
+
+Workspace commands:
+
+```sh
+pnpm dev:desktop
+pnpm build:desktop
+pnpm dev:cloud
+pnpm build:cloud
+pnpm lint
+pnpm check
+```
+
+During this phase, `apps/cloud` and the shared packages are placeholders until their implementation phases begin.
 
 ## Notes
 
-The monorepo folders exist as migration targets only. The app has not yet been moved into `apps/desktop`, and package imports have not yet been rewired.
+The app has been moved into `apps/desktop`, but business logic has not yet been extracted into shared packages.

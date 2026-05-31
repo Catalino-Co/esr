@@ -1,0 +1,10 @@
+{
+	"name": "@esr/ui",
+	"private": true,
+	"version": "0.0.1",
+	"description": "Shared ESR UI components.",
+	"scripts": {
+		"lint": "echo \"ui lint pending\"",
+		"check": "echo \"ui check pending\""
+	}
+}

@@ -7,6 +7,8 @@ node_modules
 .wrangler
 /.svelte-kit
 /build
+apps/*/.svelte-kit
+apps/*/build
 
 # OS
 .DS_Store
@@ -24,6 +26,7 @@ vite.config.ts.timestamp-*
 
 # Electron Build Output
 dist/
+apps/*/dist/
 release/
 out/
 win-unpacked/
