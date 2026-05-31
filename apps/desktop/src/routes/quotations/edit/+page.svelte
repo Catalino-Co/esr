@@ -10,7 +10,7 @@
   } from '@esr/core';
   import { validateQuoteInput } from '@esr/schemas';
   import { generateQuotationPDF } from '$lib/utils/pdfGenerator';
-  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { PdfPreviewModal } from '@esr/ui';
   import { fmt, fmtN } from '$lib/utils/format';
 
   // ── Estado principal ──────────────────────────────────────────────────────

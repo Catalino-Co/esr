@@ -3,8 +3,24 @@
 	"private": true,
 	"version": "0.0.1",
 	"description": "Shared ESR UI components.",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"svelte": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./components/*": "./src/components/*",
+		"./forms/*": "./src/forms/*",
+		"./layout/*": "./src/layout/*",
+		"./tables/*": "./src/tables/*"
+	},
+	"types": "./src/index.ts",
 	"scripts": {
 		"lint": "echo \"ui lint pending\"",
 		"check": "echo \"ui check pending\""
+	},
+	"dependencies": {
+		"svelte": "^5.51.0"
 	}
 }

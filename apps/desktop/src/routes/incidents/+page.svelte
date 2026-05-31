@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import Modal from '$lib/components/Modal.svelte';
+  import { Modal } from '@esr/ui';
   import { fmt } from '$lib/utils/format';
 
   let viewState = "1";

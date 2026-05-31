@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { generateChecklistPDF } from '$lib/utils/pdfGenerator';
-  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { PdfPreviewModal } from '@esr/ui';
 
   let woId           = null;
   let workOrder      = null;

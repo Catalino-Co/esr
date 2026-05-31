@@ -21,6 +21,9 @@ importers:
       '@esr/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
+      '@esr/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1
@@ -91,7 +94,11 @@ importers:
 
   packages/schemas: {}
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      svelte:
+        specifier: ^5.51.0
+        version: 5.56.0
 
 packages:
 

@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { validateCustomerInput } from '@esr/schemas';
-  import Modal from '$lib/components/Modal.svelte';
+  import { Modal } from '@esr/ui';
 
   let viewState = "1";
   let clients = [];

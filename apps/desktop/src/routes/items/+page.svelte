@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { validateInventoryItemInput } from '@esr/schemas';
-  import Modal from '$lib/components/Modal.svelte';
+  import { Modal } from '@esr/ui';
   import { fmt, fmtN } from '$lib/utils/format';
 
   let viewState = "1";

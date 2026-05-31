@@ -4,7 +4,7 @@
   import { mergeRentalOrderItem, planRentalOrderStatusForSave } from '@esr/core';
   import { validateRentalOrderInput } from '@esr/schemas';
   import { generateWorkOrderPDF, generateConducePDF } from '$lib/utils/pdfGenerator';
-  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { PdfPreviewModal } from '@esr/ui';
   import { fmtN } from '$lib/utils/format';
 
   // ── Estado principal ──────────────────────────────────────────────────────

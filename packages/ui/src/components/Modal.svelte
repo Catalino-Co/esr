@@ -2,8 +2,7 @@
   export let show = false;
   export let title = "Modal Title";
   export let maxWidth = "500px";
-  
-  
+
   function close() {
     show = false;
   }
@@ -15,8 +14,8 @@
   <div class="modal-backdrop" on:click={close}>
     <div class="modal-content" style="max-width: {maxWidth}; width: 100%;" on:click|stopPropagation>
       <div class="modal-header">
-        <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600;">{title}</h3>
-        <button class="modal-close" on:click={close}>&times;</button>
+        <h3 class="modal-title">{title}</h3>
+        <button class="modal-close" on:click={close} aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
         <slot></slot>
@@ -55,6 +54,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  .modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    font-weight: 600;
   }
   .modal-close {
     background: none;

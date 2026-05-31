@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { generateConducePDF } from '$lib/utils/pdfGenerator';
-  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '$lib/utils/format';
 
   let showPdfPreview     = false;

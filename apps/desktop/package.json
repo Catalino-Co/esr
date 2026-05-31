@@ -34,6 +34,7 @@
 		"@esr/core": "workspace:*",
 		"@esr/db-sqlite": "workspace:*",
 		"@esr/schemas": "workspace:*",
+		"@esr/ui": "workspace:*",
 		"jspdf": "^4.2.1",
 		"jspdf-autotable": "^5.0.7"
 	}

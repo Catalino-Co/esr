@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { shouldReserveStock } from '@esr/core';
   import { generateWorkOrderPDF, generateConducePDF } from '$lib/utils/pdfGenerator';
-  import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+  import { PdfPreviewModal } from '@esr/ui';
 
   let showPdfPreview    = false;
   let pdfPreviewUrl     = '';
