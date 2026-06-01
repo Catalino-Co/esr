@@ -3,6 +3,10 @@
 	"private": true,
 	"version": "0.0.1",
 	"description": "Shared ESR project configuration.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.js"
+	},
 	"scripts": {
 		"lint": "echo \"config lint pending\"",
 		"check": "echo \"config check pending\""
