@@ -1,7 +1,12 @@
 const RESERVED_RENTAL_STATUSES = ['preparado', 'cargado'];
+const STOCK_DEDUCTING_CONDUCE_STATUSES = ['emitido', 'entregado'];
 
 function shouldReserveStock(status) {
   return RESERVED_RENTAL_STATUSES.includes(status);
+}
+
+function shouldDeductStockForConduce(status) {
+  return STOCK_DEDUCTING_CONDUCE_STATUSES.includes(status);
 }
 
 function planRentalOrderStatusForSave(input) {
@@ -78,6 +83,7 @@ function formatInsufficientStockDetail(items) {
 
 module.exports = {
   RESERVED_RENTAL_STATUSES,
+  STOCK_DEDUCTING_CONDUCE_STATUSES,
   calculateAvailableStock,
   calculateCommittedStock,
   calculateQuoteLineTotal,
@@ -86,5 +92,6 @@ module.exports = {
   formatInsufficientStockDetail,
   mergeRentalOrderItem,
   planRentalOrderStatusForSave,
+  shouldDeductStockForConduce,
   shouldReserveStock
 };

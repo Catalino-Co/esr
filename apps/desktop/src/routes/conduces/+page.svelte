@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { shouldDeductStockForConduce } from '@esr/core';
   import { generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
@@ -36,8 +37,17 @@
   }
 
   async function changeStatus(id, newStatus) {
-    await window.api.db.run('UPDATE conduces SET status = ? WHERE id = ?', [newStatus, id]);
-    loadConduces();
+    try {
+      if (shouldDeductStockForConduce(newStatus)) {
+        await window.api.inventory.reserveConduceStock(id, newStatus);
+      } else {
+        await window.api.db.run('UPDATE conduces SET status = ? WHERE id = ?', [newStatus, id]);
+      }
+      loadConduces();
+    } catch (err) {
+      alert(err?.message || 'No se pudo descontar el stock del conduce.');
+      console.error(err);
+    }
   }
 
   async function changeState(id, newState) {

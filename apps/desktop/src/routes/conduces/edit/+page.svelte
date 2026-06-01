@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { shouldDeductStockForConduce } from '@esr/core';
   import { generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
@@ -222,9 +223,12 @@
             [id, ci.item_id, ci.quantity, ci.price]);
         }
       }
+      if (shouldDeductStockForConduce(currentConduce.status)) {
+        await window.api.inventory.reserveConduceStock(id, currentConduce.status);
+      }
       goto('/conduces');
     } catch (err) {
-      alert('Error al guardar el conduce.');
+      alert(err?.message || 'Error al guardar el conduce.');
       console.error(err);
     } finally {
       isSaving = false;

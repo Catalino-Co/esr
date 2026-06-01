@@ -15,6 +15,14 @@ export type StockSnapshot = {
 
 export type InsufficientStockItem = StockLine & StockSnapshot;
 
+export const STOCK_DEDUCTING_CONDUCE_STATUSES = ['emitido', 'entregado'] as const;
+
+export type StockDeductingConduceStatus = (typeof STOCK_DEDUCTING_CONDUCE_STATUSES)[number];
+
+export function shouldDeductStockForConduce(status?: string | null): status is StockDeductingConduceStatus {
+	return STOCK_DEDUCTING_CONDUCE_STATUSES.includes(status as StockDeductingConduceStatus);
+}
+
 export function calculateCommittedStock(reservations: StockLine[]): Map<ESRId, number> {
 	const committed = new Map<ESRId, number>();
 

@@ -1,6 +1,7 @@
 const {
   findInsufficientStock,
   formatInsufficientStockDetail,
+  shouldDeductStockForConduce,
   shouldReserveStock
 } = require('@esr/core');
 const { getDatabase, getQuery, getSingleQuery, runQuery } = require('../connection.cjs');
@@ -44,6 +45,103 @@ class SqliteInventoryRepository {
     }
 
     return await this.reserveWorkOrderStock(workOrderId, status);
+  }
+
+  async reserveConduceStockIfNeeded(conduceId, status) {
+    if (!shouldDeductStockForConduce(status)) {
+      return { reserved: false, reason: 'status_not_deducting' };
+    }
+
+    return await this.reserveConduceStock(conduceId, status);
+  }
+
+  async reserveConduceStock(conduceId, targetStatus) {
+    if (!conduceId) {
+      throw new Error('Conduce inválido.');
+    }
+
+    await runQuery('BEGIN IMMEDIATE TRANSACTION');
+
+    try {
+      const conduce = await getSingleQuery(
+        'SELECT id, work_order_id FROM conduces WHERE id = ?',
+        [conduceId]
+      );
+
+      if (!conduce) {
+        throw new Error('Conduce no encontrado.');
+      }
+
+      if (!conduce.work_order_id) {
+        throw new Error('El conduce no tiene una orden de trabajo asociada.');
+      }
+
+      const workOrderId = conduce.work_order_id;
+      const existing = await getSingleQuery(
+        `SELECT COUNT(*) as count
+         FROM work_order_stock_reservations
+         WHERE work_order_id = ? AND status = 'reserved'`,
+        [workOrderId]
+      );
+
+      if ((existing?.count || 0) > 0) {
+        await this.updateConduceStatusIfProvided(conduceId, targetStatus);
+        await this.updateWorkOrderStatusFromConduce(workOrderId, targetStatus);
+        await runQuery('COMMIT');
+        return { reserved: false, reason: 'already_reserved' };
+      }
+
+      const rows = await getQuery(
+        `SELECT
+           ci.item_id,
+           SUM(ci.quantity) as quantity,
+           i.name,
+           i.internal_code,
+           i.available_quantity
+         FROM conduce_items ci
+         JOIN items i ON ci.item_id = i.id
+         WHERE ci.conduce_id = ?
+         GROUP BY ci.item_id, i.name, i.internal_code, i.available_quantity`,
+        [conduceId]
+      );
+
+      if (rows.length === 0) {
+        await this.updateConduceStatusIfProvided(conduceId, targetStatus);
+        await this.updateWorkOrderStatusFromConduce(workOrderId, targetStatus);
+        await runQuery('COMMIT');
+        return { reserved: false, reason: 'empty_conduce' };
+      }
+
+      const insufficient = findInsufficientStock(rows, rows);
+      if (insufficient.length > 0) {
+        const detail = formatInsufficientStockDetail(insufficient);
+        throw new Error(`Stock insuficiente para emitir el conduce: ${detail}`);
+      }
+
+      for (const row of rows) {
+        await runQuery(
+          `UPDATE items
+           SET available_quantity = available_quantity - ?
+           WHERE id = ?`,
+          [row.quantity, row.item_id]
+        );
+
+        await runQuery(
+          `INSERT INTO work_order_stock_reservations
+            (work_order_id, item_id, quantity, status)
+           VALUES (?, ?, ?, 'reserved')`,
+          [workOrderId, row.item_id, row.quantity]
+        );
+      }
+
+      await this.updateConduceStatusIfProvided(conduceId, targetStatus);
+      await this.updateWorkOrderStatusFromConduce(workOrderId, targetStatus);
+      await runQuery('COMMIT');
+      return { reserved: true, item_count: rows.length };
+    } catch (error) {
+      await rollbackQuietly();
+      throw error;
+    }
   }
 
   async reserveWorkOrderStock(workOrderId, targetStatus) {
@@ -115,6 +213,16 @@ class SqliteInventoryRepository {
   async updateWorkOrderStatusIfProvided(workOrderId, status) {
     if (!status) return;
     await runQuery('UPDATE work_orders SET status = ? WHERE id = ?', [status, workOrderId]);
+  }
+
+  async updateConduceStatusIfProvided(conduceId, status) {
+    if (!status) return;
+    await runQuery('UPDATE conduces SET status = ? WHERE id = ?', [status, conduceId]);
+  }
+
+  async updateWorkOrderStatusFromConduce(workOrderId, status) {
+    if (status !== 'entregado') return;
+    await this.updateWorkOrderStatusIfProvided(workOrderId, 'entregado');
   }
 }
 

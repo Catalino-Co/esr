@@ -1,7 +1,7 @@
 const { ipcMain } = require('electron');
 const { runQuery, getQuery, getSingleQuery } = require('./db/index.cjs');
 const { createUser, login, updateUser } = require('./auth.cjs');
-const { reserveIfNeeded } = require('./inventory.cjs');
+const { reserveConduceStockIfNeeded, reserveIfNeeded } = require('./inventory.cjs');
 
 function setupIpcHandlers() {
   ipcMain.handle('db:run', async (event, sql, params) => {
@@ -30,6 +30,10 @@ function setupIpcHandlers() {
 
   ipcMain.handle('inventory:reserveWorkOrderStock', async (event, workOrderId, status) => {
     return await reserveIfNeeded(workOrderId, status);
+  });
+
+  ipcMain.handle('inventory:reserveConduceStock', async (event, conduceId, status) => {
+    return await reserveConduceStockIfNeeded(conduceId, status);
   });
 }
 

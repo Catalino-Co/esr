@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
     update: (user) => ipcRenderer.invoke('users:update', user)
   },
   inventory: {
+    reserveConduceStock: (conduceId, status) =>
+      ipcRenderer.invoke('inventory:reserveConduceStock', conduceId, status),
     reserveWorkOrderStock: (workOrderId, status) =>
       ipcRenderer.invoke('inventory:reserveWorkOrderStock', workOrderId, status)
   }
