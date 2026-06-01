@@ -78,6 +78,9 @@
           if (iDef) mergeItem(qi.item_id, iDef.name, iDef.internal_code, qi.quantity);
         }
       }
+      for (const row of woItems.filter(isSerialized)) {
+        await loadSerialOptions(row.item_id);
+      }
     } finally {
       importing = false;
     }
@@ -134,16 +137,71 @@
 
   // ── Equipos de la orden ───────────────────────────────────────────────────
   let woItems = [];
+  let serialOptions = {};
 
   function mergeItem(id, name, code, qty) {
-    woItems = mergeRentalOrderItem(woItems, { item_id: id, name, internal_code: code, quantity: qty });
+    const itemDef = allItems.find(item => item.id === id);
+    const serialized = isSerialized(itemDef);
+    woItems = mergeRentalOrderItem(woItems, {
+      item_id: id,
+      name,
+      internal_code: code,
+      quantity: qty,
+      item_type: itemDef?.item_type || 'cantidad',
+      uses_serial: itemDef?.uses_serial || 0,
+      serial_ids: serialized ? [] : undefined
+    });
   }
 
-  function addItemToWO(item) {
+  function isSerialized(item) {
+    return item?.item_type === 'serializado' || Number(item?.uses_serial || 0) === 1;
+  }
+
+  async function loadSerialOptions(itemId) {
+    if (!itemId || serialOptions[itemId]) return;
+    const rows = await window.api.db.get(
+      `SELECT s.id, s.serial_number, s.status,
+              CASE WHEN wis.work_order_id = ? THEN 1 ELSE 0 END as assigned_to_current
+       FROM item_serials s
+       LEFT JOIN work_order_item_serials wis
+         ON wis.serial_id = s.id AND wis.work_order_id = ?
+       WHERE s.item_id = ?
+         AND (s.status = 'disponible' OR wis.work_order_id = ?)
+       ORDER BY s.serial_number ASC`,
+      [currentWO.id || 0, currentWO.id || 0, itemId, currentWO.id || 0]
+    );
+    serialOptions = { ...serialOptions, [itemId]: rows };
+  }
+
+  async function addItemToWO(item) {
     const qty = parseInt(addQty[item.id]) || 1;
-    mergeItem(item.id, item.name, item.internal_code, qty);
+    if (isSerialized(item)) {
+      await loadSerialOptions(item.id);
+      const options = serialOptions[item.id] || [];
+      if (options.length === 0) {
+        alert('Este equipo no tiene seriales disponibles.');
+        return;
+      }
+
+      woItems = mergeRentalOrderItem(woItems, {
+        item_id: item.id,
+        name: item.name,
+        internal_code: item.internal_code,
+        quantity: Math.min(qty, options.length),
+        item_type: item.item_type,
+        uses_serial: item.uses_serial,
+        serial_ids: []
+      });
+    } else {
+      mergeItem(item.id, item.name, item.internal_code, qty);
+    }
     addQty[item.id] = 1;
     addQty = { ...addQty };
+  }
+
+  function updateSerializedQuantity(line) {
+    line.quantity = line.serial_ids?.length || 0;
+    woItems = [...woItems];
   }
 
   function removeItem(i) {
@@ -194,7 +252,7 @@
     [clients, allItems, quotations] = await Promise.all([
       window.api.db.get('SELECT id, name, phone FROM clients WHERE is_active = 1 ORDER BY name ASC'),
       window.api.db.get(`
-        SELECT i.id, i.name, i.internal_code, i.available_quantity,
+        SELECT i.id, i.name, i.internal_code, i.item_type, i.uses_serial, i.available_quantity,
                c.name as cat_name, s.name as subcat_name
         FROM items i
         LEFT JOIN categories    c ON i.category_id    = c.id
@@ -223,16 +281,41 @@
         }
       }
       const rows = await window.api.db.get(`
-        SELECT wi.item_id, wi.quantity, i.name, i.internal_code
+        SELECT wi.item_id, wi.quantity, i.name, i.internal_code, i.item_type, i.uses_serial
         FROM work_order_items wi JOIN items i ON wi.item_id = i.id
         WHERE wi.work_order_id = ?`, [woId]);
-      woItems = rows.map(r => ({ item_id: r.item_id, name: r.name, internal_code: r.internal_code, quantity: r.quantity }));
+      const assignedSerials = await window.api.db.get(
+        'SELECT item_id, serial_id FROM work_order_item_serials WHERE work_order_id = ?',
+        [woId]
+      );
+      woItems = rows.map(r => ({
+        item_id: r.item_id,
+        name: r.name,
+        internal_code: r.internal_code,
+        quantity: r.quantity,
+        item_type: r.item_type,
+        uses_serial: r.uses_serial,
+        serial_ids: assignedSerials
+          .filter(s => s.item_id === r.item_id)
+          .map(s => s.serial_id)
+      }));
+      for (const row of woItems.filter(isSerialized)) {
+        await loadSerialOptions(row.item_id);
+      }
     }
   });
 
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function saveWO() {
     if (!validateRentalOrderInput(currentWO).valid) { alert('Seleccione un cliente.'); return; }
+    for (const item of woItems.filter(isSerialized)) {
+      const serialCount = item.serial_ids?.length || 0;
+      if (serialCount === 0) {
+        alert(`Seleccione al menos un serial para ${item.name}.`);
+        return;
+      }
+      item.quantity = serialCount;
+    }
     isSaving = true;
     try {
       let id;
@@ -248,6 +331,17 @@
           [currentWO.client_id, currentWO.event_id || null, currentWO.quotation_id || null,
            currentWO.date, currentWO.responsible_person, currentWO.vehicle,
            currentWO.notes, statusForSave, currentWO.id]);
+        const previousSerials = await window.api.db.get(
+          'SELECT serial_id FROM work_order_item_serials WHERE work_order_id = ?',
+          [currentWO.id]
+        );
+        for (const serial of previousSerials) {
+          await window.api.db.run(
+            "UPDATE item_serials SET status = 'disponible' WHERE id = ?",
+            [serial.serial_id]
+          );
+        }
+        await window.api.db.run('DELETE FROM work_order_item_serials WHERE work_order_id=?', [currentWO.id]);
         await window.api.db.run('DELETE FROM work_order_items WHERE work_order_id=?', [currentWO.id]);
         id = currentWO.id;
       } else {
@@ -264,6 +358,19 @@
         await window.api.db.run(
           'INSERT INTO work_order_items (work_order_id, item_id, quantity) VALUES (?, ?, ?)',
           [id, wi.item_id, wi.quantity]);
+
+        if (isSerialized(wi)) {
+          for (const serialId of wi.serial_ids || []) {
+            await window.api.db.run(
+              'INSERT INTO work_order_item_serials (work_order_id, item_id, serial_id) VALUES (?, ?, ?)',
+              [id, wi.item_id, serialId]
+            );
+            await window.api.db.run(
+              "UPDATE item_serials SET status = 'reservado' WHERE id = ?",
+              [serialId]
+            );
+          }
+        }
       }
 
       if (shouldReserve) {
@@ -478,6 +585,9 @@
               <td><span class="code-pill">{item.internal_code || '—'}</span></td>
               <td>
                 <span class="item-name">{item.name}</span>
+                {#if isSerialized(item)}
+                  <span class="serial-chip">Serial</span>
+                {/if}
                 {#if item.cat_name}
                   <br><small class="item-meta">{item.cat_name}{item.subcat_name ? ` › ${item.subcat_name}` : ''}</small>
                 {/if}
@@ -491,6 +601,7 @@
               <td>
                 <div class="add-ctrl">
                   <input type="number" min="1" class="qty-mini"
+                         disabled={isSerialized(item)}
                          bind:value={addQty[item.id]} aria-label="Cantidad">
                   <button class="btn-add" class:btn-added={addedItemIds.has(item.id)}
                           on:click={() => addItemToWO(item)}>
@@ -533,6 +644,7 @@
                 <th style="width:80px;">Código</th>
                 <th>Equipo</th>
                 <th style="width:72px;text-align:center;">Cant.</th>
+                <th style="width:160px;">Seriales</th>
                 <th style="width:28px;"></th>
               </tr>
             </thead>
@@ -540,13 +652,31 @@
               {#each woItems as wi, i}
                 <tr>
                   <td><span class="code-pill" style="font-size:.68rem;">{wi.internal_code || '—'}</span></td>
-                  <td><span class="item-name" style="font-size:.87rem;">{wi.name}</span></td>
+                  <td>
+                    <span class="item-name" style="font-size:.87rem;">{wi.name}</span>
+                    {#if isSerialized(wi)}
+                      <br><small class="item-meta">Equipo unitario</small>
+                    {/if}
+                  </td>
                   <td>
                     <input type="number" min="1" class="qty-mini"
                            style="width:56px;text-align:center;"
                            bind:value={wi.quantity}
+                           disabled={isSerialized(wi)}
                            on:input={() => woItems = [...woItems]}
                            aria-label="Cantidad">
+                  </td>
+                  <td>
+                    {#if isSerialized(wi)}
+                      <select class="serial-select" multiple bind:value={wi.serial_ids}
+                              on:change={() => updateSerializedQuantity(wi)}>
+                        {#each serialOptions[wi.item_id] || [] as serial}
+                          <option value={serial.id}>{serial.serial_number}</option>
+                        {/each}
+                      </select>
+                    {:else}
+                      <span class="item-meta">N/A</span>
+                    {/if}
                   </td>
                   <td>
                     <button class="btn-remove" on:click={() => removeItem(i)} title="Quitar">🗑️</button>
@@ -689,6 +819,17 @@
   }
   .btn-add:hover { filter:brightness(1.1); }
   .btn-added { background:#6366f1; }
+  .serial-chip {
+    margin-left:6px; font-size:.65rem; font-weight:700;
+    background:rgba(245,158,11,.14); color:#b45309;
+    border-radius:10px; padding:1px 6px; text-transform:uppercase;
+  }
+  .serial-select {
+    width:150px; min-height:52px;
+    border:1px solid var(--border-color); border-radius:4px;
+    font-size:.76rem; padding:3px 5px; outline:none;
+  }
+  .serial-select:focus { border-color:var(--primary); }
 
   /* ── Stock ───────────────────────────────────────────────────────────── */
   .stock-ok   { color:var(--success); font-weight:600; }

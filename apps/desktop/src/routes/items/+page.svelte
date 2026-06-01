@@ -12,6 +12,7 @@
   
   let showModal = false;
   let isEditing = false;
+  let serialLines = '';
   
   let currentItem = {
     id: null,
@@ -73,6 +74,7 @@
       description: '', item_type: 'cantidad', uses_serial: 0, total_quantity: 1, 
       rental_price: 0, status: 'disponible', notes: ''
     };
+    serialLines = '';
     subcategories = [];
     showModal = true;
   }
@@ -80,10 +82,22 @@
   async function openEdit(item) {
     isEditing = true;
     currentItem = { ...item };
+    const serials = await window.api.db.get(
+      'SELECT serial_number FROM item_serials WHERE item_id = ? ORDER BY serial_number ASC',
+      [item.id]
+    );
+    serialLines = serials.map(s => s.serial_number).join('\n');
     if (currentItem.category_id) {
       subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
     }
     showModal = true;
+  }
+
+  function getSerialNumbers() {
+    return serialLines
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
   }
 
   async function saveItem() {
@@ -92,6 +106,23 @@
       return;
     }
 
+    const usesSerial = currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1;
+    const serialNumbers = getSerialNumbers();
+    if (usesSerial && serialNumbers.length === 0) {
+      alert('Agregue al menos un serial para equipos unitarios.');
+      return;
+    }
+
+    if (usesSerial) {
+      currentItem.uses_serial = 1;
+      currentItem.item_type = 'serializado';
+      currentItem.total_quantity = serialNumbers.length;
+    } else {
+      currentItem.uses_serial = 0;
+      currentItem.item_type = 'cantidad';
+    }
+
+    let itemId = currentItem.id;
     if (isEditing) {
       await window.api.db.run(`
         UPDATE items SET 
@@ -103,13 +134,26 @@
          currentItem.total_quantity, currentItem.rental_price, currentItem.notes, currentItem.id]
       );
     } else {
-      await window.api.db.run(`
+      const res = await window.api.db.run(`
         INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
          currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
          currentItem.total_quantity, currentItem.rental_price, currentItem.notes]
       );
+      itemId = res.id;
+    }
+
+    if (usesSerial) {
+      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
+      for (const serialNumber of serialNumbers) {
+        await window.api.db.run(
+          'INSERT INTO item_serials (item_id, serial_number, status) VALUES (?, ?, ?)',
+          [itemId, serialNumber, 'disponible']
+        );
+      }
+    } else if (isEditing) {
+      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
     }
     showModal = false;
     loadItems();
@@ -245,7 +289,8 @@
       </div>
       <div style="flex: 1;">
         <label for="itm-qty">Cantidad Total</label>
-        <input id="itm-qty" type="number" bind:value={currentItem.total_quantity} min="1" class="form-control">
+        <input id="itm-qty" type="number" bind:value={currentItem.total_quantity} min="1" class="form-control"
+               disabled={currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1}>
       </div>
       <div style="flex: 1;">
         <label for="itm-price">Precio Alquiler</label>
@@ -264,6 +309,17 @@
         </label>
       </div>
     </div>
+
+    {#if currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1}
+      <div>
+        <label for="itm-serials">Seriales individuales</label>
+        <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="5"
+                  placeholder="Un serial por línea. Ej. QSC-K12-001"></textarea>
+        <small style="color:var(--text-muted);display:block;margin-top:4px;">
+          La cantidad total se calcula por la cantidad de seriales registrados.
+        </small>
+      </div>
+    {/if}
 
     <div>
       <label for="itm-notes">Descripción / Observaciones</label>

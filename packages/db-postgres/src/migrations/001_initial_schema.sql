@@ -173,6 +173,15 @@ CREATE TABLE IF NOT EXISTS work_order_items (
 	quantity INTEGER DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS work_order_item_serials (
+	id BIGSERIAL PRIMARY KEY,
+	work_order_id BIGINT NOT NULL REFERENCES work_orders(id),
+	item_id BIGINT NOT NULL REFERENCES items(id),
+	serial_id BIGINT NOT NULL REFERENCES item_serials(id),
+	created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (work_order_id, serial_id)
+);
+
 CREATE TABLE IF NOT EXISTS work_order_stock_reservations (
 	id BIGSERIAL PRIMARY KEY,
 	work_order_id BIGINT NOT NULL REFERENCES work_orders(id),

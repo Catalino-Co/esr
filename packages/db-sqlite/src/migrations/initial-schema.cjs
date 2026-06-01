@@ -179,6 +179,18 @@ function initDatabase() {
         FOREIGN KEY(item_id) REFERENCES items(id)
       )`);
 
+      db.run(`CREATE TABLE IF NOT EXISTS work_order_item_serials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_order_id INTEGER NOT NULL,
+        item_id INTEGER NOT NULL,
+        serial_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(work_order_id, serial_id),
+        FOREIGN KEY(work_order_id) REFERENCES work_orders(id),
+        FOREIGN KEY(item_id) REFERENCES items(id),
+        FOREIGN KEY(serial_id) REFERENCES item_serials(id)
+      )`);
+
       db.run(`CREATE TABLE IF NOT EXISTS work_order_stock_reservations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         work_order_id INTEGER NOT NULL,
