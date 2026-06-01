@@ -22,6 +22,7 @@
 	"dependencies": {
 		"@esr/config": "workspace:*",
 		"@esr/core": "workspace:*",
+		"@esr/db-postgres": "workspace:*",
 		"@esr/schemas": "workspace:*",
 		"@esr/ui": "workspace:*"
 	}

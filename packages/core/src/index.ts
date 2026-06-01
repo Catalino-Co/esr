@@ -1,5 +1,7 @@
 export * from './shared/result';
 
+export * from './customers/repositories';
+
 export * from './events/repositories';
 export * from './events/use-cases';
 
