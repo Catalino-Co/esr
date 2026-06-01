@@ -64,6 +64,14 @@
     await loadChecklist();
   }
 
+  function hasMissingQuantity(item) {
+    return Number(item.actual_quantity || 0) < Number(item.expected_quantity || 0);
+  }
+
+  function isIncidentItem(item) {
+    return item.is_damaged || item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item));
+  }
+
   async function saveChecklist() {
     if (!woId || !window.api) return;
     await window.api.db.run(
@@ -71,94 +79,116 @@
       [woId, activeTab]
     );
     for (const item of checklistItems) {
+      const isMissing = item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item));
+      item.is_missing = isMissing;
+
       await window.api.db.run(`
         INSERT INTO work_order_checklists
           (work_order_id, item_id, type, expected_quantity, actual_quantity, is_damaged, is_missing, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [woId, item.item_id, activeTab, item.expected_quantity,
          item.actual_quantity, item.is_damaged ? 1 : 0,
-         item.is_missing ? 1 : 0, item.notes || '']
+         isMissing ? 1 : 0, item.notes || '']
       );
     }
+    checklistItems = [...checklistItems];
   }
 
   // ── Incidencias automáticas ───────────────────────────────────────────────
-  let showIncidentModal  = false;
-  let incidentCandidates = [];   // items con daño/faltante
   let creatingIncidents  = false;
-  let incidentsCreated   = false;
 
   async function saveAndReturn() {
     await saveChecklist();
 
-    // Solo en retorno: detectar ítems con daño o faltante
     if (activeTab === 'retorno') {
-      const withIssues = checklistItems.filter(i => i.is_damaged || i.is_missing);
-
-      if (withIssues.length > 0) {
-        // Verificar cuáles ya tienen incidencia creada para esta WO
-        const existing = await window.api.db.get(
-          `SELECT item_id FROM incidents WHERE work_order_id = ? AND is_active = 1`,
-          [woId]
-        );
-        const existingIds = new Set(existing.map(e => e.item_id));
-
-        incidentCandidates = withIssues
-          .filter(i => !existingIds.has(i.item_id))
-          .map(i => ({
-            ...i,
-            type:           i.is_damaged && i.is_missing ? 'daño / faltante'
-                          : i.is_damaged ? 'daño' : 'faltante',
-            estimated_cost: 0
-          }));
-
-        if (incidentCandidates.length > 0) {
-          showIncidentModal = true;
-          return;   // no redirigir aún
-        }
+      const count = await createAutomaticIncidents();
+      if (count > 0) {
+        alert(`${count} incidencia(s) creada(s) automáticamente.`);
       }
     }
 
     window.location.href = '/work_orders';
   }
 
-  async function createIncidents() {
+  function buildIncidentCandidates(existingKeys) {
+    const candidates = [];
+
+    for (const item of checklistItems) {
+      const isMissing = item.is_missing || hasMissingQuantity(item);
+      const missingQuantity = Math.max(
+        0,
+        Number(item.expected_quantity || 0) - Number(item.actual_quantity || 0)
+      );
+
+      if (item.is_damaged && !existingKeys.has(`${item.item_id}:daño`)) {
+        candidates.push({
+          item,
+          type: 'daño',
+          description: `[Retorno WO-${String(woId).padStart(5,'0')}] ${item.item_name}: daño reportado`
+        });
+      }
+
+      if (isMissing && !existingKeys.has(`${item.item_id}:faltante`)) {
+        const qtyDetail = missingQuantity > 0
+          ? `faltante de ${missingQuantity} unidad(es) de ${item.expected_quantity}`
+          : 'faltante reportado';
+        candidates.push({
+          item,
+          type: 'faltante',
+          description: `[Retorno WO-${String(woId).padStart(5,'0')}] ${item.item_name}: ${qtyDetail}`
+        });
+      }
+    }
+
+    return candidates;
+  }
+
+  async function createAutomaticIncidents() {
     if (!workOrder || creatingIncidents) return;
     creatingIncidents = true;
     try {
-      for (const item of incidentCandidates) {
-        const incType = item.is_damaged && item.is_missing ? 'daño'
-                      : item.is_damaged ? 'daño' : 'faltante';
-        const desc = `[Retorno WO-${String(woId).padStart(5,'0')}] ${item.item_name}: `
-                   + (item.is_damaged ? 'daño reportado' : '')
-                   + (item.is_damaged && item.is_missing ? ' / ' : '')
-                   + (item.is_missing ? 'faltante' : '')
-                   + (item.notes ? ` — ${item.notes}` : '');
+      const existing = await window.api.db.get(
+        `SELECT item_id, type
+         FROM incidents
+         WHERE work_order_id = ? AND is_active = 1`,
+        [woId]
+      );
+      const existingKeys = new Set();
+      for (const incident of existing) {
+        const type = incident.type || '';
+        if (type.includes('daño')) existingKeys.add(`${incident.item_id}:daño`);
+        if (type.includes('faltante')) existingKeys.add(`${incident.item_id}:faltante`);
+      }
+      const candidates = buildIncidentCandidates(existingKeys);
+
+      for (const candidate of candidates) {
+        const desc = candidate.description
+                   + (candidate.item.notes ? ` — ${candidate.item.notes}` : '');
 
         await window.api.db.run(`
           INSERT INTO incidents
             (type, item_id, client_id, work_order_id, date, description, severity, estimated_cost, status, is_active)
           VALUES (?, ?, ?, ?, ?, ?, 'media', ?, 'reportado', 1)`,
-          [incType, item.item_id, workOrder.client_id, woId,
+          [candidate.type, candidate.item.item_id, workOrder.client_id, woId,
            new Date().toISOString().split('T')[0],
-           desc, item.estimated_cost || 0]
+           desc, 0]
         );
       }
-      incidentsCreated = true;
+
+      return candidates.length;
     } finally {
       creatingIncidents = false;
     }
   }
 
-  function skipIncidents() {
-    showIncidentModal = false;
-    window.location.href = '/work_orders';
-  }
-
   async function printChecklist() {
     await saveChecklist();   // guardar estado actual antes de imprimir
     const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
-    const { url, filename } = generateChecklistPDF(workOrder, checklistItems, activeTab, 'preview', company);
+    const printableItems = checklistItems.map(item => ({
+      ...item,
+      is_missing: item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item))
+    }));
+    const { url, filename } = generateChecklistPDF(workOrder, printableItems, activeTab, 'preview', company);
     pdfPreviewUrl   = url;
     pdfPreviewFile  = filename;
     pdfPreviewTitle = activeTab === 'salida'
@@ -183,9 +213,9 @@
 
   // Contadores de estado
   $: totalItems    = checklistItems.length;
-  $: itemsOk       = checklistItems.filter(i => i.actual_quantity >= i.expected_quantity && !i.is_damaged && !i.is_missing).length;
-  $: itemsWarning  = checklistItems.filter(i => i.actual_quantity < i.expected_quantity && !i.is_damaged && !i.is_missing).length;
-  $: itemsIncident = checklistItems.filter(i => i.is_damaged || i.is_missing).length;
+  $: itemsOk       = checklistItems.filter(i => i.actual_quantity >= i.expected_quantity && !isIncidentItem(i)).length;
+  $: itemsWarning  = checklistItems.filter(i => i.actual_quantity < i.expected_quantity && !isIncidentItem(i)).length;
+  $: itemsIncident = checklistItems.filter(i => isIncidentItem(i)).length;
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════ HEADER -->
@@ -294,8 +324,8 @@
         </thead>
         <tbody>
           {#each checklistItems as item}
-            {@const rowOk      = item.actual_quantity >= item.expected_quantity && !item.is_damaged && !item.is_missing}
-            {@const rowIncident = item.is_damaged || item.is_missing}
+            {@const rowIncident = isIncidentItem(item)}
+            {@const rowOk      = item.actual_quantity >= item.expected_quantity && !rowIncident}
             {@const rowWarn    = !rowOk && !rowIncident}
             <tr class:row-ok={rowOk} class:row-incident={rowIncident} class:row-warn={rowWarn}>
               <td style="text-align:center;padding:8px 4px;">
@@ -354,8 +384,8 @@
     <button class="btn btn-print-sm" on:click={printChecklist}>
       🖨️ Imprimir Checklist de {activeTab === 'salida' ? 'Salida' : 'Retorno'}
     </button>
-    <button class="btn btn-primary btn-save" on:click={saveAndReturn}>
-      💾 Guardar Checklist
+    <button class="btn btn-primary btn-save" on:click={saveAndReturn} disabled={creatingIncidents}>
+      {creatingIncidents ? 'Creando incidencias…' : '💾 Guardar Checklist'}
     </button>
   </div>
 
@@ -363,79 +393,6 @@
   <div class="empty-state">
     <span style="font-size:2.5rem;">📋</span>
     <p>Cargando información de la orden o ID no válido.</p>
-  </div>
-{/if}
-
-<!-- ══════════════════════════════════ MODAL INCIDENCIAS AUTOMÁTICAS -->
-{#if showIncidentModal}
-  <div class="inc-overlay">
-    <div class="inc-dialog">
-
-      {#if !incidentsCreated}
-        <!-- ─ Confirmación ───────────────────────────────────────────── -->
-        <div class="inc-header">
-          <span class="inc-icon">⚠️</span>
-          <div>
-            <div class="inc-title">Incidencias detectadas en retorno</div>
-            <div class="inc-sub">
-              {incidentCandidates.length} equipo(s) con daños o faltantes sin incidencia registrada.
-              ¿Deseas crearlas automáticamente?
-            </div>
-          </div>
-        </div>
-
-        <div class="inc-list">
-          {#each incidentCandidates as c}
-            <div class="inc-item">
-              <div class="inc-item-left">
-                <span class="code-pill">{c.internal_code}</span>
-                <div>
-                  <div class="inc-item-name">{c.item_name}</div>
-                  <div class="inc-item-type">
-                    {#if c.is_damaged}<span class="tag-dano">🔴 Daño</span>{/if}
-                    {#if c.is_missing}<span class="tag-faltante">🟡 Faltante</span>{/if}
-                    {#if c.notes}<span class="inc-note">"{c.notes}"</span>{/if}
-                  </div>
-                </div>
-              </div>
-              <div class="inc-item-cost">
-                <label>Costo estimado $</label>
-                <input type="number" min="0" step="0.01" bind:value={c.estimated_cost}
-                       class="cost-input" placeholder="0.00">
-              </div>
-            </div>
-          {/each}
-        </div>
-
-        <div class="inc-footer">
-          <button class="btn btn-secondary" on:click={skipIncidents}>
-            Omitir y volver
-          </button>
-          <button class="btn btn-danger" on:click={createIncidents} disabled={creatingIncidents}>
-            {creatingIncidents ? 'Creando…' : `⚠️ Crear ${incidentCandidates.length} Incidencia(s)`}
-          </button>
-        </div>
-
-      {:else}
-        <!-- ─ Éxito ──────────────────────────────────────────────────── -->
-        <div class="inc-success">
-          <div style="font-size:2.5rem;">✅</div>
-          <div class="inc-title">{incidentCandidates.length} incidencia(s) creadas</div>
-          <div class="inc-sub" style="text-align:center;">
-            Puedes revisarlas y agregar más detalles desde el módulo de Incidencias.
-          </div>
-          <div style="display:flex;gap:12px;margin-top:8px;">
-            <button class="btn btn-secondary" on:click={() => window.location.href = '/work_orders'}>
-              ← Órdenes de Trabajo
-            </button>
-            <button class="btn btn-primary" on:click={() => window.location.href = '/incidents'}>
-              Ver Incidencias →
-            </button>
-          </div>
-        </div>
-      {/if}
-
-    </div>
   </div>
 {/if}
 
@@ -613,64 +570,4 @@
     padding:60px 20px; color:var(--text-muted); gap:12px; text-align:center;
   }
 
-  /* ── Modal incidencias ───────────────────────────────────────────────── */
-  .inc-overlay {
-    position:fixed; inset:0; background:rgba(0,0,0,.45);
-    display:flex; align-items:center; justify-content:center;
-    z-index:1000;
-  }
-  .inc-dialog {
-    background:white; border-radius:12px; padding:28px;
-    width:540px; max-width:96vw; box-shadow:0 20px 60px rgba(0,0,0,.2);
-  }
-  .inc-header {
-    display:flex; align-items:flex-start; gap:14px; margin-bottom:20px;
-  }
-  .inc-icon  { font-size:2rem; flex-shrink:0; }
-  .inc-title { font-size:1.05rem; font-weight:700; margin-bottom:4px; }
-  .inc-sub   { font-size:.88rem; color:var(--text-muted); }
-
-  .inc-list {
-    display:flex; flex-direction:column; gap:10px;
-    max-height:280px; overflow-y:auto;
-    border:1px solid var(--border-color); border-radius:8px;
-    padding:10px; margin-bottom:20px;
-  }
-  .inc-item {
-    display:flex; justify-content:space-between; align-items:center;
-    gap:12px; padding:8px 10px;
-    background:rgba(220,53,69,.04); border:1px solid rgba(220,53,69,.15);
-    border-radius:6px;
-  }
-  .inc-item-left { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
-  .inc-item-name { font-weight:600; font-size:.88rem; }
-  .inc-item-type { display:flex; gap:6px; align-items:center; margin-top:2px; flex-wrap:wrap; }
-  .inc-note      { font-size:.75rem; color:var(--text-muted); font-style:italic; }
-  .tag-dano      { font-size:.72rem; font-weight:700; background:rgba(220,53,69,.12); color:var(--danger); padding:1px 7px; border-radius:20px; }
-  .tag-faltante  { font-size:.72rem; font-weight:700; background:rgba(245,158,11,.12); color:#b45309; padding:1px 7px; border-radius:20px; }
-
-  .inc-item-cost { display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex-shrink:0; }
-  .inc-item-cost label { font-size:.72rem; color:var(--text-muted); white-space:nowrap; }
-  .cost-input {
-    width:90px; text-align:right; padding:4px 7px;
-    border:1px solid var(--border-color); border-radius:4px;
-    font-size:.88rem; outline:none;
-  }
-  .cost-input:focus { border-color:var(--primary); }
-
-  .inc-footer {
-    display:flex; justify-content:flex-end; gap:10px;
-  }
-  .btn-danger {
-    background:var(--danger); color:white; border:none;
-    border-radius:var(--radius-sm); padding:9px 18px;
-    font-size:.9rem; font-weight:600; cursor:pointer; transition:.2s;
-  }
-  .btn-danger:hover:not(:disabled) { filter:brightness(.9); }
-  .btn-danger:disabled { opacity:.6; cursor:not-allowed; }
-
-  .inc-success {
-    display:flex; flex-direction:column; align-items:center;
-    gap:10px; padding:10px 0;
-  }
 </style>
