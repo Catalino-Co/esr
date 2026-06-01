@@ -18,18 +18,15 @@ importers:
       '@esr/db-sqlite':
         specifier: workspace:*
         version: link:../../packages/db-sqlite
+      '@esr/reports':
+        specifier: workspace:*
+        version: link:../../packages/reports
       '@esr/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
       '@esr/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      jspdf:
-        specifier: ^4.2.1
-        version: 4.2.1
-      jspdf-autotable:
-        specifier: ^5.0.7
-        version: 5.0.8(jspdf@4.2.1)
     devDependencies:
       '@sveltejs/adapter-auto':
         specifier: ^7.0.0
@@ -90,7 +87,14 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
 
-  packages/reports: {}
+  packages/reports:
+    dependencies:
+      jspdf:
+        specifier: ^4.2.1
+        version: 4.2.1
+      jspdf-autotable:
+        specifier: ^5.0.7
+        version: 5.0.8(jspdf@4.2.1)
 
   packages/schemas: {}
 

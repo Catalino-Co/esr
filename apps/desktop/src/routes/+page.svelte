@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { fmtN } from '$lib/utils/format';
+  import { fmtN } from '@esr/reports';
 
   let stats = {
     clients: 0,

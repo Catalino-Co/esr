@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { generateChecklistPDF } from '$lib/utils/pdfGenerator';
+  import { generateChecklistPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
 
   let woId           = null;

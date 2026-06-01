@@ -1,6 +1,14 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { fmt } from './format.js';
+import { fmt } from '../formatters/number.js';
+
+function createPdfResult(doc, filename, action) {
+  if (action === 'preview') {
+    return { url: doc.output('bloburl'), filename };
+  }
+
+  return { doc, filename };
+}
 
 function renderCompanyHeader(doc, companyInfo) {
   let textY = 20;
@@ -126,12 +134,7 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
 
   const filename = `Cotizacion_${String(quotation.id).padStart(5, '0')}.pdf`;
 
-  if (action === 'preview') {
-    return { url: doc.output('bloburl'), filename };
-  }
-  
-  // Save PDF
-  doc.save(filename);
+  return createPdfResult(doc, filename, action);
 }
 
 export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = null) {
@@ -180,11 +183,7 @@ export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = n
 
   const filename = `Orden_Trabajo_${String(wo.id).padStart(5, '0')}.pdf`;
 
-  if (action === 'preview') {
-    return { url: doc.output('bloburl'), filename };
-  }
-
-  doc.save(filename);
+  return createPdfResult(doc, filename, action);
 }
 
 export function generateChecklistPDF(workOrder, items, type = 'salida', action = 'save', companyInfo = null) {
@@ -365,10 +364,7 @@ export function generateChecklistPDF(workOrder, items, type = 'salida', action =
 
   const filename = `Checklist_${isSalida ? 'Salida' : 'Retorno'}_WO-${String(workOrder.id).padStart(5, '0')}.pdf`;
 
-  if (action === 'preview') {
-    return { url: doc.output('bloburl'), filename };
-  }
-  doc.save(filename);
+  return createPdfResult(doc, filename, action);
 }
 
 export function generateConducePDF(wo, items, action = 'save', companyInfo = null) {
@@ -443,9 +439,5 @@ export function generateConducePDF(wo, items, action = 'save', companyInfo = nul
     ? `Conduce_${String(wo.conduce_id).padStart(5, '0')}_WO_${String(wo.id).padStart(5, '0')}.pdf`
     : `Conduce_WO_${String(wo.id).padStart(5, '0')}.pdf`;
 
-  if (action === 'preview') {
-    return { url: doc.output('bloburl'), filename };
-  }
-
-  doc.save(filename);
+  return createPdfResult(doc, filename, action);
 }

@@ -3,9 +3,9 @@
   import { goto } from '$app/navigation';
   import { mergeRentalOrderItem, planRentalOrderStatusForSave } from '@esr/core';
   import { validateRentalOrderInput } from '@esr/schemas';
-  import { generateWorkOrderPDF, generateConducePDF } from '$lib/utils/pdfGenerator';
+  import { generateWorkOrderPDF, generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
-  import { fmtN } from '$lib/utils/format';
+  import { fmtN } from '@esr/reports';
 
   // ── Estado principal ──────────────────────────────────────────────────────
   let isEditing = false;

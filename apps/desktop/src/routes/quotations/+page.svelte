@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { generateQuotationPDF } from '$lib/utils/pdfGenerator';
+  import { generateQuotationPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
-  import { fmt } from '$lib/utils/format';
+  import { fmt } from '@esr/reports';
 
   let viewState = "1";
   let quotations = [];

@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { generateConducePDF } from '$lib/utils/pdfGenerator';
+  import { generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
-  import { fmt } from '$lib/utils/format';
+  import { fmt } from '@esr/reports';
 
   // ── Estado principal ──────────────────────────────────────────────────────
   let isEditing = false;

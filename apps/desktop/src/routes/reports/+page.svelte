@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { fmt, fmtN } from '$lib/utils/format';
+  import { createOperationalDashboardReport, fmt, fmtN } from '@esr/reports';
 
   let summary = {
     totalQuotations: 0,
@@ -20,14 +20,11 @@
       const wStats = await window.api.db.getOne("SELECT COUNT(id) as cnt FROM work_orders WHERE status IN ('entregado', 'retornado', 'cerrado') AND is_active = 1");
       const iStats = await window.api.db.getOne("SELECT COUNT(id) as cnt, SUM(estimated_cost) as cost FROM incidents");
 
-      summary.totalQuotations = (await window.api.db.getOne("SELECT COUNT(id) as cnt FROM quotations WHERE is_active=1")).cnt;
-      summary.totalWorkOrders = (await window.api.db.getOne("SELECT COUNT(id) as cnt FROM work_orders WHERE is_active=1")).cnt;
-      summary.totalRevenue = qStats?.revenue || 0;
-      summary.totalIncidents = iStats?.cnt || 0;
-      summary.incidentsCost = iStats?.cost || 0;
+      const totalQuotations = (await window.api.db.getOne("SELECT COUNT(id) as cnt FROM quotations WHERE is_active=1")).cnt;
+      const totalWorkOrders = (await window.api.db.getOne("SELECT COUNT(id) as cnt FROM work_orders WHERE is_active=1")).cnt;
 
       // Top Rented Items (based on approved quotation items)
-      topItems = await window.api.db.get(`
+      const topItemRows = await window.api.db.get(`
         SELECT i.name, i.internal_code, SUM(qi.quantity) as rented_times
         FROM quotation_items qi
         JOIN quotations q ON qi.quotation_id = q.id
@@ -38,13 +35,27 @@
         LIMIT 5
       `);
 
-      recentIncidents = await window.api.db.get(`
+      const recentIncidentRows = await window.api.db.get(`
         SELECT inc.*, i.name as item_name
         FROM incidents inc
         LEFT JOIN items i ON inc.item_id = i.id
         ORDER BY inc.id DESC
         LIMIT 5
       `);
+
+      const report = createOperationalDashboardReport({
+        quotationStats: qStats,
+        workOrderStats: wStats,
+        incidentStats: iStats,
+        totalQuotations,
+        totalWorkOrders,
+        topItems: topItemRows,
+        recentIncidents: recentIncidentRows
+      });
+
+      summary = report.summary;
+      topItems = report.topItems;
+      recentIncidents = report.recentIncidents;
     }
   }
 

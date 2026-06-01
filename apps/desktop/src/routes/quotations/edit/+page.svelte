@@ -9,9 +9,9 @@
     removeQuoteItemLine
   } from '@esr/core';
   import { validateQuoteInput } from '@esr/schemas';
-  import { generateQuotationPDF } from '$lib/utils/pdfGenerator';
+  import { generateQuotationPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
-  import { fmt, fmtN } from '$lib/utils/format';
+  import { fmt, fmtN } from '@esr/reports';
 
   // ── Estado principal ──────────────────────────────────────────────────────
   let isEditing = false;

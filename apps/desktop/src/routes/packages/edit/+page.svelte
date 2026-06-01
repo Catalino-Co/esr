@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { fmt, fmtN } from '$lib/utils/format';
+  import { fmt, fmtN } from '@esr/reports';
 
   // ── Estado del paquete ────────────────────────────────────────────────────
   let isEditing   = false;

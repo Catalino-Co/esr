@@ -3,8 +3,21 @@
 	"private": true,
 	"version": "0.0.1",
 	"description": "Shared ESR reports, PDFs and document templates.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.js",
+		"./quotes": "./src/quotes/index.js",
+		"./contracts": "./src/contracts/index.js",
+		"./inventory": "./src/inventory/index.js",
+		"./rentals": "./src/rentals/index.js",
+		"./formatters": "./src/formatters/index.js"
+	},
 	"scripts": {
 		"lint": "echo \"reports lint pending\"",
 		"check": "echo \"reports check pending\""
+	},
+	"dependencies": {
+		"jspdf": "^4.2.1",
+		"jspdf-autotable": "^5.0.7"
 	}
 }

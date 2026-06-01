@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { fmt } from '$lib/utils/format';
+  import { fmt } from '@esr/reports';
 
   let viewState = "1";
   let packages = [];

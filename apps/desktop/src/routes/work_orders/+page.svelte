@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { shouldReserveStock } from '@esr/core';
-  import { generateWorkOrderPDF, generateConducePDF } from '$lib/utils/pdfGenerator';
+  import { generateWorkOrderPDF, generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
 
   let showPdfPreview    = false;

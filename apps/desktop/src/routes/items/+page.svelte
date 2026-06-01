@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { validateInventoryItemInput } from '@esr/schemas';
   import { Modal } from '@esr/ui';
-  import { fmt, fmtN } from '$lib/utils/format';
+  import { fmt, fmtN } from '@esr/reports';
 
   let viewState = "1";
   let items = [];
