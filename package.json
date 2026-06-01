@@ -1,5 +1,5 @@
 {
-	"name": "esr-pro",
+	"name": "esr",
 	"private": true,
 	"version": "0.0.1",
 	"packageManager": "pnpm@11.1.3",
