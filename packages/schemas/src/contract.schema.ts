@@ -4,6 +4,7 @@ export type ContractStatus = 'borrador' | 'firmado' | 'cancelado' | string;
 
 export type Contract = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	customer_id?: ESRId;
 	client_id?: ESRId;
 	event_id?: Nullable<ESRId>;

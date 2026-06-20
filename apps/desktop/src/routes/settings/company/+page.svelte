@@ -15,11 +15,9 @@
   let saving = false;
 
   async function loadData() {
-    if (window.api && window.api.db) {
-      const data = await window.api.db.get("SELECT * FROM company_info WHERE id = 1");
-      if (data && data.length > 0) {
-        currentCompany = data[0];
-      }
+    if (window.api?.settings) {
+      const data = await window.api.settings.getCompany();
+      if (data) currentCompany = data;
     }
   }
 
@@ -34,12 +32,7 @@
     }
     saving = true;
     try {
-      await window.api.db.run(`
-        UPDATE company_info SET 
-          name=?, rnc=?, phone=?, email=?, address=?, logo_base64=? 
-        WHERE id=1`,
-        [currentCompany.name, currentCompany.rnc, currentCompany.phone, currentCompany.email, currentCompany.address, currentCompany.logo_base64]
-      );
+      currentCompany = await window.api.settings.updateCompany(currentCompany);
       alert("Configuración de empresa guardada con éxito.");
     } catch(err) {
       alert("Hubo un error al guardar: " + err);

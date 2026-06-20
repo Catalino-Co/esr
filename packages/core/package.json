@@ -15,7 +15,8 @@
 	"types": "./src/index.ts",
 	"scripts": {
 		"lint": "echo \"core lint pending\"",
-		"check": "echo \"core check pending\""
+		"check": "echo \"core check pending\"",
+		"test": "node --test --test-isolation=none test/*.test.cjs"
 	},
 	"dependencies": {
 		"@esr/schemas": "workspace:*"

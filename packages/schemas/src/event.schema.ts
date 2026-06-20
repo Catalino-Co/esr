@@ -4,6 +4,7 @@ export type EventStatus = 'tentativo' | 'confirmado' | 'completado' | 'cancelado
 
 export type Event = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	client_id: ESRId | '';
 	name: string;
 	event_type?: string;

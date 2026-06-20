@@ -1,0 +1,129 @@
+import type pg from 'pg';
+import { closePostgresPool, getPostgresPool } from './connection';
+
+const disabledPasswordHash = 'not-a-real-password-hash-dev-only';
+
+type DemoTenant = {
+	companyName: string;
+	slug: string;
+	adminName: string;
+	email: string;
+	customerName: string;
+	categoryName: string;
+	itemName: string;
+	itemCode: string;
+	eventName: string;
+};
+
+const tenants: DemoTenant[] = [
+	{
+		companyName: 'Demo Company A', slug: 'demo-a', adminName: 'Admin A',
+		email: 'admin-a@demo.local', customerName: 'Cliente Demo A',
+		categoryName: 'Categoria Demo A', itemName: 'Equipo Demo A', itemCode: 'DEMO-A-001',
+		eventName: 'Evento Demo A'
+	},
+	{
+		companyName: 'Demo Company B', slug: 'demo-b', adminName: 'Admin B',
+		email: 'admin-b@demo.local', customerName: 'Cliente Demo B',
+		categoryName: 'Categoria Demo B', itemName: 'Equipo Demo B', itemCode: 'DEMO-B-001',
+		eventName: 'Evento Demo B'
+	}
+];
+
+async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant): Promise<void> {
+	const companyResult = await client.query<{ id: string }>(
+		`INSERT INTO companies (name, slug, status)
+		 VALUES ($1, $2, 'active')
+		 ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, status = 'active', updated_at = NOW()
+		 RETURNING id`,
+		[tenant.companyName, tenant.slug]
+	);
+	const companyId = companyResult.rows[0].id;
+
+	const userResult = await client.query<{ id: number }>(
+		`INSERT INTO users (name, email, password_hash, status)
+		 VALUES ($1, $2, $3, 'active')
+		 ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, status = 'active', updated_at = NOW()
+		 RETURNING id`,
+		[tenant.adminName, tenant.email, disabledPasswordHash]
+	);
+	const userId = userResult.rows[0].id;
+
+	await client.query(
+		`INSERT INTO company_members (company_id, user_id, role, status)
+		 VALUES ($1, $2, 'owner', 'active')
+		 ON CONFLICT (company_id, user_id)
+		 DO UPDATE SET role = 'owner', status = 'active', updated_at = NOW()`,
+		[companyId, userId]
+	);
+
+	const customerResult = await client.query<{ id: number }>(
+		`INSERT INTO clients (company_id, name, email, is_active)
+		 SELECT $1, $2, $3, 1
+		 WHERE NOT EXISTS (SELECT 1 FROM clients WHERE company_id = $1 AND name = $2)
+		 RETURNING id`,
+		[companyId, tenant.customerName, tenant.email.replace('admin-', 'cliente-')]
+	);
+	const customerId = customerResult.rows[0]?.id ?? (
+		await client.query<{ id: number }>(
+			'SELECT id FROM clients WHERE company_id = $1 AND name = $2', [companyId, tenant.customerName]
+		)
+	).rows[0].id;
+
+	const categoryResult = await client.query<{ id: number }>(
+		`INSERT INTO categories (company_id, name, color, is_active)
+		 SELECT $1, $2, '#3158c9', 1
+		 WHERE NOT EXISTS (SELECT 1 FROM categories WHERE company_id = $1 AND name = $2)
+		 RETURNING id`,
+		[companyId, tenant.categoryName]
+	);
+	const categoryId = categoryResult.rows[0]?.id ?? (
+		await client.query<{ id: number }>(
+			'SELECT id FROM categories WHERE company_id = $1 AND name = $2', [companyId, tenant.categoryName]
+		)
+	).rows[0].id;
+
+	await client.query(
+		`INSERT INTO items
+			(company_id, internal_code, name, category_id, item_type, total_quantity,
+			 available_quantity, rental_price, status, is_active)
+		 SELECT $1, $2, $3, $4, 'cantidad', 10, 10, 100, 'disponible', 1
+		 WHERE NOT EXISTS (SELECT 1 FROM items WHERE company_id = $1 AND internal_code = $2)`,
+		[companyId, tenant.itemCode, tenant.itemName, categoryId]
+	);
+
+	await client.query(
+		`INSERT INTO events (company_id, client_id, name, date, status, is_active)
+		 SELECT $1, $2, $3, CURRENT_DATE::TEXT, 'tentativo', 1
+		 WHERE NOT EXISTS (SELECT 1 FROM events WHERE company_id = $1 AND name = $3)`,
+		[companyId, customerId, tenant.eventName]
+	);
+
+	console.log(`[db-postgres] Seeded ${tenant.companyName} (${tenant.slug}).`);
+}
+
+async function runSeed(): Promise<void> {
+	const pool = getPostgresPool();
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+		for (const tenant of tenants) await upsertDemoTenant(client, tenant);
+		await client.query('COMMIT');
+		console.log('[db-postgres] Multi-company development seed completed.');
+	} catch (error) {
+		await client.query('ROLLBACK');
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
+try {
+	await runSeed();
+} catch (error) {
+	const message = error instanceof Error ? error.message : String(error);
+	console.error(`[db-postgres] Seed failed: ${message}`);
+	process.exitCode = 1;
+} finally {
+	await closePostgresPool();
+}

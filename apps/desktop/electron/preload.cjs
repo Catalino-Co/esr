@@ -18,5 +18,21 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('inventory:reserveConduceStock', conduceId, status),
     reserveWorkOrderStock: (workOrderId, status) =>
       ipcRenderer.invoke('inventory:reserveWorkOrderStock', workOrderId, status)
+  },
+  checklists: {
+    findWorkOrderSummary: (workOrderId) =>
+      ipcRenderer.invoke('checklists:findWorkOrderSummary', workOrderId),
+    findByWorkOrder: (workOrderId, type) =>
+      ipcRenderer.invoke('checklists:findByWorkOrder', workOrderId, type),
+    replaceForWorkOrder: (workOrderId, type, items) =>
+      ipcRenderer.invoke('checklists:replaceForWorkOrder', workOrderId, type, items),
+    findActiveIncidentKeys: (workOrderId) =>
+      ipcRenderer.invoke('checklists:findActiveIncidentKeys', workOrderId),
+    createAutomaticIncident: (input) =>
+      ipcRenderer.invoke('checklists:createAutomaticIncident', input)
+  },
+  settings: {
+    getCompany: () => ipcRenderer.invoke('settings:getCompany'),
+    updateCompany: (data) => ipcRenderer.invoke('settings:updateCompany', data)
   }
 });

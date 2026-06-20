@@ -2,6 +2,7 @@ import { invalid, isNonEmptyText, valid, type ESRId, type ValidationResult } fro
 
 export type CompanySettings = {
 	id?: ESRId;
+	company_id?: string;
 	name: string;
 	rnc?: string;
 	phone?: string;

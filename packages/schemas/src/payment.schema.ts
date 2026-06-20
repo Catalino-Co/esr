@@ -4,6 +4,7 @@ export type PaymentStatus = 'pendiente' | 'pagado' | 'anulado' | string;
 
 export type Payment = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	customer_id?: ESRId;
 	client_id?: ESRId;
 	quote_id?: Nullable<ESRId>;

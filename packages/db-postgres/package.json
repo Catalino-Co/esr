@@ -13,8 +13,12 @@
 	},
 	"types": "./src/index.ts",
 	"scripts": {
+		"migrate": "tsx src/migrate.ts",
+		"seed": "tsx src/seed.ts",
+		"test:integration": "tsx src/integration-test.ts",
 		"lint": "echo \"db-postgres lint pending\"",
-		"check": "echo \"db-postgres check pending\""
+		"check": "tsc --noEmit -p tsconfig.json",
+		"check:tenant": "node scripts/check-tenant-scope.cjs"
 	},
 	"dependencies": {
 		"@esr/core": "workspace:*",
@@ -22,6 +26,9 @@
 		"pg": "^8.16.3"
 	},
 	"devDependencies": {
-		"@types/pg": "^8.15.6"
+		"@types/node": "^26.0.0",
+		"@types/pg": "^8.15.6",
+		"tsx": "^4.22.4",
+		"typescript": "^6.0.3"
 	}
 }

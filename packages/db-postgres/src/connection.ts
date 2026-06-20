@@ -40,7 +40,7 @@ export async function closePostgresPool(): Promise<void> {
 	pool = null;
 }
 
-export async function query<T = unknown>(
+export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
 	text: string,
 	params: unknown[] = [],
 	client: Pick<pg.Pool, 'query'> = getPostgresPool()

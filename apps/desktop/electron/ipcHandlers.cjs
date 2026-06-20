@@ -2,6 +2,14 @@ const { ipcMain } = require('electron');
 const { runQuery, getQuery, getSingleQuery } = require('./db/index.cjs');
 const { createUser, login, updateUser } = require('./auth.cjs');
 const { reserveConduceStockIfNeeded, reserveIfNeeded } = require('./inventory.cjs');
+const {
+  createAutomaticIncident,
+  findActiveIncidentKeys,
+  findByWorkOrder,
+  findWorkOrderSummary,
+  replaceForWorkOrder
+} = require('./checklists.cjs');
+const { getCompanySettings, updateCompanySettings } = require('./settings.cjs');
 
 function setupIpcHandlers() {
   ipcMain.handle('db:run', async (event, sql, params) => {
@@ -34,6 +42,34 @@ function setupIpcHandlers() {
 
   ipcMain.handle('inventory:reserveConduceStock', async (event, conduceId, status) => {
     return await reserveConduceStockIfNeeded(conduceId, status);
+  });
+
+  ipcMain.handle('checklists:findWorkOrderSummary', async (event, workOrderId) => {
+    return await findWorkOrderSummary(workOrderId);
+  });
+
+  ipcMain.handle('checklists:findByWorkOrder', async (event, workOrderId, type) => {
+    return await findByWorkOrder(workOrderId, type);
+  });
+
+  ipcMain.handle('checklists:replaceForWorkOrder', async (event, workOrderId, type, items) => {
+    return await replaceForWorkOrder(workOrderId, type, items);
+  });
+
+  ipcMain.handle('checklists:findActiveIncidentKeys', async (event, workOrderId) => {
+    return await findActiveIncidentKeys(workOrderId);
+  });
+
+  ipcMain.handle('checklists:createAutomaticIncident', async (event, input) => {
+    return await createAutomaticIncident(input);
+  });
+
+  ipcMain.handle('settings:getCompany', async () => {
+    return await getCompanySettings();
+  });
+
+  ipcMain.handle('settings:updateCompany', async (event, data) => {
+    return await updateCompanySettings(data);
   });
 }
 

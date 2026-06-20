@@ -2,6 +2,7 @@ import { invalid, isPresent, valid, type ESRId, type Nullable, type ValidationRe
 
 export type Customer = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	name: string;
 	document_id?: string;
 	phone?: string;

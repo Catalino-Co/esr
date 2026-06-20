@@ -1,9 +1,9 @@
 import { validateEventInput, type Event } from '@esr/schemas';
 import { fail, ok, type UseCaseResult } from '../shared/result';
 
-export type CreateEventInput = Omit<Event, 'id'>;
+export type CreateEventDraftInput = Omit<Event, 'id'>;
 
-export function createEventDraft(input: CreateEventInput): UseCaseResult<CreateEventInput> {
+export function createEventDraft(input: CreateEventDraftInput): UseCaseResult<CreateEventDraftInput> {
 	const validation = validateEventInput(input);
 	if (!validation.valid) return fail(validation.issues[0] || 'event.invalid');
 

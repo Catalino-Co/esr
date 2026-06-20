@@ -1,6 +1,15 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import {
+    buildAutomaticIncidentCandidates,
+    calculateChecklistSummary,
+    clearChecklistItems,
+    completeChecklistItems,
+    isChecklistIncidentItem,
+    normalizeChecklistItemForSave,
+    toggleChecklistItemComplete
+  } from '@esr/core';
   import { generateChecklistPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
 
@@ -18,42 +27,16 @@
 
   async function loadData() {
     woId = $page.url.searchParams.get('wo');
-    if (!woId || !window.api?.db) return;
+    if (!woId || !window.api?.checklists) return;
 
-    workOrder = await window.api.db.getOne(`
-      SELECT w.*, c.name as client_name
-      FROM work_orders w
-      LEFT JOIN clients c ON w.client_id = c.id
-      WHERE w.id = ?`, [woId]);
+    workOrder = await window.api.checklists.findWorkOrderSummary(woId);
 
     if (workOrder) clientName = workOrder.client_name;
     await loadChecklist();
   }
 
   async function loadChecklist() {
-    const woItems = await window.api.db.get(`
-      SELECT wi.item_id, wi.quantity as expected_quantity, i.name as item_name, i.internal_code
-      FROM work_order_items wi
-      JOIN items i ON wi.item_id = i.id
-      WHERE wi.work_order_id = ?`, [woId]);
-
-    const saved = await window.api.db.get(`
-      SELECT * FROM work_order_checklists
-      WHERE work_order_id = ? AND type = ?`, [woId, activeTab]);
-
-    checklistItems = woItems.map(wi => {
-      const ex = saved.find(s => s.item_id === wi.item_id);
-      return {
-        item_id:           wi.item_id,
-        item_name:         wi.item_name,
-        internal_code:     wi.internal_code,
-        expected_quantity: wi.expected_quantity,
-        actual_quantity:   ex ? ex.actual_quantity : 0,
-        is_damaged:        ex ? (ex.is_damaged === 1) : false,
-        is_missing:        ex ? (ex.is_missing === 1) : false,
-        notes:             ex ? ex.notes : ''
-      };
-    });
+    checklistItems = await window.api.checklists.findByWorkOrder(woId, activeTab);
   }
 
   onMount(() => loadData());
@@ -64,34 +47,11 @@
     await loadChecklist();
   }
 
-  function hasMissingQuantity(item) {
-    return Number(item.actual_quantity || 0) < Number(item.expected_quantity || 0);
-  }
-
-  function isIncidentItem(item) {
-    return item.is_damaged || item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item));
-  }
-
   async function saveChecklist() {
-    if (!woId || !window.api) return;
-    await window.api.db.run(
-      'DELETE FROM work_order_checklists WHERE work_order_id = ? AND type = ?',
-      [woId, activeTab]
-    );
-    for (const item of checklistItems) {
-      const isMissing = item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item));
-      item.is_missing = isMissing;
-
-      await window.api.db.run(`
-        INSERT INTO work_order_checklists
-          (work_order_id, item_id, type, expected_quantity, actual_quantity, is_damaged, is_missing, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [woId, item.item_id, activeTab, item.expected_quantity,
-         item.actual_quantity, item.is_damaged ? 1 : 0,
-         isMissing ? 1 : 0, item.notes || '']
-      );
-    }
-    checklistItems = [...checklistItems];
+    if (!woId || !window.api?.checklists) return;
+    const normalizedItems = checklistItems.map(item => normalizeChecklistItemForSave(item, activeTab));
+    await window.api.checklists.replaceForWorkOrder(woId, activeTab, normalizedItems);
+    checklistItems = normalizedItems;
   }
 
   // ── Incidencias automáticas ───────────────────────────────────────────────
@@ -110,69 +70,32 @@
     window.location.href = '/work_orders';
   }
 
-  function buildIncidentCandidates(existingKeys) {
-    const candidates = [];
-
-    for (const item of checklistItems) {
-      const isMissing = item.is_missing || hasMissingQuantity(item);
-      const missingQuantity = Math.max(
-        0,
-        Number(item.expected_quantity || 0) - Number(item.actual_quantity || 0)
-      );
-
-      if (item.is_damaged && !existingKeys.has(`${item.item_id}:daño`)) {
-        candidates.push({
-          item,
-          type: 'daño',
-          description: `[Retorno WO-${String(woId).padStart(5,'0')}] ${item.item_name}: daño reportado`
-        });
-      }
-
-      if (isMissing && !existingKeys.has(`${item.item_id}:faltante`)) {
-        const qtyDetail = missingQuantity > 0
-          ? `faltante de ${missingQuantity} unidad(es) de ${item.expected_quantity}`
-          : 'faltante reportado';
-        candidates.push({
-          item,
-          type: 'faltante',
-          description: `[Retorno WO-${String(woId).padStart(5,'0')}] ${item.item_name}: ${qtyDetail}`
-        });
-      }
-    }
-
-    return candidates;
-  }
-
   async function createAutomaticIncidents() {
     if (!workOrder || creatingIncidents) return;
     creatingIncidents = true;
     try {
-      const existing = await window.api.db.get(
-        `SELECT item_id, type
-         FROM incidents
-         WHERE work_order_id = ? AND is_active = 1`,
-        [woId]
-      );
-      const existingKeys = new Set();
-      for (const incident of existing) {
-        const type = incident.type || '';
-        if (type.includes('daño')) existingKeys.add(`${incident.item_id}:daño`);
-        if (type.includes('faltante')) existingKeys.add(`${incident.item_id}:faltante`);
-      }
-      const candidates = buildIncidentCandidates(existingKeys);
+      const existingKeys = new Set(await window.api.checklists.findActiveIncidentKeys(woId));
+      const candidates = buildAutomaticIncidentCandidates({
+        items: checklistItems,
+        existingKeys,
+        workOrderId: woId
+      });
 
       for (const candidate of candidates) {
         const desc = candidate.description
                    + (candidate.item.notes ? ` — ${candidate.item.notes}` : '');
 
-        await window.api.db.run(`
-          INSERT INTO incidents
-            (type, item_id, client_id, work_order_id, date, description, severity, estimated_cost, status, is_active)
-          VALUES (?, ?, ?, ?, ?, ?, 'media', ?, 'reportado', 1)`,
-          [candidate.type, candidate.item.item_id, workOrder.client_id, woId,
-           new Date().toISOString().split('T')[0],
-           desc, 0]
-        );
+        await window.api.checklists.createAutomaticIncident({
+          type: candidate.type,
+          item_id: candidate.item.item_id,
+          client_id: workOrder.client_id,
+          work_order_id: woId,
+          date: new Date().toISOString().split('T')[0],
+          description: desc,
+          severity: 'media',
+          estimated_cost: 0,
+          status: 'reportado'
+        });
       }
 
       return candidates.length;
@@ -183,11 +106,8 @@
 
   async function printChecklist() {
     await saveChecklist();   // guardar estado actual antes de imprimir
-    const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
-    const printableItems = checklistItems.map(item => ({
-      ...item,
-      is_missing: item.is_missing || (activeTab === 'retorno' && hasMissingQuantity(item))
-    }));
+    const company = await window.api.settings.getCompany();
+    const printableItems = checklistItems.map(item => normalizeChecklistItemForSave(item, activeTab));
     const { url, filename } = generateChecklistPDF(workOrder, printableItems, activeTab, 'preview', company);
     pdfPreviewUrl   = url;
     pdfPreviewFile  = filename;
@@ -198,24 +118,22 @@
   }
 
   // Atajos globales
-  function fillAll()  { checklistItems = checklistItems.map(i => ({...i, actual_quantity: i.expected_quantity})); }
-  function clearAll() { checklistItems = checklistItems.map(i => ({...i, actual_quantity: 0})); }
+  function fillAll()  { checklistItems = completeChecklistItems(checklistItems); }
+  function clearAll() { checklistItems = clearChecklistItems(checklistItems); }
 
   // Checkbox individual: un click completa / descompleta el ítem
   function toggleComplete(item) {
-    if (item.actual_quantity >= item.expected_quantity) {
-      item.actual_quantity = 0;
-    } else {
-      item.actual_quantity = item.expected_quantity;
-    }
-    checklistItems = [...checklistItems];
+    checklistItems = checklistItems.map(row =>
+      row.item_id === item.item_id ? toggleChecklistItemComplete(row) : row
+    );
   }
 
   // Contadores de estado
-  $: totalItems    = checklistItems.length;
-  $: itemsOk       = checklistItems.filter(i => i.actual_quantity >= i.expected_quantity && !isIncidentItem(i)).length;
-  $: itemsWarning  = checklistItems.filter(i => i.actual_quantity < i.expected_quantity && !isIncidentItem(i)).length;
-  $: itemsIncident = checklistItems.filter(i => isIncidentItem(i)).length;
+  $: checklistSummary = calculateChecklistSummary(checklistItems, activeTab);
+  $: totalItems    = checklistSummary.totalItems;
+  $: itemsOk       = checklistSummary.itemsOk;
+  $: itemsWarning  = checklistSummary.itemsWarning;
+  $: itemsIncident = checklistSummary.itemsIncident;
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════ HEADER -->
@@ -324,7 +242,7 @@
         </thead>
         <tbody>
           {#each checklistItems as item}
-            {@const rowIncident = isIncidentItem(item)}
+            {@const rowIncident = isChecklistIncidentItem(item, activeTab)}
             {@const rowOk      = item.actual_quantity >= item.expected_quantity && !rowIncident}
             {@const rowWarn    = !rowOk && !rowIncident}
             <tr class:row-ok={rowOk} class:row-incident={rowIncident} class:row-warn={rowWarn}>

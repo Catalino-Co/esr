@@ -7,17 +7,28 @@ const {
   getSingleQuery,
   runQuery
 } = require('./connection.cjs');
-const { initDatabase } = require('./migrations/initial-schema.cjs');
+const { initDatabase } = require('./migrations/runner.cjs');
 const { seedDB } = require('./migrations/seed.cjs');
 const { createLocalSqliteBackup } = require('./backup/local-backup.cjs');
 const { SqliteCustomerRepository } = require('./repositories/sqlite-customer.repository.cjs');
 const { SqliteEventRepository } = require('./repositories/sqlite-event.repository.cjs');
+const { SqliteConduceRepository } = require('./repositories/sqlite-conduce.repository.cjs');
+const { SqliteIncidentRepository } = require('./repositories/sqlite-incident.repository.cjs');
 const {
   SqliteInventoryRepository,
   sqliteInventoryRepository
 } = require('./repositories/sqlite-inventory.repository.cjs');
 const { SqliteQuoteRepository } = require('./repositories/sqlite-quote.repository.cjs');
 const { SqliteRentalRepository } = require('./repositories/sqlite-rental.repository.cjs');
+const { SqliteChecklistRepository } = require('./repositories/sqlite-checklist.repository.cjs');
+const { SqliteCompanySettingsRepository } = require('./repositories/sqlite-company-settings.repository.cjs');
+const { SqliteSerialRepository } = require('./repositories/sqlite-serial.repository.cjs');
+const { SqliteUserRepository } = require('./repositories/sqlite-user.repository.cjs');
+const { SqlitePackageRepository } = require('./repositories/sqlite-package.repository.cjs');
+const {
+  SqliteCategoryRepository,
+  SqliteSubcategoryRepository
+} = require('./repositories/sqlite-category.repository.cjs');
 
 module.exports = {
   connectSqliteDatabase,
@@ -30,10 +41,19 @@ module.exports = {
   initDatabase,
   runQuery,
   seedDB,
+  SqliteCategoryRepository,
   SqliteCustomerRepository,
+  SqliteConduceRepository,
   SqliteEventRepository,
+  SqliteChecklistRepository,
+  SqliteCompanySettingsRepository,
+  SqliteIncidentRepository,
   SqliteInventoryRepository,
+  SqlitePackageRepository,
   SqliteQuoteRepository,
   SqliteRentalRepository,
+  SqliteSerialRepository,
+  SqliteSubcategoryRepository,
+  SqliteUserRepository,
   sqliteInventoryRepository
 };

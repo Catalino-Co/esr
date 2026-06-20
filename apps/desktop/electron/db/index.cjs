@@ -12,10 +12,19 @@ module.exports = {
   getQuery: sqlite.getQuery,
   getSingleQuery: sqlite.getSingleQuery,
   repositories: {
+    categories: new sqlite.SqliteCategoryRepository(),
     customers: new sqlite.SqliteCustomerRepository(),
+    conduces: new sqlite.SqliteConduceRepository(),
     events: new sqlite.SqliteEventRepository(),
+    checklists: new sqlite.SqliteChecklistRepository(),
+    companySettings: new sqlite.SqliteCompanySettingsRepository(),
+    incidents: new sqlite.SqliteIncidentRepository(),
     inventory: sqlite.sqliteInventoryRepository,
+    packages: new sqlite.SqlitePackageRepository(),
     quotes: new sqlite.SqliteQuoteRepository(),
-    rentals: new sqlite.SqliteRentalRepository()
+    rentals: new sqlite.SqliteRentalRepository(),
+    serials: new sqlite.SqliteSerialRepository(),
+    subcategories: new sqlite.SqliteSubcategoryRepository(),
+    users: new sqlite.SqliteUserRepository()
   }
 };

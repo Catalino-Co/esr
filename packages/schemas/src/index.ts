@@ -8,3 +8,4 @@ export * from './contract.schema';
 export * from './payment.schema';
 export * from './user.schema';
 export * from './company.schema';
+export * from './tenant.schema';

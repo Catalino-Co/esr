@@ -1,5 +1,11 @@
 <script>
   import { onMount } from 'svelte';
+  import {
+    isSerializedInventoryItem,
+    normalizeSerializedInventoryInput,
+    parseSerialLines,
+    validateSerialCatalogInput
+  } from '@esr/core';
   import { validateInventoryItemInput } from '@esr/schemas';
   import { Modal } from '@esr/ui';
   import { fmt, fmtN } from '@esr/reports';
@@ -93,33 +99,26 @@
     showModal = true;
   }
 
-  function getSerialNumbers() {
-    return serialLines
-      .split(/\r?\n/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
-
   async function saveItem() {
     if (!validateInventoryItemInput(currentItem).valid) {
       alert("Nombre y Categoría son obligatorios");
       return;
     }
 
-    const usesSerial = currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1;
-    const serialNumbers = getSerialNumbers();
-    if (usesSerial && serialNumbers.length === 0) {
-      alert('Agregue al menos un serial para equipos unitarios.');
-      return;
-    }
+    const usesSerial = isSerializedInventoryItem(currentItem);
+    const serialNumbers = parseSerialLines(serialLines);
+    let catalogSerialNumbers = [];
 
     if (usesSerial) {
-      currentItem.uses_serial = 1;
-      currentItem.item_type = 'serializado';
-      currentItem.total_quantity = serialNumbers.length;
+      const serialValidation = validateSerialCatalogInput(serialNumbers);
+      if (!serialValidation.ok) {
+        alert('Agregue al menos un serial para equipos unitarios.');
+        return;
+      }
+      catalogSerialNumbers = serialValidation.value;
+      currentItem = normalizeSerializedInventoryInput(currentItem, catalogSerialNumbers);
     } else {
-      currentItem.uses_serial = 0;
-      currentItem.item_type = 'cantidad';
+      currentItem = normalizeSerializedInventoryInput(currentItem, []);
     }
 
     let itemId = currentItem.id;
@@ -146,7 +145,7 @@
 
     if (usesSerial) {
       await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
-      for (const serialNumber of serialNumbers) {
+      for (const serialNumber of catalogSerialNumbers) {
         await window.api.db.run(
           'INSERT INTO item_serials (item_id, serial_number, status) VALUES (?, ?, ?)',
           [itemId, serialNumber, 'disponible']
@@ -310,7 +309,7 @@
       </div>
     </div>
 
-    {#if currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1}
+    {#if isSerializedInventoryItem(currentItem)}
       <div>
         <label for="itm-serials">Seriales individuales</label>
         <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="5"

@@ -176,3 +176,43 @@ PostgreSQL debe encargarse solo de persistencia web/multiusuario. Las reglas de 
 - `packages/db-postgres` contiene pool, migracion inicial y repositorios base para Cloud.
 - `packages/ui` contiene componentes Svelte reutilizables.
 - `packages/reports` contiene generacion PDF, reportes base y formatters.
+
+## Modelo Multiempresa de ESR Cloud
+
+ESR Cloud aisla la informacion operativa mediante `company_id`:
+
+- `users` representa identidades globales y almacena `password_hash`, nunca contrasenas planas.
+- `companies` representa las empresas o tenants.
+- `company_members` relaciona usuarios con empresas y contiene el rol dentro de cada empresa.
+- Un usuario puede pertenecer a varias empresas.
+- Las tablas operativas PostgreSQL tienen un `company_id` obligatorio.
+
+Los contratos `Tenant*Repository` de `packages/core` requieren un `RepositoryContext` con `companyId`. Los contratos existentes sin contexto se conservan para ESR Pro y su persistencia local SQLite; no deben utilizarse desde ESR Cloud.
+
+### Reglas de aislamiento
+
+1. Ningun repositorio operativo de Cloud puede consultar o modificar datos sin `companyId`.
+2. `apps/cloud` debe resolver la empresa activa antes de ejecutar acciones de negocio.
+3. La empresa activa nunca debe aceptarse ciegamente desde un formulario; debe validarse contra la sesion y `company_members`.
+4. PostgreSQL Cloud no debe guardar contrasenas planas.
+5. `company_members` define el rol del usuario dentro de una empresa.
+6. Las tablas globales deben ser excepciones explicitas.
+7. Las consultas entre tablas deben aplicar el mismo `company_id` a todas las relaciones.
+
+La primera barrera de aislamiento vive en los contratos y repositorios. Una fase posterior debe agregar pruebas de integracion y evaluar Row Level Security o claves foraneas compuestas como defensa adicional en PostgreSQL.
+
+## Flujo PostgreSQL Local
+
+ESR Cloud incluye un migrator PostgreSQL con checksums y pruebas de aislamiento multiempresa.
+
+```powershell
+$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/esr_cloud_dev'
+pnpm db:postgres:migrate
+pnpm db:postgres:seed
+pnpm db:postgres:test
+pnpm dev:cloud
+```
+
+Las migraciones se registran en `schema_migrations`. No se debe editar una migracion ya aplicada; cualquier cambio posterior debe agregarse como un nuevo archivo numerado. El seed crea dos empresas demo y la prueba confirma que clientes, inventario y eventos no son visibles desde otra empresa.
+
+La autenticacion, las sesiones y la resolucion segura de la empresa activa siguen pendientes para la proxima fase.

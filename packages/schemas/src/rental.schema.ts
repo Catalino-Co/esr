@@ -12,6 +12,7 @@ export type RentalOrderStatus =
 
 export type RentalOrder = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	client_id: ESRId | '';
 	event_id?: Nullable<ESRId>;
 	quotation_id?: Nullable<ESRId>;
@@ -24,6 +25,7 @@ export type RentalOrder = {
 
 export type RentalOrderItem = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	rental_order_id?: ESRId;
 	work_order_id?: ESRId;
 	item_id: ESRId;

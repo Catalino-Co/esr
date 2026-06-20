@@ -4,6 +4,7 @@ export type QuoteStatus = 'borrador' | 'enviada' | 'aprobada' | 'rechazada' | 'v
 
 export type Quote = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	client_id: ESRId | '';
 	event_id?: Nullable<ESRId>;
 	date?: string;
@@ -19,6 +20,7 @@ export type Quote = {
 
 export type QuoteItem = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	quote_id?: ESRId;
 	quotation_id?: ESRId;
 	item_id?: Nullable<ESRId>;

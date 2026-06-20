@@ -1,0 +1,1 @@
+-- Deprecated: use pnpm db:postgres:seed (src/seed.ts).

@@ -1,7 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { mergeRentalOrderItem, planRentalOrderStatusForSave } from '@esr/core';
+  import {
+    isSerializedInventoryItem,
+    mergeRentalOrderItem,
+    normalizeSerializedRentalLine,
+    planRentalOrderStatusForSave,
+    validateSerializedRentalLines
+  } from '@esr/core';
   import { validateRentalOrderInput } from '@esr/schemas';
   import { generateWorkOrderPDF, generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
@@ -154,7 +160,7 @@
   }
 
   function isSerialized(item) {
-    return item?.item_type === 'serializado' || Number(item?.uses_serial || 0) === 1;
+    return isSerializedInventoryItem(item);
   }
 
   async function loadSerialOptions(itemId) {
@@ -200,7 +206,8 @@
   }
 
   function updateSerializedQuantity(line) {
-    line.quantity = line.serial_ids?.length || 0;
+    const normalized = normalizeSerializedRentalLine(line);
+    line.quantity = normalized.quantity;
     woItems = [...woItems];
   }
 
@@ -308,14 +315,15 @@
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function saveWO() {
     if (!validateRentalOrderInput(currentWO).valid) { alert('Seleccione un cliente.'); return; }
-    for (const item of woItems.filter(isSerialized)) {
-      const serialCount = item.serial_ids?.length || 0;
-      if (serialCount === 0) {
-        alert(`Seleccione al menos un serial para ${item.name}.`);
-        return;
-      }
-      item.quantity = serialCount;
+    const serialValidation = validateSerializedRentalLines(woItems);
+    if (!serialValidation.ok) {
+      const [, itemId] = serialValidation.error.split(':');
+      const item = woItems.find(row => String(row.item_id) === String(itemId));
+      alert(`Seleccione al menos un serial para ${item?.name || 'el equipo serializado'}.`);
+      return;
     }
+    woItems = serialValidation.value;
+
     isSaving = true;
     try {
       let id;

@@ -4,6 +4,7 @@ export type InventoryItemType = 'cantidad' | 'serializado' | string;
 
 export type InventoryItem = {
 	id?: Nullable<ESRId>;
+	company_id?: string;
 	internal_code?: string;
 	name: string;
 	category_id: ESRId | '';

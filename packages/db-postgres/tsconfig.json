@@ -1,0 +1,10 @@
+{
+	"extends": "../../apps/cloud/tsconfig.json",
+	"compilerOptions": {
+		"allowJs": false,
+		"checkJs": false,
+		"noEmit": true,
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}
