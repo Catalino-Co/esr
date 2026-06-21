@@ -7,7 +7,7 @@
 <div class="login-container">
 	<div class="login-box">
 		<div class="login-header">
-			<span aria-hidden="true">☁️</span>
+			<span class="login-logo" aria-hidden="true">☁️</span>
 			<h1>ESR Cloud</h1>
 			<p>Events Stock & Rentals</p>
 		</div>
@@ -56,9 +56,11 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		min-height: 100vh;
-		margin: -28px -20px;
-		padding: 20px;
+		min-height: 100dvh;
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		padding: 24px 20px;
 		background: linear-gradient(135deg, #3158c9 0%, #24449e 100%);
 	}
 
@@ -69,12 +71,18 @@
 		padding: 40px;
 		border-radius: 12px;
 		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+		box-sizing: border-box;
 	}
 
 	.login-header {
 		text-align: center;
 		margin-bottom: 30px;
-		font-size: 3rem;
+	}
+
+	.login-logo {
+		display: block;
+		font-size: 2.5rem;
+		line-height: 1;
 	}
 
 	.login-header h1 {
@@ -110,11 +118,14 @@
 	}
 
 	.input-group input {
+		width: 100%;
+		max-width: 100%;
 		padding: 12px 15px;
 		border: 1px solid #e2e8f0;
 		border-radius: 6px;
 		font-size: 1rem;
 		outline: none;
+		box-sizing: border-box;
 	}
 
 	.input-group input:focus {
