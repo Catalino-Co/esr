@@ -82,10 +82,11 @@ ESR Cloud vive en `apps/cloud`.
 pnpm dev:cloud
 ```
 
-La app Cloud ya compila como SvelteKit web y depende de `@esr/core`, `@esr/ui`, `@esr/schemas`, `@esr/config` y `@esr/db-postgres`. PostgreSQL esta preparado pero no conectado a una funcionalidad real todavia. La variable esperada para el futuro es:
+La app Cloud ya compila como SvelteKit web y depende de `@esr/core`, `@esr/ui`, `@esr/schemas`, `@esr/config` y `@esr/db-postgres`. PostgreSQL debe estar configurado con `DATABASE_URL` para login y sesiones.
 
 ```sh
 DATABASE_URL=postgres://user:password@localhost:5432/esr_cloud
+NODE_ENV=development
 ```
 
 ## Reglas de Arquitectura
@@ -173,7 +174,7 @@ PostgreSQL debe encargarse solo de persistencia web/multiusuario. Las reglas de 
 - `packages/core` contiene reglas e interfaces iniciales.
 - `packages/schemas` contiene tipos y validaciones compartidas.
 - `packages/db-sqlite` contiene persistencia SQLite de ESR Pro.
-- `packages/db-postgres` contiene pool, migracion inicial y repositorios base para Cloud.
+- `packages/db-postgres` contiene pool, migraciones, sesiones de usuario y repositorios base para Cloud.
 - `packages/ui` contiene componentes Svelte reutilizables.
 - `packages/reports` contiene generacion PDF, reportes base y formatters.
 
@@ -215,4 +216,92 @@ pnpm dev:cloud
 
 Las migraciones se registran en `schema_migrations`. No se debe editar una migracion ya aplicada; cualquier cambio posterior debe agregarse como un nuevo archivo numerado. El seed crea dos empresas demo y la prueba confirma que clientes, inventario y eventos no son visibles desde otra empresa.
 
-La autenticacion, las sesiones y la resolucion segura de la empresa activa siguen pendientes para la proxima fase.
+## Autenticacion ESR Cloud
+
+Flujo implementado:
+
+1. El usuario envia email y contrasena en `/login`.
+2. El servidor valida `password_hash` con bcrypt (nunca se guarda contrasena en texto plano).
+3. Se crea un registro en `user_sessions` con `token_hash` (SHA-256 del token).
+4. La cookie HTTP-only `esr_cloud_session` contiene solo el token plano.
+5. `hooks.server.ts` valida la sesion y resuelve `locals.user`, `locals.company`, `locals.role` y `locals.companyId`.
+6. Las rutas bajo `(app)/` exigen usuario y empresa activa via `+layout.server.ts`.
+7. Si el usuario pertenece a varias empresas, debe elegir en `/select-company` (validado en servidor).
+
+Credenciales demo (solo desarrollo local, creadas por el seed):
+
+```text
+admin-a@demo.local / admin123  -> Demo Company A
+admin-b@demo.local / admin123  -> Demo Company B
+```
+
+Helpers server-side para futuras rutas: `requireUser`, `requireCompany`, `requireMembership`, `requireRole` en `apps/cloud/src/lib/server/require-auth.ts`.
+
+## Flujo operativo ESR Cloud (Fase 4–6)
+
+Tras login y empresa activa:
+
+```text
+/dashboard
+/customers
+/inventory
+/events
+/quotes
+/work-orders
+/conduces
+/incidents
+```
+
+Flujo comercial:
+
+```text
+Cliente → Evento → Cotización → Artículos → Aprobación → Orden de trabajo
+```
+
+Flujo operativo (Fase 6):
+
+```text
+Orden confirmada → Preparación → Conduce de entrega → Entrega → Checklist salida
+→ Devolución → Checklist retorno → Incidencias (si aplica) → Cierre de orden
+```
+
+Rutas operativas desde el detalle de orden:
+
+```text
+/work-orders/[id]
+/work-orders/[id]/delivery
+/work-orders/[id]/return
+/work-orders/[id]/checklists
+/work-orders/[id]/incidents
+```
+
+Estados de orden (español): `confirmado`, `en_preparacion`, `entregado`, `parcialmente_devuelto`, `devuelto`, `cerrado`, `cancelado`.
+
+Numeración de conduces por empresa: `CON-000001` (entrega), `DEV-000001` (devolución).
+
+Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items`, `work_order_checklists`, `incidents`, `stock_movements`.
+
+Numeración comercial MVP por empresa: `COT-000001`, `ORD-000001` (último número + 1; no apto para alta concurrencia sin endurecer).
+
+Reglas de seguridad:
+
+- `companyId` viene desde `locals` (nunca desde formularios).
+- Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
+- Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
+
+Comandos:
+
+```powershell
+$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/esr_cloud_dev'
+pnpm db:postgres:migrate
+pnpm db:postgres:seed
+pnpm dev:cloud
+pnpm build:cloud
+```
+
+Credenciales demo (solo desarrollo local):
+
+```text
+admin-a@demo.local / admin123
+admin-b@demo.local / admin123
+```

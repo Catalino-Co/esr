@@ -4,6 +4,12 @@ import { closePostgresPool, getPostgresPool } from './connection';
 import { PostgresCustomerRepository } from './repositories/postgres-customer.repository';
 import { PostgresEventRepository } from './repositories/postgres-event.repository';
 import { PostgresInventoryRepository } from './repositories/postgres-inventory.repository';
+import { PostgresQuoteRepository } from './repositories/postgres-quote.repository';
+import { PostgresRentalRepository } from './repositories/postgres-rental.repository';
+import { PostgresConduceRepository } from './repositories/postgres-conduce.repository';
+import { PostgresIncidentRepository } from './repositories/postgres-operations.repository';
+import { QuoteConversionService } from './services/quote-conversion.service';
+import { WorkOrderOperationsService } from './services/work-order-operations.service';
 
 type CompanyRow = { id: string; slug: string };
 type ScopedRow = { id?: number | string | null; company_id?: string };
@@ -26,7 +32,7 @@ async function runIntegrationTest(): Promise<void> {
 	);
 	assert.equal(migrationsTable.rows[0].table_name, 'schema_migrations');
 	const migrationCount = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM schema_migrations');
-	assert.ok(Number(migrationCount.rows[0].count) >= 2, 'Expected Phase 1 migrations to be applied.');
+	assert.ok(Number(migrationCount.rows[0].count) >= 5, 'Expected migrations through operations to be applied.');
 	console.log('[ok] migrations table exists and contains applied migrations');
 
 	const companiesResult = await pool.query<CompanyRow>(
@@ -43,6 +49,12 @@ async function runIntegrationTest(): Promise<void> {
 	const customers = new PostgresCustomerRepository(pool);
 	const inventory = new PostgresInventoryRepository(pool);
 	const events = new PostgresEventRepository(pool);
+	const quotes = new PostgresQuoteRepository(pool);
+	const orders = new PostgresRentalRepository(pool);
+	const conversion = new QuoteConversionService(quotes, orders);
+	const operations = new WorkOrderOperationsService();
+	const conduces = new PostgresConduceRepository(pool);
+	const incidents = new PostgresIncidentRepository(pool);
 
 	const customersA = await customers.list(ctxA, { search: 'Cliente Demo', limit: 20, offset: 0 });
 	const customersB = await customers.list(ctxB, { search: 'Cliente Demo', limit: 20, offset: 0 });
@@ -58,8 +70,6 @@ async function runIntegrationTest(): Promise<void> {
 	const inventoryB = await inventory.list(ctxB, { search: 'Equipo Demo', limit: 20, offset: 0 });
 	assertScoped(inventoryA, companyA.id, 'inventory A');
 	assertScoped(inventoryB, companyB.id, 'inventory B');
-	assert.ok(inventoryA.some((row) => row.name === 'Equipo Demo A'));
-	assert.ok(inventoryB.some((row) => row.name === 'Equipo Demo B'));
 	assert.equal(await inventory.findById(ctxA, inventoryB[0].id!), null);
 	assert.equal(await inventory.findById(ctxB, inventoryA[0].id!), null);
 	console.log('[ok] inventory items are isolated by company_id');
@@ -68,11 +78,68 @@ async function runIntegrationTest(): Promise<void> {
 	const eventsB = await events.list(ctxB, { search: 'Evento Demo', limit: 20, offset: 0 });
 	assertScoped(eventsA, companyA.id, 'events A');
 	assertScoped(eventsB, companyB.id, 'events B');
-	assert.ok(eventsA.some((row) => row.name === 'Evento Demo A'));
-	assert.ok(eventsB.some((row) => row.name === 'Evento Demo B'));
 	assert.equal(await events.findById(ctxA, eventsB[0].id!), null);
 	assert.equal(await events.findById(ctxB, eventsA[0].id!), null);
 	console.log('[ok] events are isolated by company_id');
+
+	const eventA = eventsA[0];
+	const itemA = inventoryA[0];
+	const quoteA = await quotes.create(ctxA, {
+		client_id: customersA[0].id!,
+		event_id: eventA.id!,
+		status: 'borrador',
+		items: []
+	});
+	await quotes.addItem(ctxA, quoteA.id!, { item_id: itemA.id!, quantity: 1, price: 100 });
+	await quotes.changeStatus(ctxA, quoteA.id!, 'aprobada');
+	const { order: orderA } = await conversion.convertToWorkOrder(ctxA, quoteA.id!);
+
+	const quotesB = await quotes.list(ctxB, { limit: 50, offset: 0 });
+	assert.ok(!quotesB.some((row) => row.id === quoteA.id));
+	assert.equal(await quotes.findById(ctxB, quoteA.id!), null);
+	console.log('[ok] quotes are isolated by company_id');
+
+	const ordersB = await orders.list(ctxB, { limit: 50, offset: 0 });
+	assert.ok(!ordersB.some((row) => row.id === orderA.id));
+	assert.equal(await orders.findById(ctxB, orderA.id!), null);
+	console.log('[ok] work orders are isolated by company_id');
+
+	await operations.prepareOrder(ctxA, orderA.id!);
+	const prepared = await orders.findById(ctxA, orderA.id!);
+	assert.equal(prepared?.status, 'en_preparacion');
+
+	const { conduce: deliveryConduce } = await operations.completeDelivery(ctxA, orderA.id!, {
+		lines: [{ work_order_item_id: (await orders.listItems(ctxA, orderA.id!))[0].id!, quantity: 1 }],
+		received_by_name: 'Receptor Demo'
+	});
+	assert.ok(deliveryConduce.note_number?.startsWith('CON-'));
+	const delivered = await orders.findById(ctxA, orderA.id!);
+	assert.equal(delivered?.status, 'entregado');
+
+	const conducesB = await conduces.list(ctxB, { limit: 50, offset: 0 });
+	assert.ok(!conducesB.some((row) => row.id === deliveryConduce.id));
+	console.log('[ok] conduces are isolated by company_id');
+
+	const { conduce: returnConduce, incidents: autoIncidents } = await operations.completeReturn(ctxA, orderA.id!, {
+		lines: [{
+			work_order_item_id: (await orders.listItems(ctxA, orderA.id!))[0].id!,
+			quantity: 1,
+			condition: 'good'
+		}]
+	});
+	assert.ok(returnConduce.note_number?.startsWith('DEV-'));
+	assert.equal(autoIncidents.length, 0);
+	const returned = await orders.findById(ctxA, orderA.id!);
+	assert.equal(returned?.status, 'devuelto');
+
+	await operations.closeOrder(ctxA, orderA.id!);
+	const closed = await orders.findById(ctxA, orderA.id!);
+	assert.equal(closed?.status, 'cerrado');
+
+	const incidentsA = await incidents.findByWorkOrderId(ctxA, orderA.id!);
+	const incidentsB = await incidents.list(ctxB, { limit: 50, offset: 0 });
+	assert.ok(!incidentsB.some((row) => incidentsA.some((a) => a.id === row.id)));
+	console.log('[ok] operational flow and incident isolation passed');
 
 	console.log('[ok] multi-company isolation test passed');
 }

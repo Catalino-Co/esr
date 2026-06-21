@@ -38,5 +38,7 @@ export * from './packages/use-cases';
 export * from './categories/repositories';
 export * from './categories/use-cases';
 
+export * from './operations/use-cases';
+
 export * from './config/repositories';
 export * from './config/use-cases';

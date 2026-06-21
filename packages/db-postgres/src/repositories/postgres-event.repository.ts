@@ -102,5 +102,17 @@ export class PostgresEventRepository implements TenantEventRepository {
 			requireCompanyId(ctx), id
 		]);
 	}
+
+	async cancel(ctx: RepositoryContext, id: ESRId): Promise<Event> {
+		const current = await this.findById(ctx, id);
+		if (!current) throw new Error(`Event ${id} not found in company.`);
+		const result = await this.pool.query<Event>(
+			`UPDATE events SET status = 'cancelado'
+			 WHERE company_id = $1 AND id = $2
+			 RETURNING *`,
+			[requireCompanyId(ctx), id]
+		);
+		return result.rows[0];
+	}
 }
 

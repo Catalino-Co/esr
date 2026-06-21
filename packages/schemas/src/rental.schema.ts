@@ -2,12 +2,14 @@ import { invalid, isPresent, valid, type ESRId, type Nullable, type ValidationRe
 
 export type RentalOrderStatus =
 	| 'pendiente'
+	| 'confirmado'
 	| 'preparado'
 	| 'cargado'
 	| 'entregado'
 	| 'en recogida'
 	| 'retornado'
 	| 'cerrado'
+	| 'cancelado'
 	| string;
 
 export type RentalOrder = {
@@ -16,11 +18,21 @@ export type RentalOrder = {
 	client_id: ESRId | '';
 	event_id?: Nullable<ESRId>;
 	quotation_id?: Nullable<ESRId>;
+	order_number?: string;
 	date?: string;
 	responsible_person?: string;
 	vehicle?: string;
 	notes?: string;
+	subtotal?: number;
+	discount?: number;
+	tax_amount?: number;
+	total?: number;
 	status?: RentalOrderStatus;
+	is_active?: number;
+	created_at?: string;
+	confirmed_at?: string;
+	closed_at?: string;
+	cancelled_at?: string;
 };
 
 export type RentalOrderItem = {
@@ -32,6 +44,13 @@ export type RentalOrderItem = {
 	name?: string;
 	internal_code?: string;
 	quantity: number;
+	delivered_quantity?: number;
+	returned_quantity?: number;
+	price?: number;
+	line_total?: number;
+	start_date?: string;
+	end_date?: string;
+	status?: string;
 };
 
 export function validateRentalOrderInput(order: Pick<RentalOrder, 'client_id'>): ValidationResult {

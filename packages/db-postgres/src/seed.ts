@@ -1,7 +1,10 @@
+import bcrypt from 'bcryptjs';
 import type pg from 'pg';
 import { closePostgresPool, getPostgresPool } from './connection';
 
-const disabledPasswordHash = 'not-a-real-password-hash-dev-only';
+/** Development-only demo password. Never use in production. */
+const DEMO_PASSWORD = 'admin123';
+const DEMO_PASSWORD_ROUNDS = 10;
 
 type DemoTenant = {
 	companyName: string;
@@ -30,7 +33,7 @@ const tenants: DemoTenant[] = [
 	}
 ];
 
-async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant): Promise<void> {
+async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passwordHash: string): Promise<void> {
 	const companyResult = await client.query<{ id: string }>(
 		`INSERT INTO companies (name, slug, status)
 		 VALUES ($1, $2, 'active')
@@ -43,9 +46,13 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant): Prom
 	const userResult = await client.query<{ id: number }>(
 		`INSERT INTO users (name, email, password_hash, status)
 		 VALUES ($1, $2, $3, 'active')
-		 ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, status = 'active', updated_at = NOW()
+		 ON CONFLICT (email) DO UPDATE
+		 SET name = EXCLUDED.name,
+		     status = 'active',
+		     password_hash = EXCLUDED.password_hash,
+		     updated_at = NOW()
 		 RETURNING id`,
-		[tenant.adminName, tenant.email, disabledPasswordHash]
+		[tenant.adminName, tenant.email, passwordHash]
 	);
 	const userId = userResult.rows[0].id;
 
@@ -104,10 +111,11 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant): Prom
 
 async function runSeed(): Promise<void> {
 	const pool = getPostgresPool();
+	const passwordHash = await bcrypt.hash(DEMO_PASSWORD, DEMO_PASSWORD_ROUNDS);
 	const client = await pool.connect();
 	try {
 		await client.query('BEGIN');
-		for (const tenant of tenants) await upsertDemoTenant(client, tenant);
+		for (const tenant of tenants) await upsertDemoTenant(client, tenant, passwordHash);
 		await client.query('COMMIT');
 		console.log('[db-postgres] Multi-company development seed completed.');
 	} catch (error) {

@@ -48,16 +48,23 @@ Current migrations:
 
 1. `001_initial_schema.sql`
 2. `002_multi_company_model.sql`
+3. `003_auth_session_model.sql`
+4. `004_quotes_and_work_orders.sql`
+5. `005_operations_delivery_returns.sql`
+
+`004` adds quote/order numbering, tax fields, line totals and reservation date columns for the commercial flow.
+
+`005` adds operational fields for deliveries and returns: `delivered_quantity` / `returned_quantity` on work order items, conduce numbering (`CON-` / `DEV-`), and indexes for conduces, checklists and stock movements.
 
 `002` creates `companies` and `company_members`, upgrades Cloud users to `password_hash`, and makes `company_id` mandatory on operational tables. Previous prototype rows are assigned to `Legacy Company` so business data is retained. Prototype passwords are not copied and those accounts require a future reset.
 
 ## Development seed
 
-`src/seed.ts` idempotently creates Demo Company A and B, one global user and owner membership for each, plus one customer, category, inventory item and event per company. The stored password marker is deliberately not an authentication hash.
+`src/seed.ts` idempotently creates Demo Company A and B, one global user and owner membership for each, plus one customer, category, inventory item and event per company. Demo users use a bcrypt hash of `admin123` (development only).
 
 ## Integration test
 
-`src/integration-test.ts` uses the actual PostgreSQL repositories to verify customers, inventory and events. It checks list visibility and cross-company `findById` access in both directions. Run migrations and seed first.
+`src/integration-test.ts` uses the actual PostgreSQL repositories to verify customers, inventory, events, quotes, work orders and the operational flow (prepare → deliver → return → close). It checks list visibility and cross-company `findById` access in both directions. Run migrations and seed first.
 
 The lightweight command below remains useful as a fast static guard:
 
@@ -65,4 +72,4 @@ The lightweight command below remains useful as a fast static guard:
 pnpm --filter @esr/db-postgres check:tenant
 ```
 
-Authentication, sessions and active-company resolution are intentionally deferred to the next ESR Cloud phase.
+Authentication, sessions and active-company resolution are implemented in `apps/cloud` (cookie `esr_cloud_session`, table `user_sessions`).

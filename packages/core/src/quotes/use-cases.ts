@@ -1,28 +1,35 @@
-import { validateQuoteInput, type QuoteItem } from '@esr/schemas';
+import { validateQuoteInput, type Quote, type QuoteItem, type QuoteStatus } from '@esr/schemas';
 import { fail, ok, type UseCaseResult } from '../shared/result';
-
-export type QuoteTotals = {
-	subtotal: number;
-	discount: number;
-	total: number;
-};
 
 export function calculateQuoteLineTotal(input: Pick<QuoteItem, 'quantity' | 'price'>): number {
 	return Number(input.quantity || 0) * Number(input.price || 0);
 }
 
-export function calculateQuoteTotals(items: Pick<QuoteItem, 'quantity' | 'price' | 'total'>[], discount = 0): QuoteTotals {
+export type QuoteTotals = {
+	subtotal: number;
+	discount: number;
+	tax_amount: number;
+	total: number;
+};
+
+export function calculateQuoteTotals(
+	items: Pick<QuoteItem, 'quantity' | 'price' | 'total'>[],
+	discount = 0,
+	taxAmount = 0
+): QuoteTotals {
 	const normalizedItems = items.map((item) => ({
 		...item,
 		total: item.total ?? calculateQuoteLineTotal(item)
 	}));
 	const subtotal = normalizedItems.reduce((sum, item) => sum + Number(item.total || 0), 0);
 	const normalizedDiscount = Number(discount) || 0;
+	const normalizedTax = Number(taxAmount) || 0;
 
 	return {
 		subtotal,
 		discount: normalizedDiscount,
-		total: subtotal - normalizedDiscount
+		tax_amount: normalizedTax,
+		total: subtotal - normalizedDiscount + normalizedTax
 	};
 }
 
@@ -103,3 +110,27 @@ export function validateQuoteDraft(input: { client_id: unknown }): UseCaseResult
 	if (!validation.valid) return fail(validation.issues[0] || 'quote.invalid');
 	return ok(input);
 }
+
+export function validateQuoteCanApprove(quote: Pick<Quote, 'status'>, items: QuoteItem[]): UseCaseResult<true> {
+	if (quote.status === 'cancelada' || quote.status === 'convertida') {
+		return fail('quote.cannot_approve_status');
+	}
+	if (!items.length) return fail('quote.items.required');
+	return ok(true);
+}
+
+export function validateQuoteCanConvert(quote: Pick<Quote, 'status'>, items: QuoteItem[]): UseCaseResult<true> {
+	if (quote.status !== 'aprobada') return fail('quote.must_be_approved');
+	if (quote.status === 'convertida') return fail('quote.already_converted');
+	if (!items.length) return fail('quote.items.required');
+	return ok(true);
+}
+
+export function validateQuoteCanEdit(quote: Pick<Quote, 'status'>): UseCaseResult<true> {
+	if (quote.status === 'convertida' || quote.status === 'cancelada') {
+		return fail('quote.cannot_edit_status');
+	}
+	return ok(true);
+}
+
+export const QUOTE_EDITABLE_STATUSES: QuoteStatus[] = ['borrador', 'enviada', 'aprobada'];
