@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { RepositoryContext } from '@esr/core';
 import { closePostgresPool, getPostgresPool } from './connection';
+import { ESR_CLOUD_SCHEMA } from './schema';
 import { PostgresCustomerRepository } from './repositories/postgres-customer.repository';
 import { PostgresEventRepository } from './repositories/postgres-event.repository';
 import { PostgresInventoryRepository } from './repositories/postgres-inventory.repository';
@@ -28,7 +29,7 @@ async function runIntegrationTest(): Promise<void> {
 	console.log('[ok] connected to PostgreSQL');
 
 	const migrationsTable = await pool.query<{ table_name: string | null }>(
-		"SELECT to_regclass('public.schema_migrations')::text AS table_name"
+		`SELECT to_regclass('${ESR_CLOUD_SCHEMA}.schema_migrations')::text AS table_name`
 	);
 	assert.equal(migrationsTable.rows[0].table_name, 'schema_migrations');
 	const migrationCount = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM schema_migrations');

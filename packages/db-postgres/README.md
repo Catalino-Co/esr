@@ -8,7 +8,8 @@ PostgreSQL persistence adapter for ESR Cloud. It owns connection handling, migra
 - `DATABASE_URL` available in the shell running the command.
 
 ```env
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/esr_cloud_dev
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/cco_apps
+PGSCHEMA=esr_cloud
 PGSSL=false
 PGPOOL_MAX=10
 ```
@@ -18,8 +19,13 @@ Copy values from `.env.example` into your local environment. The scripts intenti
 PowerShell example:
 
 ```powershell
-$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/esr_cloud_dev'
+$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/cco_apps'
+$env:PGSCHEMA='esr_cloud'
 ```
+
+## Database and schema
+
+ESR Cloud uses the shared PostgreSQL database **`cco_apps`**. All application tables live in the schema **`esr_cloud`** (configurable via `PGSCHEMA`). The connection pool and migrator set `search_path` to that schema automatically; repository SQL does not need schema prefixes.
 
 ## Commands
 
@@ -33,16 +39,16 @@ pnpm db:postgres:test
 
 Recommended local flow:
 
-1. Create an empty PostgreSQL database named `esr_cloud_dev`.
-2. Configure `DATABASE_URL`.
-3. Run `pnpm db:postgres:migrate`.
+1. Create an empty PostgreSQL database named `cco_apps` (or use an existing shared CCO database).
+2. Configure `DATABASE_URL` pointing to `cco_apps` and optionally `PGSCHEMA=esr_cloud`.
+3. Run `pnpm db:postgres:migrate` (creates schema `esr_cloud` if missing).
 4. Run `pnpm db:postgres:seed`.
 5. Run `pnpm db:postgres:test`.
 6. Start Cloud with `pnpm dev:cloud`.
 
 ## Migrator
 
-The runner reads numbered `.sql` files from `src/migrations` in lexical order. It creates `schema_migrations`, stores a SHA-256 checksum, skips migrations already applied, and rejects an applied file whose contents changed. Every pending migration runs in its own transaction under a PostgreSQL advisory lock.
+The runner reads numbered `.sql` files from `src/migrations` in lexical order. It creates the application schema (`esr_cloud` by default), then `schema_migrations` inside it, stores a SHA-256 checksum, skips migrations already applied, and rejects an applied file whose contents changed. Every pending migration runs in its own transaction under a PostgreSQL advisory lock.
 
 Current migrations:
 

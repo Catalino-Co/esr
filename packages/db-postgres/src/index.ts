@@ -1,4 +1,5 @@
 export * from './connection';
+export * from './schema';
 export * from './transaction';
 export * from './repositories/postgres-auth.repository';
 export * from './repositories/postgres-category.repository';

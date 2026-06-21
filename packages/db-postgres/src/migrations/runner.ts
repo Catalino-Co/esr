@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { ensureAppSchema } from '../schema';
 
 export type MigrationRecord = {
 	filename: string;
@@ -17,6 +18,7 @@ function checksum(content: string): string {
 }
 
 async function ensureMigrationsTable(client: pg.PoolClient): Promise<void> {
+	const schema = await ensureAppSchema(client);
 	await client.query(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			id SERIAL PRIMARY KEY,
@@ -25,6 +27,7 @@ async function ensureMigrationsTable(client: pg.PoolClient): Promise<void> {
 			executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`);
+	console.log(`[db-postgres] Using schema "${schema}" in database from DATABASE_URL.`);
 }
 
 export async function runMigrations(): Promise<void> {

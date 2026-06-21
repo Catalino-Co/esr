@@ -85,7 +85,8 @@ pnpm dev:cloud
 La app Cloud ya compila como SvelteKit web y depende de `@esr/core`, `@esr/ui`, `@esr/schemas`, `@esr/config` y `@esr/db-postgres`. PostgreSQL debe estar configurado con `DATABASE_URL` para login y sesiones.
 
 ```sh
-DATABASE_URL=postgres://user:password@localhost:5432/esr_cloud
+DATABASE_URL=postgres://user:password@localhost:5432/cco_apps
+PGSCHEMA=esr_cloud
 NODE_ENV=development
 ```
 
@@ -207,14 +208,15 @@ La primera barrera de aislamiento vive en los contratos y repositorios. Una fase
 ESR Cloud incluye un migrator PostgreSQL con checksums y pruebas de aislamiento multiempresa.
 
 ```powershell
-$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/esr_cloud_dev'
+$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/cco_apps'
+$env:PGSCHEMA='esr_cloud'
 pnpm db:postgres:migrate
 pnpm db:postgres:seed
 pnpm db:postgres:test
 pnpm dev:cloud
 ```
 
-Las migraciones se registran en `schema_migrations`. No se debe editar una migracion ya aplicada; cualquier cambio posterior debe agregarse como un nuevo archivo numerado. El seed crea dos empresas demo y la prueba confirma que clientes, inventario y eventos no son visibles desde otra empresa.
+Las migraciones se registran en `esr_cloud.schema_migrations`. Base de datos: **`cco_apps`**, schema de aplicación: **`esr_cloud`**. No se debe editar una migracion ya aplicada; cualquier cambio posterior debe agregarse como un nuevo archivo numerado. El seed crea dos empresas demo y la prueba confirma que clientes, inventario y eventos no son visibles desde otra empresa.
 
 ## Autenticacion ESR Cloud
 
@@ -292,7 +294,8 @@ Reglas de seguridad:
 Comandos:
 
 ```powershell
-$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/esr_cloud_dev'
+$env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/cco_apps'
+$env:PGSCHEMA='esr_cloud'
 pnpm db:postgres:migrate
 pnpm db:postgres:seed
 pnpm dev:cloud
