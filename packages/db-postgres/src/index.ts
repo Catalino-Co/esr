@@ -11,6 +11,8 @@ export * from './repositories/postgres-rental.repository';
 export * from './repositories/postgres-conduce.repository';
 export * from './repositories/postgres-operations.repository';
 export * from './repositories/postgres-audit-log.repository';
+export * from './repositories/postgres-company-settings.repository';
+export * from './repositories/postgres-member.repository';
 export * from './services/quote-conversion.service';
 export * from './services/work-order-operations.service';
 

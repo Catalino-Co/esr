@@ -1,6 +1,10 @@
 export * from './shared/result';
 export * from './shared/tenant';
 
+export * from './authorization/permissions';
+
+export * from './members/repositories';
+
 export * from './customers/repositories';
 
 export * from './events/repositories';

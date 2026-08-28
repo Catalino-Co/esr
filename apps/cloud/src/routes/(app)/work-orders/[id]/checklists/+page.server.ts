@@ -2,11 +2,11 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { ChecklistItem } from '@esr/schemas';
 import { getChecklistRepository, getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'work_orders.view');
 	const ctx = toTenantContext(companyId);
 
 	const order = await getRentalRepository().findById(ctx, params.id);
@@ -41,7 +41,7 @@ function parseChecklistItems(form: FormData, prefix: string): ChecklistItem[] {
 
 export const actions: Actions = {
 	saveOutbound: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'checklists.save');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 		const items = parseChecklistItems(form, 'out');
@@ -54,7 +54,7 @@ export const actions: Actions = {
 		}
 	},
 	saveReturn: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'checklists.save');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 		const items = parseChecklistItems(form, 'ret');

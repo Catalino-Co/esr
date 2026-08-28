@@ -2,11 +2,13 @@ import {
 	PostgresAuditLogRepository,
 	PostgresCategoryRepository,
 	PostgresChecklistRepository,
+	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
 	PostgresCustomerRepository,
 	PostgresEventRepository,
 	PostgresIncidentRepository,
 	PostgresInventoryRepository,
+	PostgresMemberRepository,
 	PostgresQuoteRepository,
 	PostgresRentalRepository,
 	PostgresStockMovementRepository,
@@ -30,6 +32,8 @@ let incidentRepository: PostgresIncidentRepository | null = null;
 let stockMovementRepository: PostgresStockMovementRepository | null = null;
 let workOrderOperationsService: WorkOrderOperationsService | null = null;
 let auditLogRepository: PostgresAuditLogRepository | null = null;
+let companySettingsRepository: PostgresCompanySettingsRepository | null = null;
+let memberRepository: PostgresMemberRepository | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -99,6 +103,16 @@ export function getWorkOrderOperationsService(): WorkOrderOperationsService {
 export function getAuditLogRepository(): PostgresAuditLogRepository {
 	if (!auditLogRepository) auditLogRepository = new PostgresAuditLogRepository();
 	return auditLogRepository;
+}
+
+export function getCompanySettingsRepository(): PostgresCompanySettingsRepository {
+	if (!companySettingsRepository) companySettingsRepository = new PostgresCompanySettingsRepository();
+	return companySettingsRepository;
+}
+
+export function getMemberRepository(): PostgresMemberRepository {
+	if (!memberRepository) memberRepository = new PostgresMemberRepository();
+	return memberRepository;
 }
 
 export { getCompanyDocumentInfo };

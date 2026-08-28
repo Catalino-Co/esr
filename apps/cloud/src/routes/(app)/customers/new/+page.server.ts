@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudCustomerInput } from '$lib/server/validators';
 
@@ -10,7 +10,7 @@ export const load: PageServerLoad = async () => ({});
 
 export const actions: Actions = {
 	default: async ({ request, locals, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'customers.create');
 		const form = await request.formData();
 
 		const values = {

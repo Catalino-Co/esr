@@ -1,11 +1,11 @@
 import type { PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { getCategoryRepository, getInventoryRepository } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async (event) => {
-	const { companyId } = requireCompany(event.locals);
+	const { companyId } = requirePermission(event.locals, 'reports.view');
 	const ctx = toTenantContext(companyId);
 	const search = event.url.searchParams.get('search')?.trim() || undefined;
 	const status = event.url.searchParams.get('status')?.trim() || undefined;

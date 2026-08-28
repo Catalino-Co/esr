@@ -1,11 +1,11 @@
 import type { RequestHandler } from './$types';
 import { toCsv } from '$lib/server/csv';
 import { getCategoryRepository, getInventoryRepository } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'reports.view');
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
 	const status = url.searchParams.get('status')?.trim() || undefined;

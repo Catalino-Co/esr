@@ -1,10 +1,10 @@
 import type { PageServerLoad } from './$types';
 import { getCustomerRepository } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'customers.view');
 	const search = url.searchParams.get('search')?.trim() || undefined;
 	const status = url.searchParams.get('status');
 

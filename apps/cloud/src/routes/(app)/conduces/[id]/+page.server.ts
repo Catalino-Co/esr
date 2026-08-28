@@ -1,11 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getConduceRepository, getRentalRepository } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'conduces.view');
 	const ctx = toTenantContext(companyId);
 
 	const conduce = await getConduceRepository().findById(ctx, params.id);

@@ -1,11 +1,14 @@
 <script>
+	import { can } from '$lib/can';
 	let { data } = $props();
 </script>
 
 <section class="panel">
 	<div class="page-header">
 		<h1>Inventario</h1>
-		<a class="btn-primary" href="/inventory/new">Nuevo artículo</a>
+		{#if can('inventory.create')}
+			<a class="btn-primary" href="/inventory/new">Nuevo artículo</a>
+		{/if}
 	</div>
 
 	<form class="filter-bar" method="GET">

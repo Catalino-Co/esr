@@ -2,12 +2,12 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCategoryRepository, getInventoryRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'inventory.create');
 	const ctx = toTenantContext(companyId);
 	const categories = await getCategoryRepository().list(ctx);
 	return { categories };
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	default: async ({ request, locals, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'inventory.create');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 

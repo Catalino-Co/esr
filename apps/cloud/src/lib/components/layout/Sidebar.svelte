@@ -1,14 +1,17 @@
 <script>
-	import { navGroups } from '$lib/navigation';
+	import { visibleNavGroups } from '$lib/navigation';
 	import NavItem from './NavItem.svelte';
 
 	let {
 		company,
 		pathname,
+		permissions = [],
 		collapsed = false,
 		mobileOpen = false,
 		onToggle = () => {}
 	} = $props();
+
+	const groups = $derived(visibleNavGroups(permissions));
 </script>
 
 <aside class="sidebar" class:collapsed class:mobile-open={mobileOpen} aria-label="Navegación principal">
@@ -32,7 +35,7 @@
 	{/if}
 
 	<nav class="sidebar-nav">
-		{#each navGroups as group (group.title)}
+		{#each groups as group (group.title)}
 			{#if !collapsed}
 				<p class="nav-group-title">{group.title}</p>
 			{/if}

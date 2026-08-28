@@ -1,0 +1,11 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "cloud",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["dev:cloud"],
+			"port": 5176
+		}
+	]
+}

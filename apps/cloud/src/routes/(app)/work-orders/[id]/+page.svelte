@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -35,22 +36,36 @@
 	{#if !isReadOnly}
 		<div class="page-actions" style="margin-bottom: 20px">
 			{#if status === 'confirmado'}
-				<form method="POST" action="?/prepare" use:enhance>
-					<button type="submit" class="btn-primary">Preparar orden</button>
-				</form>
-				<a class="btn-secondary" href="/work-orders/{order.id}/delivery">Generar conduce de entrega</a>
-				<form method="POST" action="?/cancel" use:enhance>
-					<button type="submit" class="btn-danger">Cancelar orden</button>
-				</form>
+				{#if can('work_orders.prepare')}
+					<form method="POST" action="?/prepare" use:enhance>
+						<button type="submit" class="btn-primary">Preparar orden</button>
+					</form>
+				{/if}
+				{#if can('operations.deliver')}
+					<a class="btn-secondary" href="/work-orders/{order.id}/delivery">Generar conduce de entrega</a>
+				{/if}
+				{#if can('work_orders.cancel')}
+					<form method="POST" action="?/cancel" use:enhance>
+						<button type="submit" class="btn-danger">Cancelar orden</button>
+					</form>
+				{/if}
 			{:else if status === 'en_preparacion'}
-				<a class="btn-primary" href="/work-orders/{order.id}/delivery">Registrar entrega</a>
+				{#if can('operations.deliver')}
+					<a class="btn-primary" href="/work-orders/{order.id}/delivery">Registrar entrega</a>
+				{/if}
 			{:else if status === 'entregado' || status === 'parcialmente_devuelto'}
-				<a class="btn-primary" href="/work-orders/{order.id}/return">Registrar devolución</a>
-				<a class="btn-secondary" href="/work-orders/{order.id}/incidents">Registrar incidencia</a>
+				{#if can('operations.return')}
+					<a class="btn-primary" href="/work-orders/{order.id}/return">Registrar devolución</a>
+				{/if}
+				{#if can('incidents.create')}
+					<a class="btn-secondary" href="/work-orders/{order.id}/incidents">Registrar incidencia</a>
+				{/if}
 			{:else if status === 'devuelto'}
-				<form method="POST" action="?/close" use:enhance>
-					<button type="submit" class="btn-primary">Cerrar orden</button>
-				</form>
+				{#if can('work_orders.close')}
+					<form method="POST" action="?/close" use:enhance>
+						<button type="submit" class="btn-primary">Cerrar orden</button>
+					</form>
+				{/if}
 			{/if}
 			<a class="btn-secondary" href="/work-orders/{order.id}/checklists">Checklists</a>
 		</div>

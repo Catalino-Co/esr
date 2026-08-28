@@ -328,6 +328,12 @@ p {
 	margin-bottom: 16px;
 }
 
+.panel-hint {
+	color: var(--text-muted);
+	font-size: 0.88rem;
+	margin: 0 0 16px;
+}
+
 .empty-state {
 	color: var(--text-muted);
 	padding: 24px;

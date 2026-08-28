@@ -1,8 +1,13 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { can } from '$lib/can';
 
 	let { data, form } = $props();
 	const { quote, items, canEdit } = data;
+
+	// `canEdit` es la regla de negocio (estado de la cotización);
+	// `can(...)` es la regla de rol. Ambas deben cumplirse.
+	const mayEdit = $derived(canEdit && can('quotes.update'));
 </script>
 
 <section class="panel">
@@ -49,7 +54,7 @@
 						<td>{Number(item.price).toFixed(2)}</td>
 						<td>{Number(item.total || 0).toFixed(2)}</td>
 						<td>
-							{#if canEdit}
+							{#if mayEdit}
 								<form method="POST" action="?/removeItem" use:enhance style="display:inline">
 									<input type="hidden" name="itemId" value={item.id} />
 									<button type="submit" class="btn-link">Quitar</button>
@@ -62,7 +67,7 @@
 		</table>
 	{/if}
 
-	{#if canEdit}
+	{#if mayEdit}
 		<h3 style="margin-top: 24px">Agregar artículo</h3>
 		<form method="POST" action="?/addItem" class="form-grid" use:enhance>
 			<div class="form-field">
@@ -94,15 +99,19 @@
 			<div class="form-field full"><label for="notes">Notas</label><textarea id="notes" name="notes" rows="2">{quote.notes ?? ''}</textarea></div>
 			<div class="form-field"><button type="submit" class="btn-secondary">Recalcular / guardar</button></div>
 		</form>
+	{/if}
 
+	{#if canEdit}
 		<div class="page-actions" style="margin-top: 20px">
-			{#if quote.status !== 'aprobada' && quote.status !== 'convertida'}
+			{#if quote.status !== 'aprobada' && quote.status !== 'convertida' && can('quotes.approve')}
 				<form method="POST" action="?/approve" use:enhance><button type="submit" class="btn-primary">Aprobar cotización</button></form>
 			{/if}
-			{#if quote.status === 'aprobada'}
+			{#if quote.status === 'aprobada' && can('quotes.convert')}
 				<form method="POST" action="?/convert" use:enhance><button type="submit" class="btn-primary">Convertir a orden</button></form>
 			{/if}
-			<form method="POST" action="?/cancel" use:enhance><button type="submit" class="btn-danger">Cancelar cotización</button></form>
+			{#if can('quotes.cancel')}
+				<form method="POST" action="?/cancel" use:enhance><button type="submit" class="btn-danger">Cancelar cotización</button></form>
+			{/if}
 		</div>
 	{/if}
 </section>

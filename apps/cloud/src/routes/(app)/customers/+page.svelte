@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	let { data } = $props();
 </script>
 
@@ -6,7 +7,9 @@
 	<div class="page-header">
 		<h1>Clientes</h1>
 		<div class="page-actions">
-			<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
+			{#if can('customers.create')}
+				<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
+			{/if}
 		</div>
 	</div>
 

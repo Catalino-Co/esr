@@ -7,7 +7,7 @@ import {
 	getQuoteRepository,
 	getRentalRepository
 } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 const ACTIVE_ORDER_STATUSES = new Set(['confirmado', 'en_preparacion', 'entregado', 'parcialmente_devuelto', 'devuelto']);
@@ -16,7 +16,7 @@ const OPEN_INCIDENT_STATUSES = new Set(['reportado', 'abierto', 'open']);
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
 	const parentData = await parent();
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'customers.view');
 	const ctx = toTenantContext(companyId);
 	const today = new Date().toISOString().slice(0, 10);
 

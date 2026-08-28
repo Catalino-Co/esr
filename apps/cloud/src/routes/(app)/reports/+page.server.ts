@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requireCompany(locals);
+	requirePermission(locals, 'reports.view');
 	return {};
 };

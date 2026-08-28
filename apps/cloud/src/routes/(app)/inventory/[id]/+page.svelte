@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -79,11 +80,15 @@
 			<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
 		</div>
 		<div class="form-field full">
-			<button type="submit" class="btn-primary">Guardar cambios</button>
+			{#if can('inventory.update')}
+				<button type="submit" class="btn-primary">Guardar cambios</button>
+			{:else}
+				<p class="panel-hint">Su rol no permite editar este registro.</p>
+			{/if}
 		</div>
 	</form>
 
-	{#if item.is_active}
+	{#if item.is_active && can('inventory.deactivate')}
 		<form method="POST" action="?/deactivate" style="margin-top: 16px" use:enhance>
 			<button type="submit" class="btn-danger">Desactivar artículo</button>
 		</form>

@@ -7,11 +7,11 @@ import {
 	getIncidentRepository,
 	getRentalRepository
 } from '$lib/server/repositories';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async (event) => {
-	const { companyId } = requireCompany(event.locals);
+	const { companyId } = requirePermission(event.locals, 'incidents.view');
 	const ctx = toTenantContext(companyId);
 
 	const incident = await getIncidentRepository().findById(ctx, event.params.id);

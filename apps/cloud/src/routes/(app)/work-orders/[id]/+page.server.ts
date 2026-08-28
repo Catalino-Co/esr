@@ -12,11 +12,11 @@ import {
 	getWorkOrderOperationsService
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'work_orders.view');
 	const ctx = toTenantContext(companyId);
 
 	const order = await getRentalRepository().findById(ctx, params.id);
@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	prepare: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'work_orders.prepare');
 		const ctx = toTenantContext(companyId);
 		try {
 			await getWorkOrderOperationsService().prepareOrder(ctx, params.id);
@@ -74,7 +74,7 @@ export const actions: Actions = {
 		}
 	},
 	cancel: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'work_orders.cancel');
 		const ctx = toTenantContext(companyId);
 		try {
 			await getRentalRepository().cancelOrder(ctx, params.id);
@@ -92,7 +92,7 @@ export const actions: Actions = {
 		}
 	},
 	close: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'work_orders.close');
 		const ctx = toTenantContext(companyId);
 		try {
 			await getWorkOrderOperationsService().closeOrder(ctx, params.id);

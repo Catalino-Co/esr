@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -64,14 +65,20 @@
 			<textarea id="notes" name="notes" rows="3">{event.notes ?? ''}</textarea>
 		</div>
 		<div class="form-field full">
-			<button type="submit" class="btn-primary">Guardar cambios</button>
+			{#if can('events.update')}
+				<button type="submit" class="btn-primary">Guardar cambios</button>
+			{:else}
+				<p class="panel-hint">Su rol no permite editar este registro.</p>
+			{/if}
 		</div>
 	</form>
 
 	<h2 style="margin-top: 28px">Cotizaciones</h2>
-	<div class="page-actions" style="margin-bottom: 12px">
-		<a class="btn-primary" href="/quotes/new?eventId={event.id}">Crear cotización</a>
-	</div>
+	{#if can('quotes.create')}
+		<div class="page-actions" style="margin-bottom: 12px">
+			<a class="btn-primary" href="/quotes/new?eventId={event.id}">Crear cotización</a>
+		</div>
+	{/if}
 	{#if data.quotes.length === 0}
 		<p class="empty-state">No hay cotizaciones para este evento.</p>
 	{:else}
@@ -93,12 +100,12 @@
 	{/if}
 
 	<div class="page-actions" style="margin-top: 16px">
-		{#if event.status !== 'cancelado'}
+		{#if event.status !== 'cancelado' && can('events.cancel')}
 			<form method="POST" action="?/cancel" use:enhance>
 				<button type="submit" class="btn-secondary">Cancelar evento</button>
 			</form>
 		{/if}
-		{#if event.is_active}
+		{#if event.is_active && can('events.deactivate')}
 			<form method="POST" action="?/deactivate" use:enhance>
 				<button type="submit" class="btn-danger">Desactivar evento</button>
 			</form>

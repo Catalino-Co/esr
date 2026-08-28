@@ -176,6 +176,7 @@ PostgreSQL debe encargarse solo de persistencia web/multiusuario. Las reglas de 
 - `packages/schemas` contiene tipos y validaciones compartidas.
 - `packages/db-sqlite` contiene persistencia SQLite de ESR Pro.
 - `packages/db-postgres` contiene pool, migraciones, sesiones de usuario y repositorios base para Cloud.
+- `packages/core/src/authorization` contiene la matriz de permisos por rol de ESR Cloud.
 - `packages/ui` contiene componentes Svelte reutilizables.
 - `packages/reports` contiene generacion PDF, reportes base y formatters.
 
@@ -252,6 +253,7 @@ Tras login y empresa activa:
 /work-orders
 /conduces
 /incidents
+/settings
 ```
 
 Flujo comercial:
@@ -332,6 +334,51 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Fase 8a - Roles y configuracion de empresa
+
+ESR Cloud aplica una matriz de permisos por rol. El rol vive en
+`company_members.role` y se resuelve en `hooks.server.ts`; nunca se acepta desde
+un formulario.
+
+| Rol (BD) | Etiqueta | Alcance |
+| --- | --- | --- |
+| `owner` | Propietario | Igual que admin. No puede degradarse ni desactivarse desde la UI. |
+| `admin` | Administrador | Todo, incluye `/settings` y gestion de miembros. |
+| `manager` | Gerente | Aprueba, convierte y cancela cotizaciones; cancela y cierra ordenes; resuelve incidencias; desactiva registros; ve auditoria. |
+| `staff` | Operador | Crea y edita clientes, eventos, inventario y cotizaciones; prepara, entrega, devuelve y llena checklists; crea incidencias. |
+| `viewer` | Lector | Solo lectura y reportes. |
+
+La matriz es pura y vive en `packages/core/src/authorization/permissions.ts`.
+Un permiso describe una accion de negocio, no una ruta.
+
+Doble barrera:
+
+1. **Servidor (obligatoria):** `requirePermission(locals, 'quotes.approve')` en
+   `apps/cloud/src/lib/server/permissions.ts`. Se evalua en cada `load` y cada
+   action; sin permiso responde 403.
+2. **UI (cosmetica):** `can('quotes.approve')` en `apps/cloud/src/lib/can.ts`
+   oculta botones y entradas de menu. Nunca sustituye a la barrera del servidor.
+
+Rutas de configuracion:
+
+```text
+/settings
+/settings/company    -> company_info por empresa (encabeza los documentos imprimibles)
+/settings/members    -> company_members + users (invitar, cambiar rol, activar/desactivar)
+```
+
+Reglas de `/settings/members`:
+
+- Solo se agregan cuentas que ya existen en `users`. Agregar un miembro no crea
+  identidades ni contrasenas.
+- El `owner` no puede modificarse desde la UI.
+- La empresa debe conservar al menos un `owner` o `admin` activo.
+- Toda alta, cambio de rol y cambio de estado queda en `audit_logs`.
+
+Pendiente de Fase 8b: los catalogos (`categories`, `event_types`, `suppliers`,
+`collaborators`). Cuando existan esas rutas, `manager` recupera `settings.view` y
+`settings.catalogs.manage`.
+
 Comandos:
 
 ```powershell
@@ -343,9 +390,16 @@ pnpm dev:cloud
 pnpm build:cloud
 ```
 
-Credenciales demo (solo desarrollo local):
+Credenciales demo (solo desarrollo local, contrasena `admin123`):
 
 ```text
-admin-a@demo.local / admin123
-admin-b@demo.local / admin123
+admin-a@demo.local      Demo Company A  owner
+gerente-a@demo.local    Demo Company A  manager
+operador-a@demo.local   Demo Company A  staff
+lector-a@demo.local     Demo Company A  viewer
+
+admin-b@demo.local      Demo Company B  owner
+gerente-b@demo.local    Demo Company B  manager
+operador-b@demo.local   Demo Company B  staff
+lector-b@demo.local     Demo Company B  viewer
 ```

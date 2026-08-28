@@ -19,6 +19,18 @@ type DemoTenant = {
 	eventName: string;
 };
 
+/**
+ * Miembros extra por empresa para poder probar la matriz de roles de Fase 8a.
+ * Comparten la contrasena demo y solo existen en desarrollo local.
+ */
+type DemoMember = { name: string; emailPrefix: string; role: 'manager' | 'staff' | 'viewer' };
+
+const demoMembers: DemoMember[] = [
+	{ name: 'Gerente Demo', emailPrefix: 'gerente', role: 'manager' },
+	{ name: 'Operador Demo', emailPrefix: 'operador', role: 'staff' },
+	{ name: 'Lector Demo', emailPrefix: 'lector', role: 'viewer' }
+];
+
 const tenants: DemoTenant[] = [
 	{
 		companyName: 'Demo Company A', slug: 'demo-a', adminName: 'Admin A',
@@ -63,6 +75,35 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 		 ON CONFLICT (company_id, user_id)
 		 DO UPDATE SET role = 'owner', status = 'active', updated_at = NOW()`,
 		[companyId, userId]
+	);
+
+	for (const member of demoMembers) {
+		const email = `${member.emailPrefix}-${tenant.slug.replace('demo-', '')}@demo.local`;
+		const memberUser = await client.query<{ id: number }>(
+			`INSERT INTO users (name, email, password_hash, status)
+			 VALUES ($1, $2, $3, 'active')
+			 ON CONFLICT (email) DO UPDATE
+			 SET name = EXCLUDED.name,
+			     status = 'active',
+			     password_hash = EXCLUDED.password_hash,
+			     updated_at = NOW()
+			 RETURNING id`,
+			[member.name, email, passwordHash]
+		);
+		await client.query(
+			`INSERT INTO company_members (company_id, user_id, role, status)
+			 VALUES ($1, $2, $3, 'active')
+			 ON CONFLICT (company_id, user_id)
+			 DO UPDATE SET role = EXCLUDED.role, status = 'active', updated_at = NOW()`,
+			[companyId, memberUser.rows[0].id, member.role]
+		);
+	}
+
+	await client.query(
+		`INSERT INTO company_info (company_id, id, name, rnc, phone, email, address)
+		 VALUES ($1, 1, $2, '000-00000-0', '809-000-0000', $3, 'Santo Domingo, Republica Dominicana')
+		 ON CONFLICT (company_id, id) DO NOTHING`,
+		[companyId, tenant.companyName, tenant.email]
 	);
 
 	const customerResult = await client.query<{ id: number }>(
@@ -119,6 +160,14 @@ async function runSeed(): Promise<void> {
 		for (const tenant of tenants) await upsertDemoTenant(client, tenant, passwordHash);
 		await client.query('COMMIT');
 		console.log('[db-postgres] Multi-company development seed completed.');
+		console.log(`[db-postgres] Demo logins (password: ${DEMO_PASSWORD}):`);
+		for (const tenant of tenants) {
+			const suffix = tenant.slug.replace('demo-', '');
+			console.log(`  ${tenant.companyName}: ${tenant.email} (owner)`);
+			for (const member of demoMembers) {
+				console.log(`    ${member.emailPrefix}-${suffix}@demo.local (${member.role})`);
+			}
+		}
 	} catch (error) {
 		await client.query('ROLLBACK');
 		throw error;

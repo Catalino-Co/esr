@@ -3,11 +3,11 @@ import type { Actions, PageServerLoad } from './$types';
 import { validateCreateIncidentInput } from '@esr/schemas';
 import { getIncidentRepository, getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'incidents.view');
 	const ctx = toTenantContext(companyId);
 
 	const order = await getRentalRepository().findById(ctx, params.id);
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	create: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId, user } = requireCompany(locals);
+		const { companyId, user } = requirePermission(locals, 'incidents.create');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 
@@ -69,7 +69,7 @@ export const actions: Actions = {
 		}
 	},
 	resolve: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'incidents.resolve');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 		const incidentId = String(form.get('incident_id') ?? '');

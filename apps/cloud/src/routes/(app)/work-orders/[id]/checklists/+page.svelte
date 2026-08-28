@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -46,7 +47,9 @@
 			</tbody>
 		</table>
 		<div class="page-actions" style="margin-top: 12px">
-			<button type="submit" class="btn-primary">Guardar checklist de salida</button>
+			{#if can('checklists.save')}
+				<button type="submit" class="btn-primary">Guardar checklist de salida</button>
+			{/if}
 		</div>
 	</form>
 
@@ -75,7 +78,9 @@
 			</tbody>
 		</table>
 		<div class="page-actions" style="margin-top: 12px">
-			<button type="submit" class="btn-primary">Guardar checklist de retorno</button>
+			{#if can('checklists.save')}
+				<button type="submit" class="btn-primary">Guardar checklist de retorno</button>
+			{/if}
 		</div>
 	</form>
 </section>

@@ -1,4 +1,5 @@
-import { validateCustomerInput } from '@esr/schemas';
+import { ASSIGNABLE_ROLES } from '@esr/core';
+import { validateCompanySettingsInput, validateCustomerInput, type CompanyRole } from '@esr/schemas';
 
 export type ValidationError = { field: string; message: string };
 
@@ -47,6 +48,35 @@ export function validateCloudEventInput(data: {
 	}
 	if (data.client_id != null && data.client_id !== '' && Number(data.client_id) <= 0) {
 		errors.push({ field: 'client_id', message: 'Seleccione un cliente válido.' });
+	}
+	return errors;
+}
+
+export function validateCloudCompanySettingsInput(data: {
+	name?: string;
+	email?: string;
+}): ValidationError[] {
+	const errors: ValidationError[] = [];
+	const nameCheck = validateCompanySettingsInput({ name: data.name ?? '' });
+	if (!nameCheck.valid) errors.push({ field: 'name', message: 'El nombre de la empresa es obligatorio.' });
+	if (data.email?.trim() && !EMAIL_PATTERN.test(data.email.trim())) {
+		errors.push({ field: 'email', message: 'El email no es válido.' });
+	}
+	return errors;
+}
+
+export function validateCloudMemberInput(data: {
+	email?: string;
+	role?: string;
+}): ValidationError[] {
+	const errors: ValidationError[] = [];
+	if (!data.email?.trim()) {
+		errors.push({ field: 'email', message: 'El email es obligatorio.' });
+	} else if (!EMAIL_PATTERN.test(data.email.trim())) {
+		errors.push({ field: 'email', message: 'El email no es válido.' });
+	}
+	if (!data.role || !ASSIGNABLE_ROLES.includes(data.role as CompanyRole)) {
+		errors.push({ field: 'role', message: 'Seleccione un rol válido.' });
 	}
 	return errors;
 }

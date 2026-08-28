@@ -2,12 +2,12 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository, getQuoteRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$lib/server/validators';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'events.view');
 	const ctx = toTenantContext(companyId);
 	const event = await getEventRepository().findById(ctx, params.id);
 	if (!event) error(404, 'Evento no encontrado');
@@ -33,7 +33,7 @@ async function validateClientInCompany(
 
 export const actions: Actions = {
 	update: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'events.update');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 
@@ -78,7 +78,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	cancel: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'events.cancel');
 		const ctx = toTenantContext(companyId);
 		const event = await getEventRepository().findById(ctx, params.id);
 		if (!event) error(404, 'Evento no encontrado');
@@ -92,7 +92,7 @@ export const actions: Actions = {
 		throw redirect(303, `/events/${params.id}`);
 	},
 	deactivate: async ({ locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'events.deactivate');
 		const ctx = toTenantContext(companyId);
 		const event = await getEventRepository().findById(ctx, params.id);
 		if (!event) error(404, 'Evento no encontrado');

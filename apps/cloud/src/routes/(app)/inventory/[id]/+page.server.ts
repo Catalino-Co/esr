@@ -6,12 +6,12 @@ import {
 	getSubcategoryRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'inventory.view');
 	const ctx = toTenantContext(companyId);
 	const item = await getInventoryRepository().findById(ctx, params.id);
 	if (!item) error(404, 'Artículo no encontrado');
@@ -32,7 +32,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	update: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'inventory.update');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 		const totalQuantity = Number(form.get('total_quantity') ?? 0);
@@ -82,7 +82,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	deactivate: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'inventory.deactivate');
 		const ctx = toTenantContext(companyId);
 		const item = await getInventoryRepository().findById(ctx, params.id);
 		if (!item) error(404, 'Artículo no encontrado');

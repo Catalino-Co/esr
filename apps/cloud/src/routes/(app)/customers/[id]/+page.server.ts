@@ -2,12 +2,12 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudCustomerInput } from '$lib/server/validators';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'customers.view');
 	const customer = await getCustomerRepository().findById(toTenantContext(companyId), params.id);
 	if (!customer) error(404, 'Cliente no encontrado');
 	return { customer };
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	update: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'customers.update');
 		const form = await request.formData();
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
@@ -42,7 +42,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	deactivate: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'customers.deactivate');
 		const customer = await getCustomerRepository().findById(toTenantContext(companyId), params.id);
 		if (!customer) error(404, 'Cliente no encontrado');
 		await getCustomerRepository().deactivate(toTenantContext(companyId), params.id);

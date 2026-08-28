@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -17,6 +18,7 @@
 		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}
 
+	{#if can('incidents.create')}
 	<h2>Registrar incidencia</h2>
 	<form method="POST" action="?/create" use:enhance class="form-grid" style="margin-bottom: 24px">
 		<label>
@@ -58,6 +60,7 @@
 			<button type="submit" class="btn-primary">Crear incidencia</button>
 		</div>
 	</form>
+	{/if}
 
 	<h2>Listado</h2>
 	{#if data.incidents.length === 0}
@@ -77,7 +80,7 @@
 						<td>{Number(incident.estimated_cost || 0).toFixed(2)}</td>
 						<td>
 							<a class="btn-link" href="/incidents/{incident.id}/print" target="_blank" rel="noopener">Imprimir</a>
-							{#if incident.status !== 'resuelto' && incident.status !== 'anulado'}
+							{#if incident.status !== 'resuelto' && incident.status !== 'anulado' && can('incidents.resolve')}
 								<form method="POST" action="?/resolve" use:enhance style="display:inline">
 									<input type="hidden" name="incident_id" value={incident.id} />
 									<button type="submit" class="btn-secondary btn-sm">Resolver</button>

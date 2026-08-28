@@ -1,5 +1,9 @@
 <script>
+	import { roleLabel } from '@esr/core';
+
 	let { user, role, company } = $props();
+
+	const label = $derived(roleLabel(role));
 	let open = $state(false);
 
 	function toggle(event) {
@@ -21,7 +25,7 @@
 		<span class="user-avatar" aria-hidden="true">{user?.name?.charAt(0)?.toUpperCase() ?? 'U'}</span>
 		<span class="user-info">
 			<strong>{user?.name ?? 'Usuario'}</strong>
-			<small>{role ?? '—'} · {company?.name ?? '—'}</small>
+			<small>{label} · {company?.name ?? '—'}</small>
 		</span>
 	</button>
 

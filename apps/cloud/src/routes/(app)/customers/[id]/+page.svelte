@@ -1,4 +1,5 @@
 <script>
+	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
 	let { data, form } = $props();
@@ -53,11 +54,15 @@
 			</span>
 		</div>
 		<div class="form-field full">
-			<button type="submit" class="btn-primary">Guardar cambios</button>
+			{#if can('customers.update')}
+				<button type="submit" class="btn-primary">Guardar cambios</button>
+			{:else}
+				<p class="panel-hint">Su rol no permite editar este registro.</p>
+			{/if}
 		</div>
 	</form>
 
-	{#if customer.is_active}
+	{#if customer.is_active && can('customers.deactivate')}
 		<form method="POST" action="?/deactivate" class="page-actions" style="margin-top: 16px" use:enhance>
 			<button type="submit" class="btn-danger">Desactivar cliente</button>
 		</form>

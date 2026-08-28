@@ -7,11 +7,11 @@ import {
 	getQuoteRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'quotes.create');
 	const ctx = toTenantContext(companyId);
 	const eventId = url.searchParams.get('eventId')?.trim() || '';
 
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	default: async ({ request, locals, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.create');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 

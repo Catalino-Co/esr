@@ -3,13 +3,13 @@ import type { Actions, PageServerLoad } from './$types';
 import { getReturnableQuantity } from '@esr/core';
 import { getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 const VALID_CONDITIONS = ['good', 'fair', 'damaged', 'lost'];
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'operations.return');
 	const ctx = toTenantContext(companyId);
 
 	const order = await getRentalRepository().findById(ctx, params.id);
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	default: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'operations.return');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 

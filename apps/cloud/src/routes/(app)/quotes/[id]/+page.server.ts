@@ -11,11 +11,11 @@ import {
 	getRentalRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
-import { requireCompany } from '$lib/server/require-auth';
+import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { companyId } = requireCompany(locals);
+	const { companyId } = requirePermission(locals, 'quotes.view');
 	const ctx = toTenantContext(companyId);
 
 	const quote = await getQuoteRepository().findById(ctx, params.id);
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	addItem: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.update');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -53,7 +53,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	updateItem: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.update');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -70,7 +70,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	removeItem: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.update');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -84,7 +84,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	updateQuote: async ({ request, locals, params }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.update');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -101,7 +101,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	approve: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.approve');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -136,7 +136,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	cancel: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.cancel');
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
@@ -151,7 +151,7 @@ export const actions: Actions = {
 		throw redirect(303, '/quotes');
 	},
 	convert: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requireCompany(locals);
+		const { companyId } = requirePermission(locals, 'quotes.convert');
 		const ctx = toTenantContext(companyId);
 		try {
 			const { order } = await getQuoteConversionService().convertToWorkOrder(ctx, params.id);

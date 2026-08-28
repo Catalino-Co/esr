@@ -3,7 +3,7 @@
 	import Sidebar from './Sidebar.svelte';
 	import Topbar from './Topbar.svelte';
 
-	let { user, company, role, children } = $props();
+	let { user, company, role, permissions = [], children } = $props();
 
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
@@ -32,7 +32,7 @@
 		<button type="button" class="sidebar-backdrop" aria-label="Cerrar menú" onclick={closeMobile}></button>
 	{/if}
 
-	<Sidebar {company} {pathname} collapsed={sidebarCollapsed} {mobileOpen} onToggle={toggleSidebar} />
+	<Sidebar {company} {pathname} {permissions} collapsed={sidebarCollapsed} {mobileOpen} onToggle={toggleSidebar} />
 
 	<div class="app-main">
 		<Topbar {pathname} {user} {company} {role} onMenuToggle={handleMenuToggle} />
