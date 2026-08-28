@@ -6,16 +6,18 @@ import { ICONS } from '@esr/ui/icons';
  */
 export const navItems = [
 	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard },
-	{ path: '/clients', label: 'Clientes', icon: ICONS.customers },
-	{ path: '/events', label: 'Eventos', icon: ICONS.events },
-	{ path: '/items', label: 'Inventario', icon: ICONS.inventory },
-	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages },
 	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes },
 	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders },
 	{ path: '/conduces', label: 'Conduces', icon: ICONS.conduces },
-	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents },
+	{ path: '/events', label: 'Eventos', icon: ICONS.events },
+	{ path: '/clients', label: 'Clientes', icon: ICONS.customers },
+	{ path: '/items', label: 'Inventario', icon: ICONS.inventory },
+	// Paquetes no existe en Cloud; va junto a Inventario, que es lo que agrupa.
+	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages },
 	{ path: '/reports', label: 'Reportes', icon: ICONS.reports },
-	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings }
+	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents },
+	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings },
+	{ path: '/docs', label: 'Documentación', icon: ICONS.docs }
 ];
 
 export function isNavActive(pathname, path) {

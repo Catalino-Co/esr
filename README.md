@@ -435,14 +435,55 @@ cada pagina— redefinia los suyos y se desincronizaban.
 
 ### Menu
 
-El menu es **plano, sin titulos de seccion**, en las dos apps:
+El menu es **plano, sin titulos de seccion**, y sigue el mismo orden en las dos
+apps:
+
+```text
+Dashboard, Cotizaciones, Ordenes, Conduces, Eventos, Clientes, Inventario,
+Reportes, Auditoria, Incidencias, Configuracion, Documentacion
+```
 
 ```text
 apps/cloud/src/lib/navigation.ts   (filtra por permiso)
 apps/desktop/src/lib/navigation.js
 ```
 
-En Cloud cada entrada declara el permiso minimo que la hace visible.
+En Cloud cada entrada declara el permiso minimo que la hace visible; con
+`permission: null` la entrada se ve siempre (es el caso del manual). Desktop
+suma **Paquetes** junto a Inventario, que en Cloud todavia no existe, y no tiene
+Auditoria.
+
+## Manual de Usuario
+
+Cada app sirve su propio manual en `/docs`, portado del de CCO Workshop:
+
+```text
+packages/ui/src/docs/markdown.ts     -> Markdown a HTML + extraccion del TOC (compartido)
+apps/<app>/src/lib/docs/sections.js  -> indice: grupos, secciones, resumenes e iconos
+apps/<app>/src/lib/docs/content/     -> un .md por seccion
+apps/<app>/src/routes/.../docs/      -> portada, indice lateral y /docs/[slug]
+```
+
+`sections.js` es la **unica fuente de verdad** del esqueleto: de ahi salen el
+indice lateral, la portada, las rutas, el TOC de cada pagina y la navegacion
+anterior/siguiente.
+
+Para redactar una seccion basta crear `lib/docs/content/<slug>.md`. Mientras no
+exista, la pagina muestra el esquema estandar (vista general, acciones, campos,
+flujo) y la portada la marca **En redaccion**. En cuanto el archivo existe, sus
+encabezados `##` pasan a ser el TOC, asi que el indice nunca queda
+desincronizado del texto. Los archivos empiezan en `##`: el titulo ya lo pinta
+la pagina desde `sections.js`.
+
+Vite inlina cada `.md` en el bundle, de modo que el manual funciona igual en la
+web y en Electron (`file://`) sin pedirle nada al servidor.
+
+En Desktop, que se prerenderiza con `ssr: false`, el rastreador de SvelteKit no
+puede descubrir los enlaces del manual. Por eso
+`apps/desktop/src/routes/docs/[slug]/+page.js` exporta `entries()` derivado de
+`docsSections`: agregar una seccion no obliga a tocar la configuracion.
+
+
 
 ### Fase 8a - Roles y configuracion de empresa
 

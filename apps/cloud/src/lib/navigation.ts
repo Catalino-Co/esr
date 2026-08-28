@@ -6,8 +6,11 @@ export type NavItemConfig = {
 	label: string;
 	icon: string;
 	matchPrefix: string;
-	/** Permiso minimo para ver la entrada. Sin permiso no se renderiza. */
-	permission: Permission;
+	/**
+	 * Permiso minimo para ver la entrada. `null` = visible para cualquier
+	 * miembro con empresa activa (el manual, por ejemplo, no se restringe).
+	 */
+	permission: Permission | null;
 	disabled?: boolean;
 };
 
@@ -22,27 +25,6 @@ export const navItems: NavItemConfig[] = [
 		icon: ICONS.dashboard,
 		matchPrefix: '/dashboard',
 		permission: 'customers.view'
-	},
-	{
-		href: '/customers',
-		label: 'Clientes',
-		icon: ICONS.customers,
-		matchPrefix: '/customers',
-		permission: 'customers.view'
-	},
-	{
-		href: '/events',
-		label: 'Eventos',
-		icon: ICONS.events,
-		matchPrefix: '/events',
-		permission: 'events.view'
-	},
-	{
-		href: '/inventory',
-		label: 'Inventario',
-		icon: ICONS.inventory,
-		matchPrefix: '/inventory',
-		permission: 'inventory.view'
 	},
 	{
 		href: '/quotes',
@@ -66,11 +48,25 @@ export const navItems: NavItemConfig[] = [
 		permission: 'conduces.view'
 	},
 	{
-		href: '/incidents',
-		label: 'Incidencias',
-		icon: ICONS.incidents,
-		matchPrefix: '/incidents',
-		permission: 'incidents.view'
+		href: '/events',
+		label: 'Eventos',
+		icon: ICONS.events,
+		matchPrefix: '/events',
+		permission: 'events.view'
+	},
+	{
+		href: '/customers',
+		label: 'Clientes',
+		icon: ICONS.customers,
+		matchPrefix: '/customers',
+		permission: 'customers.view'
+	},
+	{
+		href: '/inventory',
+		label: 'Inventario',
+		icon: ICONS.inventory,
+		matchPrefix: '/inventory',
+		permission: 'inventory.view'
 	},
 	{
 		href: '/reports',
@@ -80,6 +76,20 @@ export const navItems: NavItemConfig[] = [
 		permission: 'reports.view'
 	},
 	{
+		href: '/audit',
+		label: 'Auditoría',
+		icon: ICONS.audit,
+		matchPrefix: '/audit',
+		permission: 'audit.view'
+	},
+	{
+		href: '/incidents',
+		label: 'Incidencias',
+		icon: ICONS.incidents,
+		matchPrefix: '/incidents',
+		permission: 'incidents.view'
+	},
+	{
 		href: '/settings',
 		label: 'Configuración',
 		icon: ICONS.settings,
@@ -87,11 +97,12 @@ export const navItems: NavItemConfig[] = [
 		permission: 'settings.view'
 	},
 	{
-		href: '/audit',
-		label: 'Auditoría',
-		icon: ICONS.audit,
-		matchPrefix: '/audit',
-		permission: 'audit.view'
+		href: '/docs',
+		label: 'Documentación',
+		icon: ICONS.docs,
+		matchPrefix: '/docs',
+		// El manual no se restringe: explica la app, no expone datos.
+		permission: null
 	}
 ];
 
@@ -117,7 +128,8 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	},
 	{ prefix: '/settings/members', title: 'Miembros', subtitle: 'Usuarios y roles de la empresa' },
 	{ prefix: '/settings', title: 'Configuración', subtitle: 'Ajustes de la empresa activa' },
-	{ prefix: '/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' }
+	{ prefix: '/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
+	{ prefix: '/docs', title: 'Documentación', subtitle: 'Manual de usuario de ESR Cloud' }
 ];
 
 export function resolvePageMeta(pathname: string): { title: string; subtitle: string } {
@@ -134,5 +146,5 @@ export function isNavActive(pathname: string, matchPrefix: string): boolean {
 
 /** Items visibles para un conjunto de permisos. */
 export function visibleNavItems(permissions: readonly string[] = []): NavItemConfig[] {
-	return navItems.filter((item) => permissions.includes(item.permission));
+	return navItems.filter((item) => !item.permission || permissions.includes(item.permission));
 }

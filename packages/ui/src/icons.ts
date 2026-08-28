@@ -22,6 +22,7 @@ export const ICONS = {
 	reports: '📈',
 	settings: '⚙️',
 	audit: '🔐',
+	docs: '📘',
 
 	// Marca
 	brand: '🏢',
