@@ -14,9 +14,9 @@ PGSSL=false
 PGPOOL_MAX=10
 ```
 
-Copy values from `.env.example` into your local environment. The scripts intentionally fail before opening a connection when `DATABASE_URL` is missing.
+Copy values from `.env.example` at the **monorepo root** (`ESR-APP/.env`) into your local `.env`. The scripts intentionally fail before opening a connection when `DATABASE_URL` is missing.
 
-PowerShell example:
+PowerShell (alternativa temporal, solo esa ventana):
 
 ```powershell
 $env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/cco_apps'

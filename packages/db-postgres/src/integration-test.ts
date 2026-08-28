@@ -1,3 +1,4 @@
+import './load-env.js';
 import assert from 'node:assert/strict';
 import type { RepositoryContext } from '@esr/core';
 import { closePostgresPool, getPostgresPool } from './connection';
@@ -9,6 +10,7 @@ import { PostgresQuoteRepository } from './repositories/postgres-quote.repositor
 import { PostgresRentalRepository } from './repositories/postgres-rental.repository';
 import { PostgresConduceRepository } from './repositories/postgres-conduce.repository';
 import { PostgresIncidentRepository } from './repositories/postgres-operations.repository';
+import { PostgresAuditLogRepository } from './repositories/postgres-audit-log.repository';
 import { QuoteConversionService } from './services/quote-conversion.service';
 import { WorkOrderOperationsService } from './services/work-order-operations.service';
 
@@ -33,7 +35,7 @@ async function runIntegrationTest(): Promise<void> {
 	);
 	assert.equal(migrationsTable.rows[0].table_name, 'schema_migrations');
 	const migrationCount = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM schema_migrations');
-	assert.ok(Number(migrationCount.rows[0].count) >= 5, 'Expected migrations through operations to be applied.');
+	assert.ok(Number(migrationCount.rows[0].count) >= 6, 'Expected migrations through audit logs to be applied.');
 	console.log('[ok] migrations table exists and contains applied migrations');
 
 	const companiesResult = await pool.query<CompanyRow>(
@@ -56,6 +58,7 @@ async function runIntegrationTest(): Promise<void> {
 	const operations = new WorkOrderOperationsService();
 	const conduces = new PostgresConduceRepository(pool);
 	const incidents = new PostgresIncidentRepository(pool);
+	const auditLogs = new PostgresAuditLogRepository(pool);
 
 	const customersA = await customers.list(ctxA, { search: 'Cliente Demo', limit: 20, offset: 0 });
 	const customersB = await customers.list(ctxB, { search: 'Cliente Demo', limit: 20, offset: 0 });
@@ -141,6 +144,18 @@ async function runIntegrationTest(): Promise<void> {
 	const incidentsB = await incidents.list(ctxB, { limit: 50, offset: 0 });
 	assert.ok(!incidentsB.some((row) => incidentsA.some((a) => a.id === row.id)));
 	console.log('[ok] operational flow and incident isolation passed');
+
+	await auditLogs.create({ ...ctxA, userId: null }, {
+		action: 'report.viewed',
+		entity_type: 'report',
+		entity_id: 'test',
+		description: 'Integration test audit entry'
+	});
+	const logsA = await auditLogs.list(ctxA, { limit: 10, offset: 0 });
+	const logsB = await auditLogs.list(ctxB, { limit: 10, offset: 0 });
+	assert.ok(logsA.some((row) => row.entity_id === 'test'));
+	assert.ok(!logsB.some((row) => row.entity_id === 'test'));
+	console.log('[ok] audit logs are isolated by company_id');
 
 	console.log('[ok] multi-company isolation test passed');
 }

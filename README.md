@@ -285,6 +285,47 @@ Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_o
 
 Numeración comercial MVP por empresa: `COT-000001`, `ORD-000001` (último número + 1; no apto para alta concurrencia sin endurecer).
 
+### Fase 7 — Reportes, documentos imprimibles y auditoría
+
+Documentos imprimibles (HTML + `window.print()`):
+
+```text
+/quotes/[id]/print
+/work-orders/[id]/print
+/conduces/[id]/print
+/work-orders/[id]/checklists/print?type=salida|retorno
+/incidents/[id]/print
+```
+
+Los documentos se generan con `@esr/reports/documents` y muestran datos de empresa desde `companies` + `company_info`. El navegador puede imprimir o guardar como PDF.
+
+Reportes operativos básicos:
+
+```text
+/reports
+/reports/inventory
+/reports/orders
+/reports/incidents
+```
+
+Exportación CSV opcional:
+
+```text
+/reports/inventory.csv
+/reports/orders.csv
+/reports/incidents.csv
+```
+
+Auditoría (solo lectura):
+
+```text
+/audit
+```
+
+ESR Cloud registra acciones críticas en `audit_logs`. Cada entrada incluye `company_id`, usuario, acción, entidad y metadatos no sensibles. Los logs se filtran por empresa; no se pueden editar ni eliminar desde la UI.
+
+Acciones auditadas incluyen: clientes, inventario, eventos, cotizaciones, órdenes, conduces, incidencias, impresión de documentos y consulta de reportes.
+
 Reglas de seguridad:
 
 - `companyId` viene desde `locals` (nunca desde formularios).

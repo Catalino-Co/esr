@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository, getQuoteRepository } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$lib/server/validators';
@@ -31,7 +32,7 @@ async function validateClientInCompany(
 }
 
 export const actions: Actions = {
-	update: async ({ request, locals, params }) => {
+	update: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -67,14 +68,27 @@ export const actions: Actions = {
 			status: values.status
 		});
 
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'event.updated',
+			entity_type: 'event',
+			entity_id: String(params.id),
+			description: `Evento actualizado: ${values.name}`
+		});
+
 		return { success: true };
 	},
-	cancel: async ({ locals, params }) => {
+	cancel: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const event = await getEventRepository().findById(ctx, params.id);
 		if (!event) error(404, 'Evento no encontrado');
 		await getEventRepository().cancel(ctx, params.id);
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'event.cancelled',
+			entity_type: 'event',
+			entity_id: String(params.id),
+			description: `Evento cancelado: ${event.name}`
+		});
 		throw redirect(303, `/events/${params.id}`);
 	},
 	deactivate: async ({ locals, params }) => {

@@ -7,6 +7,7 @@ import {
 	getRentalRepository,
 	getWorkOrderOperationsService
 } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -37,7 +38,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals, params }) => {
+	default: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -58,6 +59,25 @@ export const actions: Actions = {
 				received_by_name: String(form.get('received_by_name') ?? '').trim() || undefined,
 				received_by_document: String(form.get('received_by_document') ?? '').trim() || undefined,
 				notes: String(form.get('notes') ?? '').trim() || undefined
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.delivered',
+				entity_type: 'order',
+				entity_id: String(params.id),
+				description: `Entrega completada orden #${params.id}`
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'delivery_note.created',
+				entity_type: 'conduce',
+				entity_id: String(result.conduce.id),
+				description: `Conduce de entrega ${result.conduce.note_number || result.conduce.id}`,
+				metadata: { noteNumber: result.conduce.note_number }
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'delivery_note.completed',
+				entity_type: 'conduce',
+				entity_id: String(result.conduce.id),
+				description: `Conduce completado ${result.conduce.note_number || result.conduce.id}`
 			});
 			throw redirect(303, `/work-orders/${params.id}?delivered=${result.conduce.note_number}`);
 		} catch (err) {

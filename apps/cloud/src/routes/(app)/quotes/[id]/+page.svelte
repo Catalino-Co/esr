@@ -8,7 +8,10 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Cotización {quote.quote_number || `#${quote.id}`}</h1>
-		<a class="btn-secondary" href="/quotes">Volver</a>
+		<div class="page-header-actions">
+			<a class="btn-secondary" href="/quotes/{quote.id}/print" target="_blank" rel="noopener">Imprimir</a>
+			<a class="btn-secondary" href="/quotes">Volver</a>
+		</div>
 	</div>
 
 	{#if form?.error}

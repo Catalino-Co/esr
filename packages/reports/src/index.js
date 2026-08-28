@@ -3,4 +3,5 @@ export * from './contracts/index.js';
 export * from './inventory/index.js';
 export * from './rentals/index.js';
 export * from './formatters/index.js';
+export * from './documents/index.js';
 

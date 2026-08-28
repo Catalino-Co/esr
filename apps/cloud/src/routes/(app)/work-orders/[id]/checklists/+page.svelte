@@ -7,7 +7,11 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Checklists — Orden {data.order.order_number || `#${data.order.id}`}</h1>
-		<a class="btn-secondary" href="/work-orders/{data.order.id}">Volver</a>
+		<div class="page-header-actions">
+			<a class="btn-secondary" href="/work-orders/{data.order.id}/checklists/print?type=salida" target="_blank" rel="noopener">Imprimir salida</a>
+			<a class="btn-secondary" href="/work-orders/{data.order.id}/checklists/print?type=retorno" target="_blank" rel="noopener">Imprimir retorno</a>
+			<a class="btn-secondary" href="/work-orders/{data.order.id}">Volver</a>
+		</div>
 	</div>
 
 	{#if form?.success}

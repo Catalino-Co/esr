@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getReturnableQuantity } from '@esr/core';
 import { getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals, params }) => {
+	default: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -57,6 +58,24 @@ export const actions: Actions = {
 			const result = await getWorkOrderOperationsService().completeReturn(ctx, params.id, {
 				lines,
 				notes: String(form.get('notes') ?? '').trim() || undefined
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.returned',
+				entity_type: 'order',
+				entity_id: String(params.id),
+				description: `Devolución completada orden #${params.id}`
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'delivery_note.created',
+				entity_type: 'conduce',
+				entity_id: String(result.conduce.id),
+				description: `Conduce de devolución ${result.conduce.note_number || result.conduce.id}`
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'delivery_note.completed',
+				entity_type: 'conduce',
+				entity_id: String(result.conduce.id),
+				description: `Conduce de devolución completado ${result.conduce.note_number || result.conduce.id}`
 			});
 			const incidentCount = result.incidents.length;
 			throw redirect(

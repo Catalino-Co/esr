@@ -19,6 +19,9 @@ importers:
       '@esr/db-postgres':
         specifier: workspace:*
         version: link:../../packages/db-postgres
+      '@esr/reports':
+        specifier: workspace:*
+        version: link:../../packages/reports
       '@esr/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas

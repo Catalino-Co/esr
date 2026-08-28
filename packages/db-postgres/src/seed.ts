@@ -1,3 +1,4 @@
+import './load-env.js';
 import bcrypt from 'bcryptjs';
 import type pg from 'pg';
 import { closePostgresPool, getPostgresPool } from './connection';

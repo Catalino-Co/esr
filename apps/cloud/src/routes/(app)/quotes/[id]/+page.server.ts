@@ -10,6 +10,7 @@ import {
 	getQuoteRepository,
 	getRentalRepository
 } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -99,7 +100,7 @@ export const actions: Actions = {
 		await getQuoteRepository().syncTotals(ctx, params.id);
 		return { success: true };
 	},
-	approve: async ({ locals, params }) => {
+	approve: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
@@ -125,22 +126,48 @@ export const actions: Actions = {
 		}
 
 		await getQuoteRepository().changeStatus(ctx, params.id, 'aprobada');
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'quote.approved',
+			entity_type: 'quote',
+			entity_id: String(params.id),
+			description: `Cotización aprobada ${quote.quote_number || params.id}`,
+			metadata: { quoteNumber: quote.quote_number }
+		});
 		return { success: true };
 	},
-	cancel: async ({ locals, params }) => {
+	cancel: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const quote = await getQuoteRepository().findById(ctx, params.id);
 		if (!quote) error(404, 'Cotización no encontrada');
 		if (quote.status === 'convertida') return fail(400, { error: 'No se puede cancelar una cotización convertida.' });
 		await getQuoteRepository().changeStatus(ctx, params.id, 'cancelada');
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'quote.cancelled',
+			entity_type: 'quote',
+			entity_id: String(params.id),
+			description: `Cotización cancelada ${quote.quote_number || params.id}`
+		});
 		throw redirect(303, '/quotes');
 	},
-	convert: async ({ locals, params }) => {
+	convert: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		try {
 			const { order } = await getQuoteConversionService().convertToWorkOrder(ctx, params.id);
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'quote.converted',
+				entity_type: 'quote',
+				entity_id: String(params.id),
+				description: `Cotización convertida a orden ${order.order_number || order.id}`,
+				metadata: { orderId: order.id }
+			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.created',
+				entity_type: 'order',
+				entity_id: String(order.id),
+				description: `Orden creada desde cotización ${params.id}`
+			});
 			throw redirect(303, `/work-orders/${order.id}`);
 		} catch (conversionError) {
 			const message = conversionError instanceof Error ? conversionError.message : 'No se pudo convertir la cotización.';

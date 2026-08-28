@@ -11,7 +11,10 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Orden {order.order_number || `#${order.id}`}</h1>
-		<a class="btn-secondary" href="/work-orders">Volver</a>
+		<div class="page-header-actions">
+			<a class="btn-secondary" href="/work-orders/{order.id}/print" target="_blank" rel="noopener">Imprimir orden</a>
+			<a class="btn-secondary" href="/work-orders">Volver</a>
+		</div>
 	</div>
 
 	{#if form?.error}

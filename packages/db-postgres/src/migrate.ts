@@ -1,3 +1,4 @@
+import './load-env.js';
 import { closePostgresPool } from './connection';
 import { runMigrations } from './migrations/runner';
 

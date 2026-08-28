@@ -1,4 +1,5 @@
 import {
+	PostgresAuditLogRepository,
 	PostgresCategoryRepository,
 	PostgresChecklistRepository,
 	PostgresConduceRepository,
@@ -11,6 +12,7 @@ import {
 	PostgresStockMovementRepository,
 	PostgresSubcategoryRepository,
 	QuoteConversionService,
+	getCompanyDocumentInfo,
 	WorkOrderOperationsService
 } from '@esr/db-postgres';
 
@@ -27,6 +29,7 @@ let checklistRepository: PostgresChecklistRepository | null = null;
 let incidentRepository: PostgresIncidentRepository | null = null;
 let stockMovementRepository: PostgresStockMovementRepository | null = null;
 let workOrderOperationsService: WorkOrderOperationsService | null = null;
+let auditLogRepository: PostgresAuditLogRepository | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -92,3 +95,10 @@ export function getWorkOrderOperationsService(): WorkOrderOperationsService {
 	if (!workOrderOperationsService) workOrderOperationsService = new WorkOrderOperationsService();
 	return workOrderOperationsService;
 }
+
+export function getAuditLogRepository(): PostgresAuditLogRepository {
+	if (!auditLogRepository) auditLogRepository = new PostgresAuditLogRepository();
+	return auditLogRepository;
+}
+
+export { getCompanyDocumentInfo };

@@ -6,6 +6,7 @@ import {
 	getEventRepository,
 	getQuoteRepository
 } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	default: async ({ request, locals, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -58,6 +59,13 @@ export const actions: Actions = {
 			status: 'borrador',
 			items: [],
 			is_active: 1
+		});
+
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'quote.created',
+			entity_type: 'quote',
+			entity_id: String(quote.id),
+			description: `Cotización creada ${quote.quote_number || quote.id}`
 		});
 
 		throw redirect(303, `/quotes/${quote.id}`);

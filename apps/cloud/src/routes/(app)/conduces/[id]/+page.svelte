@@ -5,7 +5,10 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Conduce {data.conduce.note_number || `#${data.conduce.id}`}</h1>
-		<a class="btn-secondary" href="/conduces">Volver</a>
+		<div class="page-header-actions">
+			<a class="btn-secondary" href="/conduces/{data.conduce.id}/print" target="_blank" rel="noopener">Imprimir conduce</a>
+			<a class="btn-secondary" href="/conduces">Volver</a>
+		</div>
 	</div>
 
 	<div class="grid" style="margin-bottom: 16px">

@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$lib/server/validators';
@@ -26,7 +27,7 @@ async function validateClientInCompany(
 }
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	default: async ({ request, locals, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -58,6 +59,13 @@ export const actions: Actions = {
 			notes: values.notes || undefined,
 			status: values.status,
 			is_active: 1
+		});
+
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'event.created',
+			entity_type: 'event',
+			entity_id: String(event.id),
+			description: `Evento creado: ${event.name}`
 		});
 
 		throw redirect(303, `/events/${event.id}`);

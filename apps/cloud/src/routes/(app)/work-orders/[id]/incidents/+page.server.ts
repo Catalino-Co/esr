@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateCreateIncidentInput } from '@esr/schemas';
 import { getIncidentRepository, getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -21,7 +22,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
-	create: async ({ request, locals, params }) => {
+	create: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId, user } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -44,7 +45,7 @@ export const actions: Actions = {
 		if (!order) error(404, 'Orden no encontrada');
 
 		try {
-			await getWorkOrderOperationsService().createIncident(ctx, {
+			const incident = await getWorkOrderOperationsService().createIncident(ctx, {
 				type: payload.type,
 				description: payload.description,
 				severity: payload.severity,
@@ -55,13 +56,19 @@ export const actions: Actions = {
 				status: 'reportado',
 				notes: user?.name ? `Reportado por ${user.name}` : undefined
 			});
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'incident.created',
+				entity_type: 'incident',
+				entity_id: String(incident.id),
+				description: `Incidencia creada en orden #${params.id}`
+			});
 			return { success: true };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'No se pudo crear la incidencia.';
 			return fail(400, { error: message });
 		}
 	},
-	resolve: async ({ request, locals, params }) => {
+	resolve: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -75,6 +82,12 @@ export const actions: Actions = {
 
 		try {
 			await getWorkOrderOperationsService().resolveIncident(ctx, incidentId);
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'incident.resolved',
+				entity_type: 'incident',
+				entity_id: incidentId,
+				description: `Incidencia resuelta #${incidentId}`
+			});
 			return { success: true };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'No se pudo resolver la incidencia.';

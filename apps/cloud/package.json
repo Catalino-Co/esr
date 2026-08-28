@@ -25,6 +25,7 @@
 		"@esr/core": "workspace:*",
 		"@esr/db-postgres": "workspace:*",
 		"@esr/schemas": "workspace:*",
+		"@esr/reports": "workspace:*",
 		"@esr/ui": "workspace:*",
 		"bcryptjs": "^3.0.2"
 	}

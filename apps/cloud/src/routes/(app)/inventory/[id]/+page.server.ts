@@ -5,6 +5,7 @@ import {
 	getInventoryRepository,
 	getSubcategoryRepository
 } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
@@ -30,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
-	update: async ({ request, locals, params }) => {
+	update: async ({ request, locals, params, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
@@ -71,14 +72,27 @@ export const actions: Actions = {
 			rental_price: values.rental_price
 		});
 
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'inventory.updated',
+			entity_type: 'inventory',
+			entity_id: String(params.id),
+			description: `Artículo actualizado: ${values.name}`
+		});
+
 		return { success: true };
 	},
-	deactivate: async ({ locals, params }) => {
+	deactivate: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		const item = await getInventoryRepository().findById(ctx, params.id);
 		if (!item) error(404, 'Artículo no encontrado');
 		await getInventoryRepository().deactivate(ctx, params.id);
+		await recordAuditLog({ locals, request, getClientAddress }, {
+			action: 'inventory.deactivated',
+			entity_type: 'inventory',
+			entity_id: String(params.id),
+			description: `Artículo desactivado: ${item.name}`
+		});
 		throw redirect(303, '/inventory');
 	}
 };

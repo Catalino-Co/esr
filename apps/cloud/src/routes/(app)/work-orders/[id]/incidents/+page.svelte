@@ -76,6 +76,7 @@
 						<td>{incident.description}</td>
 						<td>{Number(incident.estimated_cost || 0).toFixed(2)}</td>
 						<td>
+							<a class="btn-link" href="/incidents/{incident.id}/print" target="_blank" rel="noopener">Imprimir</a>
 							{#if incident.status !== 'resuelto' && incident.status !== 'anulado'}
 								<form method="POST" action="?/resolve" use:enhance style="display:inline">
 									<input type="hidden" name="incident_id" value={incident.id} />
@@ -93,4 +94,12 @@
 <style>
 	.full-width { grid-column: 1 / -1; }
 	.btn-sm { font-size: 0.85rem; padding: 4px 8px; }
+	.btn-link {
+		background: none;
+		border: none;
+		color: var(--primary);
+		cursor: pointer;
+		text-decoration: none;
+		margin-right: 8px;
+	}
 </style>

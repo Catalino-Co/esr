@@ -10,7 +10,8 @@
 		"./contracts": "./src/contracts/index.js",
 		"./inventory": "./src/inventory/index.js",
 		"./rentals": "./src/rentals/index.js",
-		"./formatters": "./src/formatters/index.js"
+		"./formatters": "./src/formatters/index.js",
+		"./documents": "./src/documents/index.js"
 	},
 	"scripts": {
 		"lint": "echo \"reports lint pending\"",

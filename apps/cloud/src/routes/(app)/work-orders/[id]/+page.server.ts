@@ -11,6 +11,7 @@ import {
 	getStockMovementRepository,
 	getWorkOrderOperationsService
 } from '$lib/server/repositories';
+import { recordAuditLog } from '$lib/server/audit';
 import { requireCompany } from '$lib/server/require-auth';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -55,22 +56,34 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
-	prepare: async ({ locals, params }) => {
+	prepare: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		try {
 			await getWorkOrderOperationsService().prepareOrder(ctx, params.id);
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.prepared',
+				entity_type: 'order',
+				entity_id: String(params.id),
+				description: `Orden preparada #${params.id}`
+			});
 			return { success: true };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'No se pudo preparar la orden.';
 			return fail(400, { error: message });
 		}
 	},
-	cancel: async ({ locals, params }) => {
+	cancel: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		try {
 			await getRentalRepository().cancelOrder(ctx, params.id);
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.cancelled',
+				entity_type: 'order',
+				entity_id: String(params.id),
+				description: `Orden cancelada #${params.id}`
+			});
 			throw redirect(303, '/work-orders');
 		} catch (err) {
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) throw err;
@@ -78,11 +91,17 @@ export const actions: Actions = {
 			return fail(400, { error: message });
 		}
 	},
-	close: async ({ locals, params }) => {
+	close: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requireCompany(locals);
 		const ctx = toTenantContext(companyId);
 		try {
 			await getWorkOrderOperationsService().closeOrder(ctx, params.id);
+			await recordAuditLog({ locals, request, getClientAddress }, {
+				action: 'order.closed',
+				entity_type: 'order',
+				entity_id: String(params.id),
+				description: `Orden cerrada #${params.id}`
+			});
 			return { success: true };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'No se pudo cerrar la orden.';
