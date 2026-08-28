@@ -90,6 +90,10 @@ export const ASSIGNABLE_ROLES: CompanyRole[] = ['admin', 'manager', 'staff', 'vi
 export const COMPANY_ROLES: CompanyRole[] = ['owner', ...ASSIGNABLE_ROLES];
 
 const VIEWER_PERMISSIONS: Permission[] = [
+	// `settings.view` solo habilita ABRIR la seccion Configuracion, cuyo
+	// contenido base es Apariencia (preferencia personal del usuario). Cada
+	// subseccion sensible exige su propio permiso en su `load`.
+	'settings.view',
 	'customers.view',
 	'inventory.view',
 	'events.view',
@@ -129,16 +133,12 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'work_orders.cancel',
 	'work_orders.close',
 	'incidents.resolve',
-	'audit.view'
-	// Fase 8b: cuando existan las rutas de catalogos, `manager` recupera
-	// 'settings.view' y 'settings.catalogs.manage'. Hoy no se otorgan para no
-	// dejar una entrada de menu que lleva a una pagina vacia.
+	'audit.view',
+	'settings.catalogs.manage'
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
 	...MANAGER_PERMISSIONS,
-	'settings.view',
-	'settings.catalogs.manage',
 	'settings.company.update',
 	'settings.members.manage'
 ];

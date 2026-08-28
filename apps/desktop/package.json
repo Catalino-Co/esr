@@ -31,6 +31,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"@esr/config": "workspace:*",
 		"@esr/core": "workspace:*",
 		"@esr/db-sqlite": "workspace:*",
 		"@esr/reports": "workspace:*",

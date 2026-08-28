@@ -1,8 +1,25 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="light">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// Pinta el tema antes del primer paint. Sin esto la app sale en
+			// claro y salta a oscuro al hidratar. Debe ser sincrono: nada de
+			// defer ni type="module". El atributo ya viene puesto en la
+			// plantilla, asi que si este script falla queda el claro y no un
+			// documento sin tema.
+			(function () {
+				try {
+					var t = localStorage.getItem('esr_theme');
+					if (t === 'light' || t === 'dark') {
+						document.documentElement.setAttribute('data-theme', t);
+					}
+				} catch (e) {
+					/* modo privado o almacenamiento bloqueado: se queda en claro */
+				}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

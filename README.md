@@ -82,7 +82,7 @@ ESR Cloud vive en `apps/cloud`.
 pnpm dev:cloud
 ```
 
-La app Cloud ya compila como SvelteKit web y depende de `@esr/core`, `@esr/ui`, `@esr/schemas`, `@esr/config` y `@esr/db-postgres`. PostgreSQL debe estar configurado con `DATABASE_URL` para login y sesiones.
+ESR Cloud corre en el puerto **5178**. La app Cloud ya compila como SvelteKit web y depende de `@esr/core`, `@esr/ui`, `@esr/schemas`, `@esr/config` y `@esr/db-postgres`. PostgreSQL debe estar configurado con `DATABASE_URL` para login y sesiones.
 
 ```sh
 DATABASE_URL=postgres://user:password@localhost:5432/cco_apps
@@ -334,6 +334,116 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+## Sistema de Diseno
+
+Las tres apps de CCO comparten el mismo lenguaje visual, portado desde CCO
+Workshop. Los tokens y el vocabulario de componentes viven en un solo sitio:
+
+```text
+packages/config/src/theme.css   -> tokens, temas, componentes y la barra lateral
+packages/ui/src/icons.ts        -> mapa de iconos compartido
+```
+
+Ambas apps lo importan **antes** de su propio `app.css`:
+
+```js
+import '@esr/config/theme.css';
+import '../app.css';
+```
+
+### Capas de cascada
+
+`theme.css` esta enteramente dentro de `@layer`; el `app.css` de cada app y los
+`<style>` de los componentes van sin capa. Lo no-capado gana siempre sobre lo
+capado, sin importar especificidad ni orden:
+
+```text
+<style> de componente   (sin capa, +1 clase)   -> gana
+app.css de cada app     (sin capa)
+theme.css               (en capa)              -> pierde
+```
+
+Consecuencia practica: para que una regla compartida tenga efecto hay que
+**borrar** la definicion equivalente del `app.css`, no basta con el orden de
+import. Y una utilidad compartida no puede pisar una regla de `app.css`: se
+borra la regla, no se usa `!important` (que invierte el orden de capas).
+
+**La barra lateral es la excepcion: va fuera de capa.** Su ancho colapsado es
+comportamiento, no vocabulario tematizable, y ninguna app deberia poder pisarlo
+por accidente. Ademas define su propia paleta oscura (`--sb-*`), de modo que se
+ve igual en tema claro y oscuro, igual que en Workshop.
+
+### Tokens
+
+Claro es el default de `:root`; oscuro se activa con `[data-theme='dark']` en
+`<html>`. Workshop lo hace al reves y por eso parpadea antes de hidratar.
+
+Nombres canonicos y sus alias:
+
+| Canonico | Alias que resuelven a el |
+| --- | --- |
+| `--sidebar-collapsed-width` | `--sidebar-collapsed`, `--sidebar-width-collapsed` |
+| `--brand-primary` | `--primary` |
+| `--bg-surface` | `--panel-bg`, `--surface` |
+| `--border` | `--border-color` |
+| `--text-primary` | `--text-main` |
+
+Los alias **nunca** llevan un literal: se resuelven a traves del canonico para
+que un override (por ejemplo el de densidad de Desktop) se propague solo.
+
+Cuidado con los nombres que existen en `theme.css` y tambien en un `app.css`
+(`--text-muted`, `--shadow-sm`, `--shadow-md`): ahi no se puede aliasar, porque
+`--x: var(--x)` es una referencia ciclica que deja la propiedad invalida en
+silencio. Esos se borran del `app.css` y los aporta solo `theme.css`.
+
+El espaciado `--sp-*` esta en rem. Desktop escala `html { font-size }` con su
+selector de densidad, asi que el padding de los componentes escala solo y los
+bloques `html[data-ui-size]` no tienen que redefinir ni un `--sp-*`.
+
+### Temas
+
+```text
+apps/*/src/app.html                        -> script inline anti-parpadeo
+apps/cloud/src/lib/stores/theme.ts         -> store de Cloud
+apps/desktop/src/lib/stores/theme.js       -> store de Desktop
+apps/cloud/src/routes/(app)/settings/appearance   -> selector en Cloud
+apps/desktop/src/routes/settings                  -> selector en Desktop
+```
+
+El script inline de `app.html` aplica `data-theme` antes del primer paint y
+debe seguir siendo **sincrono** (nada de `defer` ni `type="module"`). La
+plantilla ya trae `data-theme="light"`, asi que si el script falla queda el
+claro y no un documento sin tema. En Desktop el mismo script aplica tambien la
+densidad; sus umbrales estan duplicados en `getAppearanceScale()` de
+`apps/desktop/src/routes/+layout.svelte` y deben cambiarse en ambos sitios.
+
+En Cloud el servidor siempre renderiza el tema claro, porque no conoce
+`localStorage`. Por eso **no se debe ramificar la estructura del marcado sobre
+`$theme` en SSR**: produce un desajuste de hidratacion. Para marcar el activo se
+espera a `onMount` (ver la pagina de Apariencia).
+
+Las vistas de impresion fijan su pareja fondo/texto en claro: el documento va en
+un iframe aislado, pero el cromo alrededor heredaba el texto del tema oscuro
+sobre un fondo claro y quedaba ilegible.
+
+### Iconos
+
+Un solo set emoji para las dos apps, en `packages/ui/src/icons.ts`. Para agregar
+uno, se anade a `ICONS` y se consume con `import { ICONS } from '@esr/ui/icons'`.
+Nunca se escribe el glifo directamente en una pagina: antes cada app —y hasta
+cada pagina— redefinia los suyos y se desincronizaban.
+
+### Menu
+
+El menu es **plano, sin titulos de seccion**, en las dos apps:
+
+```text
+apps/cloud/src/lib/navigation.ts   (filtra por permiso)
+apps/desktop/src/lib/navigation.js
+```
+
+En Cloud cada entrada declara el permiso minimo que la hace visible.
+
 ### Fase 8a - Roles y configuracion de empresa
 
 ESR Cloud aplica una matriz de permisos por rol. El rol vive en
@@ -375,9 +485,13 @@ Reglas de `/settings/members`:
 - La empresa debe conservar al menos un `owner` o `admin` activo.
 - Toda alta, cambio de rol y cambio de estado queda en `audit_logs`.
 
+`settings.view` lo tienen **todos los roles**: solo habilita abrir la seccion
+Configuracion, cuyo contenido base es Apariencia, que es una preferencia
+personal del usuario y no configuracion de empresa. Cada subseccion sensible
+exige su propio permiso en su `load`.
+
 Pendiente de Fase 8b: los catalogos (`categories`, `event_types`, `suppliers`,
-`collaborators`). Cuando existan esas rutas, `manager` recupera `settings.view` y
-`settings.catalogs.manage`.
+`collaborators`), que consumiran `settings.catalogs.manage`.
 
 Comandos:
 

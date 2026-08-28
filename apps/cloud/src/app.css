@@ -1,51 +1,40 @@
+/* ESR Cloud — hoja propia de la app.
+   Los tokens y el vocabulario de componentes viven en
+   `@esr/config/theme.css`, que se importa antes que este archivo.
+   Aqui solo queda lo especifico de Cloud y los deltas sobre lo
+   compartido. Este archivo va SIN @layer, asi que cualquier regla de
+   abajo gana sobre la compartida. */
+
 :root {
-	font-family:
-		Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-	color: #0f172a;
-	background: #f5f7fb;
+	/* Vocabulario heredado de Cloud, re-apuntado a los tokens nuevos.
+	   `--text-muted` NO se redefine aqui: es el mismo nombre que usa
+	   theme.css y `--text-muted: var(--text-muted)` seria una
+	   referencia ciclica que deja la propiedad invalida en silencio. */
+	--cloud-bg: var(--bg-base);
+	--cloud-surface: var(--bg-surface);
+	--cloud-primary: var(--brand-primary);
+	--cloud-primary-soft: var(--bg-elevated);
+	--cloud-text: var(--text-primary);
+	--cloud-muted: var(--text-muted);
+	--cloud-border: var(--border);
+	--cloud-danger: var(--brand-danger);
+	--cloud-success: var(--brand-success);
+	--cloud-warning: var(--brand-warning);
+	--cloud-shadow-sm: var(--shadow-sm);
+	--cloud-shadow-md: var(--shadow-md);
 
-	/* Legacy aliases */
-	--primary: #3f5bd5;
-	--primary-strong: #3348b8;
-	--success: #16a34a;
-	--warning: #d97706;
-	--danger: #dc2626;
-	--bg-color: #f5f7fb;
-	--surface: #ffffff;
-	--border-color: #dbe3ef;
-	--text-main: #0f172a;
-	--text-muted: #64748b;
-
-	/* Cloud premium layout */
-	--cloud-bg: #f5f7fb;
-	--cloud-surface: #ffffff;
+	/* La barra lateral es siempre oscura: valores literales, nunca
+	   apuntando a un token que cambie con el tema. */
 	--cloud-sidebar: #111827;
 	--cloud-sidebar-soft: #1f2937;
-	--cloud-primary: #3f5bd5;
-	--cloud-primary-soft: #eef2ff;
-	--cloud-text: #0f172a;
-	--cloud-muted: #64748b;
-	--cloud-border: #dbe3ef;
-	--cloud-danger: #dc2626;
-	--cloud-success: #16a34a;
-	--cloud-warning: #d97706;
-	--cloud-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-	--cloud-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
-	--sidebar-width: 260px;
-	--sidebar-width-collapsed: 72px;
-	--topbar-height: 72px;
-}
 
-* {
-	box-sizing: border-box;
+	--topbar-height: 72px;
 }
 
 body {
 	margin: 0;
 	min-height: 100vh;
 	overflow-x: hidden;
-	background: var(--cloud-bg);
-	color: var(--cloud-text);
 }
 
 a {
@@ -60,73 +49,7 @@ textarea {
 	font: inherit;
 }
 
-.cloud-shell {
-	min-height: 100vh;
-	display: grid;
-	grid-template-rows: auto 1fr;
-}
-
-.cloud-topbar {
-	background: #ffffff;
-	border-bottom: 1px solid var(--border-color);
-}
-
-.cloud-topbar-inner {
-	max-width: 1120px;
-	margin: 0 auto;
-	padding: 14px 20px;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 20px;
-}
-
-.brand {
-	font-size: 1.05rem;
-	font-weight: 800;
-}
-
-.nav {
-	display: flex;
-	gap: 10px;
-	align-items: center;
-}
-
-.nav a {
-	padding: 8px 10px;
-	border-radius: 6px;
-	color: var(--text-muted);
-	font-size: 0.92rem;
-}
-
-.nav a:hover {
-	background: #eef2fb;
-	color: var(--text-main);
-}
-
-.cloud-main {
-	width: 100%;
-	max-width: 1120px;
-	margin: 0 auto;
-	padding: 28px 20px 48px;
-}
-
-.panel {
-	background: var(--cloud-surface);
-	border: 1px solid var(--cloud-border);
-	border-radius: 12px;
-	padding: 22px;
-	box-shadow: var(--cloud-shadow-sm);
-}
-
-.eyebrow {
-	margin: 0 0 6px;
-	color: var(--primary);
-	font-size: 0.78rem;
-	font-weight: 800;
-	text-transform: uppercase;
-}
-
+/* h1 de Cloud es a proposito mayor que --font-2xl del sistema. */
 h1 {
 	margin: 0;
 	font-size: 2rem;
@@ -138,38 +61,43 @@ p {
 	line-height: 1.6;
 }
 
+.eyebrow {
+	margin: 0 0 6px;
+	color: var(--brand-primary);
+	font-size: var(--font-xs);
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
 .grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-	gap: 14px;
-	margin-top: 20px;
+	gap: var(--sp-4);
+	margin-top: var(--sp-5);
 }
 
-.metric {
-	border: 1px solid var(--border-color);
-	border-radius: 8px;
-	padding: 16px;
-	background: #fbfcff;
-}
-
+/* Deltas sobre `.stat-card, .metric` de theme.css. */
 .metric strong {
 	display: block;
-	font-size: 1.5rem;
+	font-size: var(--font-2xl);
 	margin-bottom: 4px;
 }
 
 .metric span {
 	color: var(--text-muted);
-	font-size: 0.9rem;
+	font-size: var(--font-sm);
 }
 
+/* Delta sobre `.page-header`: Cloud necesita wrap y margen inferior
+   porque sus paginas no estan envueltas en `.page`, que es de donde
+   Workshop saca el espaciado. */
 .page-header {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	margin-bottom: 20px;
+	gap: var(--sp-3);
+	margin-bottom: var(--sp-5);
 }
 
 .page-header h1 {
@@ -179,114 +107,48 @@ p {
 
 .page-actions {
 	display: flex;
-	gap: 10px;
+	gap: var(--sp-3);
 	align-items: center;
-}
-
-.btn-primary {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	background: var(--cloud-primary);
-	color: #fff;
-	border: none;
-	padding: 10px 16px;
-	border-radius: 8px;
-	font-weight: 600;
-	cursor: pointer;
-	text-decoration: none;
-}
-
-.btn-primary:hover {
-	background: var(--primary-strong);
-}
-
-.btn-secondary {
-	display: inline-flex;
-	align-items: center;
-	background: var(--cloud-primary-soft);
-	color: var(--cloud-primary);
-	border: 1px solid var(--cloud-border);
-	padding: 10px 16px;
-	border-radius: 8px;
-	font-weight: 600;
-	cursor: pointer;
-	text-decoration: none;
-}
-
-.btn-danger {
-	background: #fee2e2;
-	color: var(--danger);
-	border: 1px solid #f87171;
-	padding: 10px 16px;
-	border-radius: 6px;
-	font-weight: 600;
-	cursor: pointer;
 }
 
 .filter-bar {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 10px;
-	margin-bottom: 16px;
+	gap: var(--sp-3);
+	margin-bottom: var(--sp-4);
 }
 
+/* Cloud estiliza sus inputs por selector de elemento, no con
+   `.form-control` (que no usa en ninguna parte). */
 .filter-bar input,
 .filter-bar select,
 .form-grid input,
 .form-grid select,
 .form-grid textarea {
 	width: 100%;
-	padding: 10px 12px;
-	border: 1px solid var(--border-color);
-	border-radius: 6px;
+	padding: var(--sp-2) var(--sp-3);
+	border: 1px solid var(--border);
+	border-radius: var(--border-radius-sm);
+	background: var(--bg-input);
+	color: var(--text-primary);
 }
 
-.data-table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 0.92rem;
+.filter-bar input:focus,
+.filter-bar select:focus,
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus {
+	outline: none;
+	border-color: var(--border-focus);
+	box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
-.data-table th,
-.data-table td {
-	padding: 10px 12px;
-	border-bottom: 1px solid var(--border-color);
-	text-align: left;
-}
-
-.data-table th {
-	color: var(--text-muted);
-	font-size: 0.8rem;
-	text-transform: uppercase;
-}
-
-.data-table tr:hover td {
-	background: #fbfcff;
-}
-
-.badge {
-	display: inline-block;
-	padding: 4px 8px;
-	border-radius: 999px;
-	font-size: 0.78rem;
-	font-weight: 700;
-}
-
-.badge-active {
-	background: #e8f7ef;
-	color: var(--success);
-}
-
-.badge-inactive {
-	background: #f3f4f6;
-	color: var(--text-muted);
-}
-
+/* El auto-fit no tiene equivalente en Workshop: sin esto, todos los
+   formularios de Cloud colapsan a una sola columna. */
 .form-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-	gap: 14px;
+	gap: var(--sp-4);
 }
 
 .form-field {
@@ -297,7 +159,7 @@ p {
 
 .form-field label,
 .form-field-label {
-	font-size: 0.85rem;
+	font-size: var(--font-sm);
 	font-weight: 600;
 }
 
@@ -306,37 +168,28 @@ p {
 }
 
 .form-error {
-	color: var(--danger);
-	font-size: 0.85rem;
+	color: var(--brand-danger);
+	font-size: var(--font-sm);
 }
 
-.alert-error {
-	background: #fde8e8;
-	border: 1px solid #f5c2c2;
-	color: #9b1c1c;
-	padding: 10px 14px;
-	border-radius: 8px;
-	margin-bottom: 16px;
-}
-
+/* Deltas sobre las alertas compartidas: Cloud las usa como banda
+   superior de bloque, no como fila en linea. */
+.alert-error,
 .alert-success {
-	background: #e8f5e9;
-	border: 1px solid #a5d6a7;
-	color: #1b5e20;
-	padding: 10px 14px;
-	border-radius: 8px;
-	margin-bottom: 16px;
+	display: block;
+	margin-bottom: var(--sp-4);
 }
 
 .panel-hint {
 	color: var(--text-muted);
-	font-size: 0.88rem;
-	margin: 0 0 16px;
+	font-size: var(--font-sm);
+	margin: 0 0 var(--sp-4);
 }
 
+/* Se conserva la version de Cloud: 22 usos, algunos dentro de <td>,
+   que el flex-column de Workshop reflowearia. */
 .empty-state {
 	color: var(--text-muted);
-	padding: 24px;
+	padding: var(--sp-6);
 	text-align: center;
 }
-

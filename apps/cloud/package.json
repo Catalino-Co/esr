@@ -5,9 +5,9 @@
 	"description": "ESR Cloud web app.",
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev --port 5176",
+		"dev": "vite dev --port 5178",
 		"build": "vite build",
-		"preview": "vite preview --port 4176",
+		"preview": "vite preview --port 4178",
 		"prepare": "svelte-kit sync || echo ''",
 		"lint": "echo \"cloud lint pending\"",
 		"check": "echo \"cloud check pending\""

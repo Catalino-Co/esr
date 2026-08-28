@@ -18,9 +18,14 @@
 <iframe class="print-frame" title={title} srcdoc={html}></iframe>
 
 <style>
+	/* Las vistas de impresion son siempre claras, igual que el papel: el
+	   documento va dentro de un iframe aislado, pero el cromo alrededor
+	   heredaba el color de texto del tema oscuro sobre este fondo claro
+	   fijo y quedaba casi invisible. Se fija la pareja fondo/texto. */
 	:global(body) {
 		margin: 0;
-		background: #f5f7fb;
+		background: #f0f4f8;
+		color: #0f172a;
 	}
 
 	.print-toolbar {
@@ -29,7 +34,7 @@
 		align-items: center;
 		padding: 12px 20px;
 		background: #fff;
-		border-bottom: 1px solid #dbe3ef;
+		border-bottom: 1px solid #e2e8f0;
 		position: sticky;
 		top: 0;
 		z-index: 10;
@@ -46,13 +51,13 @@
 	}
 
 	.btn-back {
-		background: #eef2ff;
-		color: #3f5bd5;
-		border: 1px solid #dbe3ef;
+		background: #e8edf3;
+		color: #2563eb;
+		border: 1px solid #e2e8f0;
 	}
 
 	.btn-print {
-		background: #3f5bd5;
+		background: #2563eb;
 		color: #fff;
 		border: none;
 	}

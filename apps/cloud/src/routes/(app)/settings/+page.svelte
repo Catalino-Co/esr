@@ -3,6 +3,12 @@
 
 	const sections = [
 		{
+			href: '/settings/appearance',
+			title: 'Apariencia',
+			description: 'Tema claro u oscuro de la aplicación. Es una preferencia tuya, no de la empresa.',
+			permission: null
+		},
+		{
 			href: '/settings/company',
 			title: 'Datos de la empresa',
 			description: 'Nombre, RNC, teléfono, email y dirección que aparecen en cotizaciones, órdenes y conduces.',
@@ -16,7 +22,9 @@
 		}
 	];
 
-	const visible = $derived(sections.filter((section) => data.permissions.includes(section.permission)));
+	const visible = $derived(
+		sections.filter((section) => !section.permission || data.permissions.includes(section.permission))
+	);
 </script>
 
 <section class="panel">

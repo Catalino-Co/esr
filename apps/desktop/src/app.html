@@ -1,9 +1,45 @@
 <!doctype html>
-<html lang="en">
+<html lang="es" data-theme="light">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>ESR Pro</title>
+		<script>
+			// Aplica tema y densidad antes del primer paint. Sin esto la app
+			// arranca con el tema y el tamano por defecto y salta al hidratar.
+			// Debe ser sincrono: nada de defer ni type="module".
+			// Los umbrales de escala estan duplicados en getAppearanceScale()
+			// de src/routes/+layout.svelte; si cambian, cambiar en ambos sitios.
+			(function () {
+				var d = document.documentElement;
+				var pref = 'auto';
+				var theme = 'light';
+				try {
+					var t = localStorage.getItem('esr_theme');
+					if (t === 'light' || t === 'dark') theme = t;
+					pref = localStorage.getItem('esr_appearance_size') || 'auto';
+				} catch (e) {
+					// Electron sirve desde file://, donde el acceso puede lanzar.
+				}
+				var dpr = window.devicePixelRatio || 1;
+				var scale =
+					pref === 'compact'
+						? 0.9
+						: pref === 'normal'
+							? 1
+							: pref === 'comfortable'
+								? 1.06
+								: dpr >= 1.5
+									? 0.9
+									: dpr >= 1.25
+										? 0.96
+										: 1;
+				d.setAttribute('data-theme', theme);
+				d.style.setProperty('--ui-font-scale', String(scale));
+				d.dataset.uiSize = scale < 0.95 ? 'compact' : scale > 1 ? 'comfortable' : 'normal';
+				d.dataset.uiPreference = pref;
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

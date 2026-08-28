@@ -1,4 +1,6 @@
 <script>
+	import { ICONS } from '@esr/ui/icons';
+
 	let { data } = $props();
 
 	const statCards = [
@@ -8,7 +10,7 @@
 			value: data.stats.customers,
 			hint: 'Registrados en la empresa activa',
 			accent: 'blue',
-			icon: '◉'
+			icon: ICONS.customers
 		},
 		{
 			key: 'inventory',
@@ -16,7 +18,7 @@
 			value: data.stats.inventory,
 			hint: 'Artículos activos',
 			accent: 'indigo',
-			icon: '▣'
+			icon: ICONS.inventory
 		},
 		{
 			key: 'events',
@@ -24,7 +26,7 @@
 			value: data.stats.events,
 			hint: 'Eventos en el sistema',
 			accent: 'cyan',
-			icon: '◷'
+			icon: ICONS.events
 		},
 		{
 			key: 'openQuotes',
@@ -32,7 +34,7 @@
 			value: data.stats.openQuotes,
 			hint: 'Borrador o aprobadas',
 			accent: 'amber',
-			icon: '◎'
+			icon: ICONS.quotes
 		},
 		{
 			key: 'activeOrders',
@@ -40,7 +42,7 @@
 			value: data.stats.activeOrders,
 			hint: 'En flujo operativo',
 			accent: 'violet',
-			icon: '◈'
+			icon: ICONS.workOrders
 		},
 		{
 			key: 'openIncidents',
@@ -48,7 +50,7 @@
 			value: data.stats.openIncidents,
 			hint: 'Pendientes de resolución',
 			accent: 'rose',
-			icon: '⚠'
+			icon: ICONS.incidents
 		}
 	];
 
@@ -250,7 +252,10 @@
 	.panel-card-header a {
 		font-size: 0.82rem;
 		font-weight: 600;
-		color: var(--cloud-primary);
+		/* --text-brand y no --cloud-primary: el primero aclara en tema
+		   oscuro; el segundo es el azul de marca fijo y se pierde sobre
+		   la superficie oscura. */
+		color: var(--text-brand);
 	}
 
 	.list-lines {

@@ -4,12 +4,16 @@
 	let { children } = $props();
 
 	const sections = [
+		// Apariencia no lleva permiso: es preferencia personal del usuario.
+		{ href: '/settings/appearance', label: 'Apariencia', permission: null },
 		{ href: '/settings/company', label: 'Empresa', permission: 'settings.company.update' },
 		{ href: '/settings/members', label: 'Miembros', permission: 'settings.members.manage' }
 	];
 
 	const permissions = $derived(page.data.permissions ?? []);
-	const visible = $derived(sections.filter((section) => permissions.includes(section.permission)));
+	const visible = $derived(
+		sections.filter((section) => !section.permission || permissions.includes(section.permission))
+	);
 	const pathname = $derived(page.url.pathname);
 </script>
 

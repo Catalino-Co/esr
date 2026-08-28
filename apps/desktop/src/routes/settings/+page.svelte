@@ -1,5 +1,12 @@
 <script>
   import { onMount } from 'svelte';
+  import { ICONS } from '@esr/ui/icons';
+  import { theme } from '$lib/stores/theme.js';
+
+  const themeOptions = [
+    { value: 'light', label: 'Claro', icon: ICONS.themeLight },
+    { value: 'dark', label: 'Oscuro', icon: ICONS.themeDark }
+  ];
 
   const appearanceKey = 'esr_appearance_size';
   const appearanceOptions = [
@@ -91,6 +98,28 @@
         >
           <span>{option.label}</span>
           <small>{option.detail}</small>
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <div class="appearance-panel">
+    <div>
+      <div class="appearance-title">Tema visual</div>
+      <div class="appearance-meta">Se recuerda en este equipo</div>
+    </div>
+
+    <div class="appearance-options" role="group" aria-label="Tema visual">
+      {#each themeOptions as option}
+        <button
+          type="button"
+          class="appearance-option"
+          class:active={$theme === option.value}
+          aria-pressed={$theme === option.value}
+          on:click={() => theme.set(option.value)}
+        >
+          <span>{option.icon} {option.label}</span>
+          <small>{option.value === 'light' ? 'Fondo claro' : 'Fondo oscuro'}</small>
         </button>
       {/each}
     </div>

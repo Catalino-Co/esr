@@ -5,7 +5,8 @@
 	"description": "Shared ESR project configuration.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.js"
+		".": "./src/index.js",
+		"./theme.css": "./src/theme.css"
 	},
 	"scripts": {
 		"lint": "echo \"config lint pending\"",

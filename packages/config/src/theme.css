@@ -1,0 +1,1213 @@
+/* ═══════════════════════════════════════════════════════════════
+   ESR — Sistema de diseño compartido
+   Portado desde CCO Workshop para que las apps de CCO se vean como
+   una familia. Lo consumen ESR Cloud (web) y ESR Pro (desktop).
+
+   TODO este archivo vive dentro de @layer. El app.css de cada app y
+   los <style> de los componentes van SIN capa, y lo no-capado gana
+   siempre sobre lo capado, sin importar especificidad ni orden:
+
+       <style> de componente   (sin capa, +1 clase)   <- gana
+       app.css de cada app     (sin capa)
+       este archivo            (en capa)              <- pierde
+
+   Consecuencia practica: para que una regla de aqui tenga efecto hay
+   que BORRAR la definicion equivalente del app.css. No basta con el
+   orden de import. Y una utilidad de aqui no puede pisar una regla de
+   app.css: se borra la regla, no se usa !important (que invierte el
+   orden de capas y confunde al siguiente que lea esto).
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer esr.tokens, esr.base, esr.components, esr.utilities;
+
+/* ═══════════════════════════════════════════════════════════════
+   Tokens
+   ═══════════════════════════════════════════════════════════════ */
+@layer esr.tokens {
+	/* Tema claro = default de :root.
+	   Workshop hace lo contrario (oscuro en :root, claro aplicado por
+	   JS) y por eso parpadea antes de hidratar. Con el claro como base,
+	   el primer paint —o una app sin JS— ya sale correcto. */
+	:root {
+		--brand-primary: #2563eb;
+		--brand-secondary: #1d4ed8;
+		--brand-accent: #f59e0b;
+		--brand-success: #10b981;
+		--brand-danger: #ef4444;
+		--brand-warning: #f59e0b;
+		--brand-info: #06b6d4;
+
+		--bg-base: #f0f4f8;
+		--bg-surface: #ffffff;
+		--bg-elevated: #e8edf3;
+		--bg-hover: #dde3ea;
+		--bg-active: #cbd5e1;
+		--bg-modal: #ffffff;
+		--bg-input: #ffffff;
+		--bg-table-alt: rgba(240, 244, 248, 0.8);
+
+		--text-primary: #0f172a;
+		--text-secondary: #475569;
+		--text-muted: #94a3b8;
+		--text-inverse: #f1f5f9;
+		--text-brand: #2563eb;
+		--text-success: #059669;
+		--text-danger: #dc2626;
+		--text-warning: #d97706;
+
+		--border: #e2e8f0;
+		--border-light: #cbd5e1;
+		--border-focus: #2563eb;
+
+		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+		--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+		--shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.2);
+
+		/* Espaciado en rem, no en px como Workshop.
+		   Desktop hace `html { font-size: calc(16px * var(--ui-font-scale)) }`
+		   para su selector de densidad; en rem, el padding de los
+		   componentes escala con la densidad sin que los bloques
+		   html[data-ui-size] tengan que redefinir ni un --sp-*.
+		   A escala 1 los valores son identicos a los de Workshop, asi
+		   que Cloud no nota diferencia. */
+		--sp-1: 0.25rem;
+		--sp-2: 0.5rem;
+		--sp-3: 0.75rem;
+		--sp-4: 1rem;
+		--sp-5: 1.25rem;
+		--sp-6: 1.5rem;
+		--sp-8: 2rem;
+		--sp-10: 2.5rem;
+
+		/* Layout. El nombre canonico del ancho colapsado es
+		   --sidebar-collapsed-width; los otros dos son alias. */
+		--sidebar-width: 240px;
+		--sidebar-collapsed-width: 60px;
+		--header-height: 56px;
+		--content-padding: var(--sp-6);
+
+		/* Alias de compatibilidad. NUNCA asignarles un literal: deben
+		   resolverse a traves del token canonico para que un override
+		   de densidad se propague solo. */
+		--sidebar-collapsed: var(--sidebar-collapsed-width);
+		--sidebar-width-collapsed: var(--sidebar-collapsed-width);
+
+		--border-radius: 8px;
+		--border-radius-sm: 4px;
+		--border-radius-lg: 12px;
+
+		--font-xs: 0.75rem;
+		--font-sm: 0.8125rem;
+		--font-base: 0.875rem;
+		--font-md: 1rem;
+		--font-lg: 1.125rem;
+		--font-xl: 1.25rem;
+		--font-2xl: 1.5rem;
+
+		--transition-fast: 0.15s ease;
+		--transition-base: 0.2s ease;
+		--transition-slow: 0.3s ease;
+
+		/* Paleta de la barra lateral. Va fuera de los bloques de tema a
+		   proposito: la sidebar es siempre oscura, igual en claro que en
+		   oscuro, tal como en Workshop. */
+		--sb-bg: #1a2744;
+		--sb-border: rgba(255, 255, 255, 0.08);
+		--sb-text-title: #f1f5f9;
+		--sb-text-item: #94a3b8;
+		--sb-text-item-hover: #f1f5f9;
+		--sb-text-label: #4a6080;
+		--sb-hover-bg: rgba(255, 255, 255, 0.07);
+		--sb-active-bg: rgba(37, 99, 235, 0.2);
+		--sb-active-color: #93c5fd;
+		--sb-active-border: #3b82f6;
+
+		/* Vocabulario heredado de ESR, re-apuntado a los tokens nuevos.
+		   Ojo: aqui solo pueden entrar nombres que NO existan ya arriba.
+		   Un `--x: var(--x)` seria una referencia ciclica y la propiedad
+		   quedaria invalida en silencio. Por eso --text-muted, --shadow-sm
+		   y --shadow-md no se aliasan: se borran de los app.css. */
+		--primary: var(--brand-primary);
+		--primary-hover: var(--brand-secondary);
+		--primary-strong: var(--brand-secondary);
+		--secondary: var(--text-secondary);
+		--success: var(--brand-success);
+		--warning: var(--brand-warning);
+		--danger: var(--brand-danger);
+		--info: var(--brand-info);
+		--bg-color: var(--bg-base);
+		--panel-bg: var(--bg-surface);
+		--surface: var(--bg-surface);
+		--border-color: var(--border);
+		--text-main: var(--text-primary);
+		--radius-sm: var(--border-radius-sm);
+		--radius-md: var(--border-radius);
+		--radius-lg: var(--border-radius-lg);
+	}
+
+	[data-theme='dark'] {
+		--bg-base: #0f172a;
+		--bg-surface: #1e293b;
+		--bg-elevated: #263348;
+		--bg-hover: #2d3f58;
+		--bg-active: #334155;
+		--bg-modal: #1e293b;
+		--bg-input: #0f172a;
+		--bg-table-alt: rgba(30, 41, 59, 0.5);
+
+		--text-primary: #f1f5f9;
+		--text-secondary: #94a3b8;
+		--text-muted: #64748b;
+		--text-inverse: #0f172a;
+		--text-brand: #60a5fa;
+		--text-success: #34d399;
+		--text-danger: #f87171;
+		--text-warning: #fbbf24;
+
+		--border: #1e3a5f;
+		--border-light: #2d4a6b;
+		--border-focus: #2563eb;
+
+		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+		--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+		--shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.7);
+	}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Base
+   Deliberadamente NO se porta el `body` de Workshop
+   (`height:100vh; overflow:hidden; user-select:none`): es propio de
+   una app de escritorio y romperia el scroll de las paginas de Cloud.
+   Cada app conserva su propio dimensionado de body.
+   ═══════════════════════════════════════════════════════════════ */
+@layer esr.base {
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	body {
+		font-family:
+			Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+		background: var(--bg-base);
+		color: var(--text-primary);
+	}
+
+	a {
+		color: var(--text-brand);
+		text-decoration: none;
+	}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Componentes
+   ═══════════════════════════════════════════════════════════════ */
+@layer esr.components {
+	/* ─── Botones ─────────────────────────────────────────────────
+	   Las variantes son AUTOSUFICIENTES a proposito: Cloud escribe
+	   `class="btn-primary"` suelto (no tiene clase base) y Desktop
+	   escribe `class="btn btn-primary"`. Poniendo la geometria tambien
+	   en los modificadores, los dos patrones funcionan sin editar los
+	   ~250 usos que hay entre las dos apps. */
+	.btn,
+	.btn-primary,
+	.btn-secondary,
+	.btn-danger,
+	.btn-success,
+	.btn-warning,
+	.btn-info,
+	.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--sp-2);
+		padding: var(--sp-2) var(--sp-4);
+		border: 1px solid transparent;
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-sm);
+		font-weight: 500;
+		line-height: 1.4;
+		cursor: pointer;
+		white-space: nowrap;
+		outline: none;
+		text-decoration: none;
+		transition: all var(--transition-fast);
+	}
+
+	.btn:disabled,
+	.btn-primary:disabled,
+	.btn-secondary:disabled,
+	.btn-danger:disabled,
+	.btn-success:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-primary {
+		background: var(--brand-primary);
+		color: #fff;
+	}
+	.btn-primary:hover:not(:disabled) {
+		background: var(--brand-secondary);
+	}
+
+	.btn-secondary {
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+		border-color: var(--border-light);
+	}
+	.btn-secondary:hover:not(:disabled) {
+		background: var(--bg-hover);
+	}
+
+	.btn-danger {
+		background: var(--brand-danger);
+		color: #fff;
+		font-weight: 600;
+	}
+	.btn-danger:hover:not(:disabled) {
+		filter: brightness(1.1);
+	}
+
+	.btn-success {
+		background: var(--brand-success);
+		color: #fff;
+	}
+	.btn-success:hover:not(:disabled) {
+		filter: brightness(1.1);
+	}
+
+	.btn-warning {
+		background: var(--brand-warning);
+		color: #000;
+	}
+
+	.btn-info {
+		background: #0891b2;
+		color: #fff;
+		font-weight: 600;
+	}
+	.btn-info:hover:not(:disabled) {
+		background: #0e7490;
+	}
+
+	.btn-ghost {
+		background: transparent;
+		color: var(--text-secondary);
+	}
+	.btn-ghost:hover:not(:disabled) {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.btn-sm {
+		padding: var(--sp-1) var(--sp-3);
+		font-size: var(--font-xs);
+	}
+	.btn-lg {
+		padding: var(--sp-3) var(--sp-6);
+		font-size: var(--font-md);
+	}
+
+	/* Solo en forma compuesta: Desktop usa `class="btn-icon"` suelto con
+	   estilos propios por pagina que significan un boton transparente,
+	   lo opuesto a este. Exigir `.btn` evita secuestrarlo. */
+	.btn.btn-icon {
+		padding: var(--sp-2);
+		aspect-ratio: 1;
+	}
+
+	.btn-link {
+		background: none;
+		border: none;
+		color: var(--text-brand);
+		cursor: pointer;
+		padding: 0;
+		font-size: var(--font-sm);
+	}
+	.btn-link:hover {
+		text-decoration: underline;
+	}
+
+	/* ─── Formularios ─────────────────────────────────────────────
+	   Nota: Desktop tiene ~113 usos de .form-control respaldados por
+	   <style> propios de cada pagina. Al estar sin capa y con mas
+	   especificidad, esos ganan sobre esta regla: esas paginas no
+	   cambian de aspecto. Migrarlas es trabajo aparte. */
+	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-1);
+	}
+
+	.form-label {
+		font-size: var(--font-sm);
+		font-weight: 500;
+		color: var(--text-secondary);
+	}
+
+	.form-label.required::after {
+		content: ' *';
+		color: var(--brand-danger);
+	}
+
+	.form-control {
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		padding: var(--sp-2) var(--sp-3);
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+		width: 100%;
+		outline: none;
+		transition: border-color var(--transition-fast);
+	}
+
+	.form-control:focus {
+		border-color: var(--border-focus);
+		box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+	}
+
+	.form-control::placeholder {
+		color: var(--text-muted);
+	}
+
+	.form-control.is-error {
+		border-color: var(--brand-danger);
+	}
+
+	select.form-control {
+		cursor: pointer;
+	}
+
+	textarea.form-control {
+		resize: vertical;
+		min-height: 80px;
+	}
+
+	.form-hint {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	/* ─── Superficies ─────────────────────────────────────────────
+	   `.panel` (Cloud) y `.card` (Desktop) son el mismo concepto con
+	   dos nombres. Se agrupan para no duplicar la definicion. */
+	.card,
+	.panel {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+		padding: var(--sp-5);
+	}
+
+	.card-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--sp-4);
+	}
+
+	.card-title {
+		font-size: var(--font-md);
+		font-weight: 600;
+	}
+
+	.stat-card,
+	.metric {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+		padding: var(--sp-5);
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+
+	.stat-label {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.stat-value {
+		font-size: var(--font-2xl);
+		font-weight: 700;
+	}
+
+	.stat-sub {
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+	}
+
+	/* ─── Tablas ──────────────────────────────────────────────────
+	   `.data-table` (Cloud) y `.table` (Desktop), mismo concepto. */
+	.table-container,
+	.table-wrapper {
+		overflow-x: auto;
+		width: 100%;
+	}
+
+	.table,
+	.data-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--font-sm);
+	}
+
+	.table th,
+	.data-table th {
+		background: var(--bg-elevated);
+		color: var(--text-secondary);
+		padding: var(--sp-2) var(--sp-3);
+		text-align: left;
+		font-weight: 500;
+		font-size: var(--font-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid var(--border);
+		white-space: nowrap;
+	}
+
+	.table td,
+	.data-table td {
+		padding: var(--sp-3);
+		border-bottom: 1px solid var(--border);
+		color: var(--text-primary);
+		vertical-align: middle;
+	}
+
+	.table tr:last-child td,
+	.data-table tr:last-child td {
+		border-bottom: none;
+	}
+
+	.table tbody tr:hover,
+	.data-table tbody tr:hover {
+		background: var(--bg-table-alt);
+	}
+
+	/* ─── Badges ──────────────────────────────────────────────────
+	   Desktop las tenia cuadradas (4px); pasan a pildora para unificar
+	   con Cloud y con Workshop. */
+	.badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px var(--sp-2);
+		border-radius: 999px;
+		font-size: var(--font-xs);
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.badge-primary {
+		background: rgba(37, 99, 235, 0.12);
+		color: #1d4ed8;
+	}
+	.badge-success,
+	.badge-active {
+		background: rgba(5, 150, 105, 0.12);
+		color: #047857;
+	}
+	.badge-warning {
+		background: rgba(217, 119, 6, 0.12);
+		color: #b45309;
+	}
+	.badge-danger {
+		background: rgba(220, 38, 38, 0.12);
+		color: #b91c1c;
+	}
+	.badge-info {
+		background: rgba(6, 182, 212, 0.12);
+		color: #0e7490;
+	}
+	.badge-muted,
+	.badge-inactive {
+		background: var(--bg-elevated);
+		color: var(--text-muted);
+	}
+
+	[data-theme='dark'] .badge-primary {
+		background: rgba(37, 99, 235, 0.2);
+		color: #60a5fa;
+	}
+	[data-theme='dark'] .badge-success,
+	[data-theme='dark'] .badge-active {
+		background: rgba(16, 185, 129, 0.2);
+		color: #34d399;
+	}
+	[data-theme='dark'] .badge-warning {
+		background: rgba(245, 158, 11, 0.2);
+		color: #fbbf24;
+	}
+	[data-theme='dark'] .badge-danger {
+		background: rgba(239, 68, 68, 0.2);
+		color: #f87171;
+	}
+	[data-theme='dark'] .badge-info {
+		background: rgba(6, 182, 212, 0.2);
+		color: #22d3ee;
+	}
+
+	/* ─── Modales ─────────────────────────────────────────────────── */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		animation: esrFadeIn var(--transition-fast);
+	}
+
+	.modal {
+		background: var(--bg-modal);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-lg);
+		width: 90%;
+		max-width: 560px;
+		max-height: 90vh;
+		display: flex;
+		flex-direction: column;
+		box-shadow: var(--shadow-modal);
+		animation: esrSlideUp var(--transition-base);
+	}
+
+	.modal-lg {
+		max-width: 800px;
+	}
+	.modal-xl {
+		max-width: 1000px;
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--sp-5) var(--sp-6);
+		border-bottom: 1px solid var(--border);
+	}
+
+	.modal-title {
+		font-size: var(--font-lg);
+		font-weight: 600;
+	}
+
+	.modal-close {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: var(--sp-1);
+		border-radius: var(--border-radius-sm);
+		font-size: 1.25rem;
+		line-height: 1;
+	}
+
+	.modal-close:hover {
+		color: var(--text-primary);
+		background: var(--bg-hover);
+	}
+
+	.modal-body {
+		padding: var(--sp-6);
+		overflow-y: auto;
+		flex: 1;
+	}
+
+	.modal-footer {
+		padding: var(--sp-4) var(--sp-6);
+		border-top: 1px solid var(--border);
+		display: flex;
+		gap: var(--sp-3);
+		justify-content: flex-end;
+	}
+
+	/* ─── Alertas ─────────────────────────────────────────────────
+	   Igual que los botones: Cloud escribe `class="alert-error"` suelto,
+	   sin clase base, asi que la geometria va tambien en las variantes. */
+	.alert,
+	.alert-success,
+	.alert-danger,
+	.alert-error,
+	.alert-warning,
+	.alert-info {
+		padding: var(--sp-3) var(--sp-4);
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-sm);
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
+	.alert-success {
+		background: #d1fae5;
+		border: 1px solid #6ee7b7;
+		color: #065f46;
+	}
+	.alert-danger,
+	.alert-error {
+		background: #fee2e2;
+		border: 1px solid #fca5a5;
+		color: #991b1b;
+	}
+	.alert-warning {
+		background: #fef3c7;
+		border: 1px solid #fde68a;
+		color: #92400e;
+	}
+	.alert-info {
+		background: #dbeafe;
+		border: 1px solid #bfdbfe;
+		color: #1e40af;
+	}
+
+	[data-theme='dark'] .alert-success {
+		background: rgba(16, 185, 129, 0.15);
+		border-color: rgba(16, 185, 129, 0.3);
+		color: #34d399;
+	}
+	[data-theme='dark'] .alert-danger,
+	[data-theme='dark'] .alert-error {
+		background: rgba(239, 68, 68, 0.15);
+		border-color: rgba(239, 68, 68, 0.3);
+		color: #f87171;
+	}
+	[data-theme='dark'] .alert-warning {
+		background: rgba(245, 158, 11, 0.15);
+		border-color: rgba(245, 158, 11, 0.3);
+		color: #fbbf24;
+	}
+	[data-theme='dark'] .alert-info {
+		background: rgba(6, 182, 212, 0.15);
+		border-color: rgba(6, 182, 212, 0.3);
+		color: #22d3ee;
+	}
+
+	/* ─── Toasts ──────────────────────────────────────────────────── */
+	.toast-container {
+		position: fixed;
+		bottom: var(--sp-6);
+		right: var(--sp-6);
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+		z-index: 9999;
+	}
+
+	.toast {
+		padding: var(--sp-3) var(--sp-4);
+		border-radius: var(--border-radius);
+		font-size: var(--font-sm);
+		font-weight: 500;
+		box-shadow: var(--shadow-md);
+		min-width: 280px;
+		animation: esrSlideInRight var(--transition-base);
+	}
+
+	.toast-success {
+		background: #d1fae5;
+		color: #065f46;
+		border: 1px solid #10b981;
+	}
+	.toast-error {
+		background: #fee2e2;
+		color: #991b1b;
+		border: 1px solid #ef4444;
+	}
+	.toast-warning {
+		background: #fef3c7;
+		color: #92400e;
+		border: 1px solid #f59e0b;
+	}
+	.toast-info {
+		background: #dbeafe;
+		color: #1e40af;
+		border: 1px solid #2563eb;
+	}
+
+	/* ─── Layout de pagina ────────────────────────────────────────
+	   No se define `.empty-state` como contenedor: Cloud tiene 22 usos,
+	   algunos dentro de <td>, y el flex-column de Workshop los reflowea.
+	   Solo se aportan sus piezas internas. */
+	.page {
+		padding: var(--content-padding);
+		height: 100%;
+		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-5);
+	}
+
+	.page-title {
+		font-size: var(--font-xl);
+		font-weight: 700;
+		color: var(--text-primary);
+	}
+
+	.page-subtitle {
+		font-size: var(--font-sm);
+		color: var(--text-muted);
+		margin-top: var(--sp-1);
+	}
+
+	.empty-state-icon {
+		font-size: 3rem;
+		color: var(--text-muted);
+	}
+
+	.empty-state-title {
+		font-size: var(--font-lg);
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
+
+	.empty-state-desc {
+		font-size: var(--font-sm);
+		color: var(--text-muted);
+		max-width: 300px;
+	}
+
+	.divider {
+		height: 1px;
+		background: var(--border);
+		margin: var(--sp-5) 0;
+	}
+
+	.search-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		padding: var(--sp-2) var(--sp-3);
+	}
+
+	.search-bar input {
+		background: none;
+		border: none;
+		outline: none;
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+		flex: 1;
+		min-width: 180px;
+	}
+
+	.pagination {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		justify-content: flex-end;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.spinner {
+		width: 20px;
+		height: 20px;
+		border: 2px solid var(--border);
+		border-top-color: var(--brand-primary);
+		border-radius: 50%;
+		animation: esrSpin 0.6s linear infinite;
+	}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Barra lateral — SIN @layer a proposito.
+   Vive aqui, y no en cada app, porque Cloud y Desktop deben tenerla
+   identica; y va fuera de capa porque su ancho colapsado es
+   comportamiento, no vocabulario tematizable: ninguna app deberia
+   poder pisarlo por accidente desde su app.css.
+   ═══════════════════════════════════════════════════════════════ */
+/* ─── Barra lateral ───────────────────────────────────────────
+   Vive aqui, no en cada app, porque Cloud y Desktop deben tenerla
+   identica. */
+.sidebar {
+	width: var(--sidebar-width);
+	min-width: var(--sidebar-width);
+	background: var(--sb-bg);
+	border-right: 1px solid var(--sb-border);
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	overflow: hidden;
+	flex-shrink: 0;
+	transition:
+		width var(--transition-base),
+		min-width var(--transition-base);
+}
+
+/* Se encadena con `.sidebar` para que el modificador de estado supere
+   siempre a la regla base. Con un solo `.sidebar--collapsed` compiten
+   con la misma especificidad y el ancho colapsado no llega a aplicar. */
+.sidebar.sidebar--collapsed {
+	width: var(--sidebar-collapsed-width);
+	min-width: var(--sidebar-collapsed-width);
+}
+
+/* Quien prefiere menos movimiento ve el cambio de ancho instantaneo. */
+@media (prefers-reduced-motion: reduce) {
+	.sidebar {
+		transition: none;
+	}
+}
+
+.sidebar-brand {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-3);
+	padding: var(--sp-5) var(--sp-4);
+	border-bottom: 1px solid var(--sb-border);
+	flex-shrink: 0;
+}
+
+.sidebar-brand-icon {
+	font-size: 1.5rem;
+	line-height: 1;
+	flex-shrink: 0;
+}
+
+.sidebar-brand-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	flex: 1;
+	min-width: 0;
+	line-height: 1.2;
+}
+
+.sidebar-brand-name {
+	font-size: var(--font-md);
+	font-weight: 700;
+	color: var(--sb-text-title);
+	letter-spacing: -0.02em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-brand-sub {
+	font-size: var(--font-xs);
+	color: var(--sb-text-label);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.btn-collapse {
+	background: none;
+	border: none;
+	color: var(--sb-text-item);
+	cursor: pointer;
+	font-size: 1rem;
+	line-height: 1;
+	padding: var(--sp-1) var(--sp-2);
+	border-radius: var(--border-radius-sm);
+	transition:
+		color var(--transition-fast),
+		background var(--transition-fast);
+	flex-shrink: 0;
+}
+
+.btn-collapse:hover {
+	color: var(--sb-text-item-hover);
+	background: var(--sb-hover-bg);
+}
+
+.btn-collapse:focus-visible {
+	outline: 2px solid var(--sb-active-border);
+	outline-offset: 1px;
+}
+
+/* Colapsada: riel de iconos. El logo se mantiene visible y el boton
+   pasa debajo, porque en 60px no caben los dos en la misma fila. */
+.sidebar.sidebar--collapsed .sidebar-brand {
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-4) 0;
+}
+
+.sidebar.sidebar--collapsed .sidebar-brand-text,
+.sidebar.sidebar--collapsed .nav-item-label,
+.sidebar.sidebar--collapsed .sidebar-user-info {
+	display: none;
+}
+
+.sidebar.sidebar--collapsed .nav-item {
+	justify-content: center;
+	padding-left: 0;
+	padding-right: 0;
+	gap: 0;
+}
+
+.sidebar.sidebar--collapsed .sidebar-footer {
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-3) 0;
+}
+
+.sidebar.sidebar--collapsed .sidebar-user {
+	flex: 0 0 auto;
+	justify-content: center;
+}
+
+.sidebar-nav {
+	flex: 1;
+	overflow-y: auto;
+	padding: var(--sp-3) 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+}
+
+.sidebar-nav::-webkit-scrollbar {
+	width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.12);
+	border-radius: 2px;
+}
+
+.nav-item {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-3);
+	padding: 7px var(--sp-4);
+	color: var(--sb-text-item);
+	text-decoration: none;
+	font-size: var(--font-sm);
+	border-radius: 0;
+	transition: all var(--transition-fast);
+	border-left: 2px solid transparent;
+}
+
+.nav-item:hover {
+	background: var(--sb-hover-bg);
+	color: var(--sb-text-item-hover);
+	text-decoration: none;
+}
+
+.nav-item--active {
+	background: var(--sb-active-bg);
+	color: var(--sb-active-color);
+	border-left-color: var(--sb-active-border);
+	font-weight: 500;
+}
+
+.nav-item-icon {
+	font-size: 1rem;
+	width: 18px;
+	text-align: center;
+	flex-shrink: 0;
+}
+
+.nav-item-label {
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-footer {
+	border-top: 1px solid var(--sb-border);
+	padding: var(--sp-3) var(--sp-4);
+	display: flex;
+	align-items: center;
+	gap: var(--sp-3);
+	flex-shrink: 0;
+	background: rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-user {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	flex: 1;
+	min-width: 0;
+}
+
+.sidebar-user-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: var(--brand-primary);
+	color: #fff;
+	font-size: var(--font-sm);
+	font-weight: 700;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+}
+
+.sidebar-user-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.sidebar-user-name {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--sb-text-title);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-user-role {
+	font-size: var(--font-xs);
+	color: var(--sb-text-label);
+	text-transform: capitalize;
+	margin-top: 1px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.btn-logout {
+	background: none;
+	border: none;
+	color: var(--sb-text-item);
+	cursor: pointer;
+	font-size: 1.1rem;
+	padding: var(--sp-1);
+	border-radius: var(--border-radius-sm);
+	transition:
+		color var(--transition-fast),
+		background var(--transition-fast);
+	flex-shrink: 0;
+}
+
+.btn-logout:hover {
+	color: #f87171;
+	background: rgba(239, 68, 68, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Utilidades
+   ═══════════════════════════════════════════════════════════════ */
+@layer esr.utilities {
+	.flex {
+		display: flex;
+	}
+	.flex-col {
+		flex-direction: column;
+	}
+	.items-center {
+		align-items: center;
+	}
+	.justify-between {
+		justify-content: space-between;
+	}
+	.justify-end {
+		justify-content: flex-end;
+	}
+	.gap-2 {
+		gap: var(--sp-2);
+	}
+	.gap-3 {
+		gap: var(--sp-3);
+	}
+	.gap-4 {
+		gap: var(--sp-4);
+	}
+	.gap-6 {
+		gap: var(--sp-6);
+	}
+	.mt-4 {
+		margin-top: var(--sp-4);
+	}
+	.mt-6 {
+		margin-top: var(--sp-6);
+	}
+	.ml-auto {
+		margin-left: auto;
+	}
+	.w-full {
+		width: 100%;
+	}
+	.text-right {
+		text-align: right;
+	}
+	.text-center {
+		text-align: center;
+	}
+	.text-muted {
+		color: var(--text-muted);
+	}
+	.text-danger {
+		color: var(--brand-danger);
+	}
+	.text-success {
+		color: var(--brand-success);
+	}
+	.text-warning {
+		color: var(--brand-warning);
+	}
+	.text-sm {
+		font-size: var(--font-sm);
+	}
+	.text-xs {
+		font-size: var(--font-xs);
+	}
+	.font-bold {
+		font-weight: 700;
+	}
+	.font-semibold {
+		font-weight: 600;
+	}
+	.truncate {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
+/* ─── Animaciones (fuera de capa: los keyframes no cascadean) ──── */
+@keyframes esrFadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes esrSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(16px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes esrSlideInRight {
+	from {
+		opacity: 0;
+		transform: translateX(24px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes esrSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}

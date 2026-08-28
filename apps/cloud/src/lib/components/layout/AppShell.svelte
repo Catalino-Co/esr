@@ -1,21 +1,23 @@
 <script>
 	import { page } from '$app/state';
+	import { sidebarCollapsed } from '$lib/stores/sidebar';
 	import Sidebar from './Sidebar.svelte';
 	import Topbar from './Topbar.svelte';
 
 	let { user, company, role, permissions = [], children } = $props();
 
-	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
 
 	const pathname = $derived(page.url.pathname);
 
 	function toggleSidebar() {
+		// En movil el mismo boton abre y cierra el cajon; en escritorio
+		// alterna entre barra completa y riel de iconos.
 		if (typeof window !== 'undefined' && window.innerWidth <= 900) {
 			mobileOpen = !mobileOpen;
 			return;
 		}
-		sidebarCollapsed = !sidebarCollapsed;
+		sidebarCollapsed.toggle();
 	}
 
 	function handleMenuToggle() {
@@ -29,13 +31,23 @@
 
 <div class="app-shell">
 	{#if mobileOpen}
-		<button type="button" class="sidebar-backdrop" aria-label="Cerrar menú" onclick={closeMobile}></button>
+		<button type="button" class="sidebar-backdrop" aria-label="Cerrar menú" onclick={closeMobile}
+		></button>
 	{/if}
 
-	<Sidebar {company} {pathname} {permissions} collapsed={sidebarCollapsed} {mobileOpen} onToggle={toggleSidebar} />
+	<Sidebar
+		{user}
+		{company}
+		{role}
+		{pathname}
+		{permissions}
+		collapsed={$sidebarCollapsed}
+		{mobileOpen}
+		onToggle={toggleSidebar}
+	/>
 
 	<div class="app-main">
-		<Topbar {pathname} {user} {company} {role} onMenuToggle={handleMenuToggle} />
+		<Topbar {pathname} {company} onMenuToggle={handleMenuToggle} />
 		<main class="app-content">
 			{@render children()}
 		</main>
@@ -46,7 +58,7 @@
 	.app-shell {
 		display: flex;
 		min-height: 100vh;
-		background: var(--cloud-bg);
+		background: var(--bg-base);
 	}
 
 	.app-main {
@@ -58,7 +70,7 @@
 
 	.app-content {
 		flex: 1;
-		padding: 24px;
+		padding: var(--content-padding);
 		overflow-x: auto;
 	}
 

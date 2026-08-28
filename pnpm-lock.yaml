@@ -53,6 +53,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@esr/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@esr/core':
         specifier: workspace:*
         version: link:../../packages/core
