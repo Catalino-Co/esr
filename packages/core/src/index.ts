@@ -21,6 +21,9 @@ export * from './quotes/use-cases';
 
 export * from './contracts/repositories';
 
+export * from './payments/repositories';
+export * from './payments/use-cases';
+
 export * from './conduces/repositories';
 export * from './conduces/use-cases';
 

@@ -1,11 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
-import { validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
+import { summarizePayments, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
 import {
+	getContractRepository,
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
+	getPaymentRepository,
 	getQuoteConversionService,
 	getQuoteRepository,
 	getRentalRepository
@@ -21,15 +23,30 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
-	const [items, event, customer, inventory, linkedOrder] = await Promise.all([
-		getQuoteRepository().listItems(ctx, params.id),
-		quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
-		getCustomerRepository().findById(ctx, quote.client_id),
-		getInventoryRepository().list(ctx, { is_active: 1, limit: 200, offset: 0 }),
-		getRentalRepository().findByQuotationId(ctx, params.id)
-	]);
+	const [items, event, customer, inventory, linkedOrder, linkedContract, payments] =
+		await Promise.all([
+			getQuoteRepository().listItems(ctx, params.id),
+			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
+			getCustomerRepository().findById(ctx, quote.client_id),
+			getInventoryRepository().list(ctx, { is_active: 1, limit: 200, offset: 0 }),
+			getRentalRepository().findByQuotationId(ctx, params.id),
+			getContractRepository().findByQuotationId(ctx, params.id),
+			getPaymentRepository().listForQuotation(ctx, params.id)
+		]);
 
-	return { quote, items, event, customer, inventory, linkedOrder, canEdit: quote.status !== 'convertida' && quote.status !== 'cancelada' };
+	return {
+		quote,
+		items,
+		event,
+		customer,
+		inventory,
+		linkedOrder,
+		linkedContract,
+		// El estado de cuenta se muestra tambien aqui: el dinero vive en la
+		// cotizacion, exista o no un contrato.
+		summary: summarizePayments(quote.total, payments),
+		canEdit: quote.status !== 'convertida' && quote.status !== 'cancelada'
+	};
 };
 
 export const actions: Actions = {

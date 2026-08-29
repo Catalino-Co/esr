@@ -16,11 +16,13 @@ export const ICONS = {
 	inventory: '📦',
 	packages: '🎁',
 	quotes: '📄',
+	contracts: '✍️',
 	workOrders: '📋',
 	conduces: '🧾',
 	incidents: '⚠️',
 	reports: '📈',
 	settings: '⚙️',
+	payments: '💰',
 	audit: '🔐',
 	docs: '📘',
 

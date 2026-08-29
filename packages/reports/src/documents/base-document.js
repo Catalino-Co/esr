@@ -21,6 +21,11 @@ const PRINT_STYLES = `
   .doc-totals div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eef2fb; }
   .doc-totals .total { font-weight: 700; font-size: 1.05rem; border-bottom: none; padding-top: 10px; }
   .doc-notes { margin-top: 20px; padding: 12px; background: #f8fafc; border-radius: 6px; font-size: 0.9rem; }
+  /* Contratos: bloque de terminos y pie de firmas. */
+  .doc-terms { font-size: 0.9rem; line-height: 1.6; white-space: normal; }
+  .doc-signatures { display: flex; gap: 48px; margin-top: 48px; font-size: 0.85rem; text-align: center; }
+  .doc-signatures div { flex: 1; }
+  .doc-signature-line { display: block; border-top: 1px solid #94a3b8; margin-bottom: 6px; }
   .doc-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #eef2fb; font-size: 0.78rem; color: #94a3b8; text-align: center; }
   .signature-box { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
   .signature-line { border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 0.85rem; color: #64748b; }
@@ -33,7 +38,9 @@ const PRINT_STYLES = `
 `;
 
 /**
- * @param {{ title: string; company: { name: string; rnc?: string; phone?: string; email?: string; address?: string }; meta?: Array<{ label: string; value: string }>; bodyHtml: string; footer?: string }} input
+ * Los datos de empresa salen de `company_info`, cuyas columnas admiten NULL:
+ * por eso los opcionales son `string|null` y no solo `string|undefined`.
+ * @param {{ title: string; company: { name: string; rnc?: string|null; phone?: string|null; email?: string|null; address?: string|null }; meta?: Array<{ label: string; value: string }>; bodyHtml: string; footer?: string }} input
  */
 export function renderBaseDocument(input) {
 	const companyLines = [

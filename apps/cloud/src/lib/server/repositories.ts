@@ -5,12 +5,14 @@ import {
 	PostgresChecklistRepository,
 	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
+	PostgresContractRepository,
 	PostgresCustomerRepository,
 	PostgresEventTypeRepository,
 	PostgresEventRepository,
 	PostgresIncidentRepository,
 	PostgresInventoryRepository,
 	PostgresMemberRepository,
+	PostgresPaymentRepository,
 	PostgresQuoteRepository,
 	PostgresRentalRepository,
 	PostgresStockMovementRepository,
@@ -40,6 +42,8 @@ let memberRepository: PostgresMemberRepository | null = null;
 let eventTypeRepository: PostgresEventTypeRepository | null = null;
 let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
+let contractRepository: PostgresContractRepository | null = null;
+let paymentRepository: PostgresPaymentRepository | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -134,6 +138,16 @@ export function getSupplierRepository(): PostgresSupplierRepository {
 export function getCollaboratorRepository(): PostgresCollaboratorRepository {
 	if (!collaboratorRepository) collaboratorRepository = new PostgresCollaboratorRepository();
 	return collaboratorRepository;
+}
+
+export function getContractRepository(): PostgresContractRepository {
+	if (!contractRepository) contractRepository = new PostgresContractRepository();
+	return contractRepository;
+}
+
+export function getPaymentRepository(): PostgresPaymentRepository {
+	if (!paymentRepository) paymentRepository = new PostgresPaymentRepository();
+	return paymentRepository;
 }
 
 export { getCompanyDocumentInfo };

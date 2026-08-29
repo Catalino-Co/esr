@@ -10,6 +10,7 @@ export * from './repositories/postgres-inventory.repository';
 export * from './repositories/postgres-quote.repository';
 export * from './repositories/postgres-rental.repository';
 export * from './repositories/postgres-conduce.repository';
+export * from './repositories/postgres-contract.repository';
 export * from './repositories/postgres-operations.repository';
 export * from './repositories/postgres-audit-log.repository';
 export * from './repositories/postgres-company-settings.repository';

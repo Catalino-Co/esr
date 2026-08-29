@@ -334,6 +334,58 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Fase 8c - Contratos y pagos
+
+```text
+/contracts              listado con estado y saldo por contrato
+/contracts/new?quoteId= alta desde una cotizacion aprobada
+/contracts/[id]         detalle, estado de cuenta y pagos
+/contracts/[id]/print   contrato imprimible con pie de firmas
+```
+
+**El dinero vive en la cotizacion.** Ni `work_orders` ni `contracts` guardan un
+total propio: el monto acordado es `quotations.total`. El contrato formaliza ese
+acuerdo y los pagos lo van reduciendo. Las reglas son puras y viven en
+`packages/core/src/payments/use-cases.ts`.
+
+Reglas de negocio:
+
+- **El contrato es opcional.** Se genera desde una cotizacion aprobada o ya
+  convertida, cuando se quiera. Convertir una cotizacion en orden no lo exige.
+- **Un pago cuelga del contrato si existe y, si no, de la cotizacion.** Asi se
+  puede cobrar un anticipo antes de firmar sin perder la trazabilidad. El estado
+  de cuenta suma siempre los dos origenes sobre el total de la cotizacion.
+- **Solo un pago en estado `pagado` reduce el saldo.** Los `pendiente` se
+  muestran aparte y los `anulado` no cuentan.
+- **Los pagos no se borran: se anulan.** La fila permanece —tachada en pantalla,
+  fuera del documento imprimible— para dejar rastro de que existio. Un pago
+  anulado no se reactiva: si el cobro se rehace, se registra uno nuevo.
+- **Un sobrepago no deja el saldo en negativo.** Se reporta aparte con un aviso.
+- Cancelar un contrato con dinero ya cobrado no se bloquea, pero avisa del
+  importe por si procede una devolucion.
+
+Permisos:
+
+| Accion | operador | gerente |
+| --- | --- | --- |
+| Ver contratos e imprimir | si | si |
+| Crear y editar contrato | si | si |
+| Registrar pago | si | si |
+| Firmar o cancelar contrato | no | si |
+| Anular pago | no | si |
+
+Registrar un cobro es operacion diaria; anularlo mueve dinero ya registrado y se
+reserva a gerencia.
+
+#### Migracion 008
+
+Las tablas `contracts` y `payments` existian desde la migracion 002 pero nunca
+se usaron: no tenian indices ni restricciones. La 008 anade el numero de
+contrato unico por empresa (`CTR-000001`), un unico contrato vigente por
+cotizacion —los cancelados no cuentan, para poder rehacer uno anulado por
+error—, los indices de lectura, y dos CHECK que la aplicacion ya validaba pero
+la base no: importe de pago mayor que cero y estados cerrados.
+
 ## Sistema de Diseno
 
 Las tres apps de CCO comparten el mismo lenguaje visual, portado desde CCO

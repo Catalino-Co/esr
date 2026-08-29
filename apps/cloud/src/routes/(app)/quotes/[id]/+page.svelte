@@ -31,6 +31,21 @@
 		<div class="metric"><strong>{data.event?.name ?? '—'}</strong><span>Evento</span></div>
 		<div class="metric"><strong>{quote.status}</strong><span>Estado</span></div>
 		<div class="metric"><strong>{Number(quote.total || 0).toFixed(2)}</strong><span>Total</span></div>
+		<div class="metric">
+			<strong>{data.summary.settled ? 'Saldado' : Number(data.summary.balance).toFixed(2)}</strong>
+			<span>Saldo</span>
+		</div>
+	</div>
+
+	<!-- El contrato es opcional: convertir a orden no lo exige. -->
+	<div class="page-actions" style="margin-bottom: 16px">
+		{#if data.linkedContract}
+			<a class="btn-secondary" href="/contracts/{data.linkedContract.id}">
+				Contrato {data.linkedContract.number}
+			</a>
+		{:else if can('contracts.create') && (quote.status === 'aprobada' || quote.status === 'convertida')}
+			<a class="btn-secondary" href="/contracts/new?quoteId={quote.id}">Generar contrato</a>
+		{/if}
 	</div>
 
 	{#if data.linkedOrder}

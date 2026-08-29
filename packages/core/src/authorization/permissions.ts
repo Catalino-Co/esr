@@ -46,6 +46,18 @@ export const PERMISSIONS = [
 	'checklists.save',
 	'conduces.view',
 
+	// Contratos
+	'contracts.view',
+	'contracts.create',
+	'contracts.update',
+	'contracts.sign',
+	'contracts.cancel',
+
+	// Pagos
+	'payments.view',
+	'payments.register',
+	'payments.void',
+
 	// Incidencias
 	'incidents.view',
 	'incidents.create',
@@ -100,6 +112,8 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	'quotes.view',
 	'work_orders.view',
 	'conduces.view',
+	'contracts.view',
+	'payments.view',
 	'incidents.view',
 	'reports.view'
 ];
@@ -118,6 +132,10 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'operations.deliver',
 	'operations.return',
 	'checklists.save',
+	'contracts.create',
+	'contracts.update',
+	// Registrar un cobro es operacion diaria; anularlo no.
+	'payments.register',
 	'incidents.create'
 ];
 
@@ -133,6 +151,10 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'work_orders.cancel',
 	'work_orders.close',
 	'incidents.resolve',
+	'contracts.sign',
+	'contracts.cancel',
+	// Anular un pago mueve dinero ya registrado: se reserva a gerencia.
+	'payments.void',
 	'audit.view',
 	'settings.catalogs.manage'
 ];
