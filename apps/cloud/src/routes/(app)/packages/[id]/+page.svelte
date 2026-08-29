@@ -61,7 +61,7 @@
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="2" disabled={!editable}>{pkg.notes ?? ''}</textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			{#if editable}
 				<button type="submit" class="btn-primary">Guardar cambios</button>
 			{:else}
@@ -87,8 +87,7 @@
 				<label for="quantity">Cantidad</label>
 				<input id="quantity" name="quantity" type="number" min="1" value="1" required />
 			</div>
-			<div class="form-field">
-				<span class="form-field-label">&nbsp;</span>
+			<div class="form-field form-field--action">
 				<button type="submit" class="btn-primary">Agregar</button>
 			</div>
 			<p class="panel-hint full">

@@ -45,7 +45,7 @@
 			<label for="notes">Notas internas</label>
 			<textarea id="notes" name="notes" rows="2"></textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">Crear contrato</button>
 		</div>
 	</form>

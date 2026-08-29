@@ -201,6 +201,32 @@ p {
 	grid-column: 1 / -1;
 }
 
+/* Boton que va EN LINEA con los campos, en su propia celda del grid (las
+   altas de una fila: «Articulo · Cantidad · Agregar»). No puede ir en
+   `.form-actions` porque no es un pie: se quedaria solo en una fila aparte.
+   `align-items: flex-start` corta el estirado horizontal —el eje transversal
+   de un flex en columna es el horizontal— y `justify-content: flex-end` lo
+   baja al pie de la celda, que es lo que antes se conseguia con un
+   `<span class="form-field-label">&nbsp;</span>` de relleno. */
+.form-field--action {
+	align-items: flex-start;
+	justify-content: flex-end;
+}
+
+/* Pie de formulario. NO es un `.form-field`: ese es `flex-direction: column`
+   sin `align-items`, y el `normal` inicial se comporta como `stretch`, asi que
+   estiraba el boton a lo ancho de la linea entera. Aqui el eje principal es
+   horizontal, con lo que el boton vuelve a medir lo que su texto.
+   Misma forma que `.modal-footer` de theme.css y que los pies de ESR Pro. */
+.form-actions {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	align-items: center;
+	gap: var(--sp-3);
+}
+
 .form-error {
 	color: var(--brand-danger);
 	font-size: var(--font-sm);

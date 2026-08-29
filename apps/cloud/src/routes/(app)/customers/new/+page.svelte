@@ -46,7 +46,7 @@
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="3">{values.notes ?? ''}</textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">Crear cliente</button>
 		</div>
 	</form>

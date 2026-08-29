@@ -30,8 +30,7 @@
 			</select>
 			{#if form?.fieldErrors?.role}<span class="form-error">{form.fieldErrors.role}</span>{/if}
 		</div>
-		<div class="form-field">
-			<span class="form-field-label">&nbsp;</span>
+		<div class="form-field form-field--action">
 			<button type="submit" class="btn-primary">Agregar miembro</button>
 		</div>
 		<p class="panel-hint full">

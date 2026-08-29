@@ -41,7 +41,7 @@
 			<label for="address">Dirección</label>
 			<input id="address" name="address" value={values.address ?? ''} />
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">Guardar cambios</button>
 		</div>
 	</form>

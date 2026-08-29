@@ -54,7 +54,7 @@
 				<label for="description">Descripción</label>
 				<input id="description" name="description" />
 			</div>
-			<div class="form-field full">
+			<div class="form-actions">
 				<button type="submit" class="btn-primary">Crear paquete</button>
 			</div>
 		</form>

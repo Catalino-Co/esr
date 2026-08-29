@@ -83,7 +83,7 @@
 				value={catValues.color ?? '#6366f1'}
 			/>
 		</div>
-		<div class="form-field cat-actions">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">
 				{editingCategory ? 'Guardar cambios' : 'Agregar categoría'}
 			</button>
@@ -123,7 +123,7 @@
 				<label for="sub-name">Nombre *</label>
 				<input id="sub-name" name="name" required value={subValues.name ?? ''} />
 			</div>
-			<div class="form-field cat-actions">
+			<div class="form-actions">
 				<button type="submit" class="btn-primary">
 					{editingSub ? 'Guardar cambios' : 'Agregar subcategoría'}
 				</button>
@@ -209,12 +209,6 @@
 		margin: 0 0 var(--sp-4);
 		font-size: var(--font-md);
 		font-weight: 600;
-	}
-
-	.cat-actions {
-		flex-direction: row;
-		gap: var(--sp-3);
-		align-items: flex-end;
 	}
 
 	.color-input {

@@ -107,7 +107,7 @@
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			{#if can('inventory.update')}
 				<button type="submit" class="btn-primary">Guardar cambios</button>
 			{:else}
@@ -132,7 +132,7 @@
 					<label for="serials">Agregar seriales (uno por línea)</label>
 					<textarea id="serials" name="serials" rows="4" placeholder="SN-0001&#10;SN-0002"></textarea>
 				</div>
-				<div class="form-field full">
+				<div class="form-actions">
 					<button type="submit" class="btn-primary">Agregar seriales</button>
 				</div>
 			</form>

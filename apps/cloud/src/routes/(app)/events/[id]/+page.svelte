@@ -71,7 +71,7 @@
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="3">{event.notes ?? ''}</textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			{#if can('events.update')}
 				<button type="submit" class="btn-primary">Guardar cambios</button>
 			{:else}

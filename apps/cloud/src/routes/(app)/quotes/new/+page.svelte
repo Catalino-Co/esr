@@ -51,7 +51,7 @@
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="3"></textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">Crear cotización</button>
 		</div>
 	</form>

@@ -94,7 +94,7 @@
 			</div>
 		{/each}
 
-		<div class="form-field full catalog-actions">
+		<div class="form-actions">
 			<button type="submit" class="btn-primary">
 				{isEditing ? 'Guardar cambios' : 'Agregar'}
 			</button>
@@ -163,12 +163,6 @@
 		margin: 0 0 var(--sp-4);
 		font-size: var(--font-md);
 		font-weight: 600;
-	}
-
-	.catalog-actions {
-		flex-direction: row;
-		gap: var(--sp-3);
-		align-items: center;
 	}
 
 	.color-input {

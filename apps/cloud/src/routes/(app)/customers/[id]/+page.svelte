@@ -60,7 +60,7 @@
 				{customer.is_active ? 'Activo' : 'Inactivo'}
 			</span>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			{#if can('customers.update')}
 				<button type="submit" class="btn-primary">Guardar cambios</button>
 			{:else}

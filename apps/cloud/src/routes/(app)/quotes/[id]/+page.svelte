@@ -94,8 +94,7 @@
 						{/each}
 					</select>
 				</div>
-				<div class="form-field">
-					<span class="form-field-label">&nbsp;</span>
+				<div class="form-field form-field--action">
 					<button type="submit" class="btn-secondary">Insertar paquete</button>
 				</div>
 				<p class="panel-hint" style="grid-column: 1 / -1">
@@ -123,7 +122,7 @@
 				<label for="price">Precio unitario</label>
 				<input id="price" name="price" type="number" min="0" step="0.01" value="0" required />
 			</div>
-			<div class="form-field">
+			<div class="form-field form-field--action">
 				<button type="submit" class="btn-primary">Agregar</button>
 			</div>
 		</form>
@@ -134,7 +133,7 @@
 			<div class="form-field"><label for="discount">Descuento</label><input id="discount" name="discount" type="number" min="0" step="0.01" value={quote.discount ?? 0} /></div>
 			<div class="form-field"><label for="tax_amount">Impuesto</label><input id="tax_amount" name="tax_amount" type="number" min="0" step="0.01" value={quote.tax_amount ?? 0} /></div>
 			<div class="form-field full"><label for="notes">Notas</label><textarea id="notes" name="notes" rows="2">{quote.notes ?? ''}</textarea></div>
-			<div class="form-field"><button type="submit" class="btn-secondary">Recalcular / guardar</button></div>
+			<div class="form-field form-field--action"><button type="submit" class="btn-secondary">Recalcular / guardar</button></div>
 		</form>
 	{/if}
 

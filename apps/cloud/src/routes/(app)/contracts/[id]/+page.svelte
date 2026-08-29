@@ -132,7 +132,7 @@
 				<label for="notes">Notas</label>
 				<input id="notes" name="notes" />
 			</div>
-			<div class="form-field full">
+			<div class="form-actions">
 				<button type="submit" class="btn-primary">Registrar pago</button>
 			</div>
 		</form>
@@ -209,7 +209,7 @@
 			<label for="c-notes">Notas internas</label>
 			<textarea id="c-notes" name="notes" rows="2" disabled={!editable}>{contract.notes ?? ''}</textarea>
 		</div>
-		<div class="form-field full">
+		<div class="form-actions">
 			{#if editable}
 				<button type="submit" class="btn-primary">Guardar cambios</button>
 			{:else}
