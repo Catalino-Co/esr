@@ -184,7 +184,11 @@
 		--sb-text-label: #a5a3c9;
 		--sb-hover-bg: rgba(255, 255, 255, 0.07);
 		--sb-active-bg: var(--sidebar-item-active);
-		--sb-active-color: var(--accent-border);
+		/* Literal, igual que --sb-active-border y --sb-avatar-bg: la barra no
+		   cambia con el tema pero --accent-border si, y en oscuro se oscurece
+		   a #4338ca, que sobre el fondo del item activo deja la etiqueta en
+		   1.45:1. Ningun --sb-* puede apuntar a un token con version oscura. */
+		--sb-active-color: #c7d2fe;
 		--sb-active-border: #6366f1;
 		/* Literal, no var(--accent): la sidebar no cambia con el tema, pero
 		   --accent si, y en oscuro se aclara a #6366f1, donde la inicial

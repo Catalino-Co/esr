@@ -26,6 +26,15 @@ export const ICONS = {
 	audit: '🔐',
 	docs: '📘',
 
+	// Configuracion
+	appearance: '🎨',
+	company: '🏢',
+	categories: '🗂️',
+	eventTypes: '📅',
+	suppliers: '🚚',
+	collaborators: '👷',
+	members: '🪪',
+
 	// Marca
 	brand: '🏢',
 

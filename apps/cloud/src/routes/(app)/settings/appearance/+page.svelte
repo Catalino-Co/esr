@@ -20,7 +20,6 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Apariencia</h1>
-		<a class="btn-secondary" href="/settings">Volver</a>
 	</div>
 
 	<p class="panel-hint">
@@ -88,10 +87,12 @@
 		color: var(--text-primary);
 	}
 
+	/* --text-brand, no --brand-primary: el acento es color de RELLENO. Como
+	   letra sobre la ficha activa daba 2.39:1 en el tema oscuro. */
 	.theme-state {
 		font-size: var(--font-xs);
 		font-weight: 600;
-		color: var(--brand-primary);
+		color: var(--text-brand);
 		min-height: 1em;
 	}
 

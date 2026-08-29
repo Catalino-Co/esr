@@ -54,7 +54,6 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Categorías</h1>
-		<a class="btn-secondary" href="/settings">Volver</a>
 	</div>
 
 	<p class="panel-hint">

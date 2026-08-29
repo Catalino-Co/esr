@@ -1,0 +1,86 @@
+import type { Permission } from '@esr/core';
+import { ICONS } from '@esr/ui/icons';
+
+export type SettingsSection = {
+	href: string;
+	/** Nombre del modulo, tal como se lee en la tarjeta. */
+	title: string;
+	icon: string;
+	description: string;
+	/**
+	 * Permiso minimo para ver la seccion. `null` = visible para cualquier
+	 * miembro: Apariencia es una preferencia del usuario, no de la empresa.
+	 */
+	permission: Permission | null;
+};
+
+/**
+ * Indice de Configuracion. Fuente unica: de aqui salen las tarjetas de
+ * /settings y el enlace de vuelta de cada subpagina. Antes la lista estaba
+ * duplicada —una en el layout para las pestañas y otra en la portada— y las
+ * dos versiones ya diferian en los titulos.
+ */
+export const settingsSections: SettingsSection[] = [
+	{
+		href: '/settings/appearance',
+		title: 'Apariencia',
+		icon: ICONS.appearance,
+		description: 'Tema claro u oscuro de la aplicación. Es una preferencia tuya, no de la empresa.',
+		permission: null
+	},
+	{
+		href: '/settings/company',
+		title: 'Datos de la empresa',
+		icon: ICONS.company,
+		description:
+			'Nombre, RNC, teléfono, email y dirección que aparecen en cotizaciones, órdenes y conduces.',
+		permission: 'settings.company.update'
+	},
+	{
+		href: '/settings/categories',
+		title: 'Categorías',
+		icon: ICONS.categories,
+		description: 'Organizan el inventario. Cada categoría puede tener subcategorías.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/event-types',
+		title: 'Tipos de evento',
+		icon: ICONS.eventTypes,
+		description: 'Clasifican los eventos de la empresa y aparecen en los reportes.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/suppliers',
+		title: 'Proveedores',
+		icon: ICONS.suppliers,
+		description: 'Empresas y personas a las que se subcontrata equipo o servicios.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/collaborators',
+		title: 'Colaboradores',
+		icon: ICONS.collaborators,
+		description: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/members',
+		title: 'Miembros y roles',
+		icon: ICONS.members,
+		description: 'Invita usuarios existentes a la empresa y define qué puede hacer cada uno.',
+		permission: 'settings.members.manage'
+	}
+];
+
+/** Las secciones que el rol actual puede abrir. */
+export function visibleSettingsSections(permissions: readonly string[] = []): SettingsSection[] {
+	return settingsSections.filter(
+		(section) => !section.permission || permissions.includes(section.permission)
+	);
+}
+
+/** La seccion a la que pertenece una ruta, o `null` en la portada. */
+export function settingsSectionFor(pathname: string): SettingsSection | null {
+	return settingsSections.find((section) => pathname.startsWith(section.href)) ?? null;
+}

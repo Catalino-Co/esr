@@ -1,107 +1,99 @@
 <script>
+	import { visibleSettingsSections } from '$lib/settings-sections';
+
 	let { data } = $props();
 
-	const sections = [
-		{
-			href: '/settings/appearance',
-			title: 'Apariencia',
-			description: 'Tema claro u oscuro de la aplicación. Es una preferencia tuya, no de la empresa.',
-			permission: null
-		},
-		{
-			href: '/settings/company',
-			title: 'Datos de la empresa',
-			description: 'Nombre, RNC, teléfono, email y dirección que aparecen en cotizaciones, órdenes y conduces.',
-			permission: 'settings.company.update'
-		},
-		{
-			href: '/settings/categories',
-			title: 'Categorías',
-			description: 'Organizan el inventario. Cada categoría puede tener subcategorías.',
-			permission: 'settings.catalogs.manage'
-		},
-		{
-			href: '/settings/event-types',
-			title: 'Tipos de evento',
-			description: 'Clasifican los eventos de la empresa y aparecen en los reportes.',
-			permission: 'settings.catalogs.manage'
-		},
-		{
-			href: '/settings/suppliers',
-			title: 'Proveedores',
-			description: 'Empresas y personas a las que se subcontrata equipo o servicios.',
-			permission: 'settings.catalogs.manage'
-		},
-		{
-			href: '/settings/collaborators',
-			title: 'Colaboradores',
-			description: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.',
-			permission: 'settings.catalogs.manage'
-		},
-		{
-			href: '/settings/members',
-			title: 'Miembros y roles',
-			description: 'Invita usuarios existentes a la empresa y define qué puede hacer cada uno.',
-			permission: 'settings.members.manage'
-		}
-	];
-
-	const visible = $derived(
-		sections.filter((section) => !section.permission || data.permissions.includes(section.permission))
-	);
+	const visible = $derived(visibleSettingsSections(data.permissions));
 </script>
 
-<section class="panel">
-	{#if visible.length}
-		<div class="settings-cards">
-			{#each visible as section (section.href)}
-				<a class="settings-card" href={section.href}>
+{#if visible.length}
+	<div class="settings-cards">
+		{#each visible as section (section.href)}
+			<a class="settings-card" href={section.href}>
+				<span class="settings-card-icon" aria-hidden="true">{section.icon}</span>
+				<span class="settings-card-text">
 					<strong>{section.title}</strong>
-					<span>{section.description}</span>
-				</a>
-			{/each}
-		</div>
-	{:else}
+					<span class="settings-card-desc">{section.description}</span>
+				</span>
+			</a>
+		{/each}
+	</div>
+{:else}
+	<section class="panel">
 		<p class="settings-empty">Su rol no tiene secciones de configuración disponibles.</p>
-	{/if}
-</section>
+	</section>
+{/if}
 
 <style>
+	/* Las tarjetas van sueltas sobre el fondo de la pagina, no dentro de un
+	   `.panel`: un panel blanco lleno de tarjetas blancas no aporta borde
+	   ninguno y solo resta ancho. */
 	.settings-cards {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 16px;
+		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		gap: var(--sp-4);
 	}
 
 	.settings-card {
 		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding: 18px;
-		border: 1px solid var(--cloud-border);
-		border-radius: 10px;
-		background: var(--cloud-surface);
-		transition: border-color 0.15s ease, box-shadow 0.15s ease;
+		align-items: flex-start;
+		gap: var(--sp-3);
+		padding: var(--sp-4);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--surface);
+		transition:
+			border-color var(--transition-fast),
+			box-shadow var(--transition-fast);
 	}
 
 	.settings-card:hover {
-		border-color: var(--cloud-primary);
-		box-shadow: var(--cloud-shadow-md);
+		border-color: var(--accent);
+		box-shadow: var(--shadow-md);
+	}
+
+	.settings-card:focus-visible {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* El icono se apoya en --accent-subtle, no en --accent: el acento solido
+	   ya lo lleva el item activo del menu, y repetido en siete fichas dejaria
+	   de senalar nada. */
+	.settings-card-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+		border-radius: var(--radius);
+		background: var(--accent-subtle);
+		font-size: 1.15rem;
+		line-height: 1;
+	}
+
+	.settings-card-text {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
 	}
 
 	.settings-card strong {
-		font-size: 1rem;
-		color: var(--cloud-text);
+		font-size: var(--font-md);
+		color: var(--text-primary);
 	}
 
-	.settings-card span {
-		font-size: 0.86rem;
-		color: var(--cloud-muted);
+	.settings-card-desc {
+		font-size: var(--font-sm);
+		color: var(--text-muted);
 		line-height: 1.5;
 	}
 
 	.settings-empty {
-		color: var(--cloud-muted);
+		color: var(--text-muted);
 		margin: 0;
 	}
 </style>

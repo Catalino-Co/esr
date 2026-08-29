@@ -70,7 +70,8 @@
 		line-height: 1.45;
 	}
 	.report-link {
-		color: var(--primary);
+		/* --text-brand, no --primary: el acento como letra da 3.27:1 en oscuro. */
+		color: var(--text-brand);
 		font-size: 0.9rem;
 		font-weight: 600;
 	}

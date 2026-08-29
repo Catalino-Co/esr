@@ -41,7 +41,6 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>{title}</h1>
-		<a class="btn-secondary" href="/settings">Volver</a>
 	</div>
 
 	{#if hint}

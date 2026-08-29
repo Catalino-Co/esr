@@ -9,7 +9,6 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Datos de la empresa</h1>
-		<a class="btn-secondary" href="/settings">Volver</a>
 	</div>
 
 	<p class="panel-hint">

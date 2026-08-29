@@ -10,7 +10,6 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Miembros</h1>
-		<a class="btn-secondary" href="/settings">Volver</a>
 	</div>
 
 	{#if form?.error}
