@@ -1,14 +1,44 @@
 <script>
 	import { enhance } from '$app/forms';
+	import Modal from '$lib/components/Modal.svelte';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import { can } from '$lib/can';
 	import { stateSelect } from '$lib/list-filters';
 
 	let { data, form } = $props();
 
-	// El alta era un formulario siempre visible dentro del panel; ahora se abre
-	// desde la cabecera, para que las nueve pantallas tengan la misma forma.
+	// El alta se abre en un dialogo desde la cabecera.
 	let creating = $state(false);
+	let draft = $state({});
+	/**
+	 * Error propio, NO leido de `form`: el `?/toggle` de cada fila escribe en el
+	 * mismo objeto y acabaria pintandose dentro del dialogo.
+	 */
+	let errorCrear = $state(null);
+
+	function abrirAlta() {
+		draft = {};
+		errorCrear = null;
+		creating = true;
+	}
+
+	function cerrarAlta() {
+		creating = false;
+		draft = {};
+		errorCrear = null;
+	}
+
+	/**
+	 * El alta termina en `redirect` al paquete recien creado, asi que el exito
+	 * nunca llega aqui: se lo lleva la navegacion. Solo hay que atender el error.
+	 */
+	const alCrear = () => async ({ update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			if (result.data?.values) draft = result.data.values;
+			errorCrear = result.data?.error ?? 'No se pudo crear el paquete.';
+		}
+	};
 
 	const money = (v) =>
 		Number(v ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,9 +47,7 @@
 <section class="panel">
 	{#if can('packages.create')}
 		<div class="page-header">
-			<button type="button" class="btn-primary" onclick={() => (creating = !creating)}>
-				{creating ? 'Cancelar' : 'Nuevo paquete'}
-			</button>
+			<button type="button" class="btn-primary" onclick={abrirAlta}>Nuevo paquete</button>
 		</div>
 	{/if}
 
@@ -33,39 +61,23 @@
 		explotan en sus líneas, con el precio vigente de cada artículo.
 	</p>
 
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-	{#if form?.success}
-		<div class="alert-success" role="status">{form.success}</div>
+	<!-- Se callan con el dialogo abierto: su error se pinta dentro. -->
+	{#if !creating}
+		{#if form?.error}
+			<div class="alert-error" role="alert">{form.error}</div>
+		{/if}
+		{#if form?.success}
+			<div class="alert-success" role="status">{form.success}</div>
+		{/if}
 	{/if}
 
-	{#if can('packages.create') && creating}
-		<form method="POST" action="?/create" class="form-grid" use:enhance>
-			<div class="form-field">
-				<label for="name">Nombre *</label>
-				<input id="name" name="name" required placeholder="Paquete básico de sonido" />
-			</div>
-			<div class="form-field">
-				<label for="suggested_price">Precio sugerido</label>
-				<input id="suggested_price" name="suggested_price" type="number" min="0" step="0.01" value="0" />
-			</div>
-			<div class="form-field full">
-				<label for="description">Descripción</label>
-				<input id="description" name="description" />
-			</div>
-			<div class="form-actions">
-				<button type="submit" class="btn-primary">Crear paquete</button>
-			</div>
-		</form>
-	{/if}
 </section>
 
 <section class="panel">
 	<h2 class="sec-title">Registrados ({data.packages.length})</h2>
 
 	{#if data.packages.length === 0}
-		<p class="empty-state">Todavía no hay paquetes. Crea el primero arriba.</p>
+		<p class="empty-state">Todavía no hay paquetes. Crea el primero con «Nuevo paquete».</p>
 	{:else}
 		<table class="data-table">
 			<thead>
@@ -109,6 +121,45 @@
 		</table>
 	{/if}
 </section>
+
+<Modal bind:open={creating} title="Nuevo paquete" onclose={cerrarAlta}>
+	{#if errorCrear}
+		<div class="alert-error" role="alert">{errorCrear}</div>
+	{/if}
+
+	<form id="package-form" method="POST" action="?/create" class="form-grid" use:enhance={alCrear}>
+		<div class="form-field">
+			<label for="name">Nombre *</label>
+			<input
+				id="name"
+				name="name"
+				required
+				placeholder="Paquete básico de sonido"
+				value={draft.name ?? ''}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="suggested_price">Precio sugerido</label>
+			<input
+				id="suggested_price"
+				name="suggested_price"
+				type="number"
+				min="0"
+				step="0.01"
+				value={draft.suggested_price ?? '0'}
+			/>
+		</div>
+		<div class="form-field full">
+			<label for="description">Descripción</label>
+			<input id="description" name="description" value={draft.description ?? ''} />
+		</div>
+	</form>
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={cerrarAlta}>Cancelar</button>
+		<button type="submit" form="package-form" class="btn-primary">Crear paquete</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.sec-title {

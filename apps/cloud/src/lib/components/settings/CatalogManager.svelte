@@ -1,11 +1,12 @@
 <script>
 	import { enhance } from '$app/forms';
+	import Modal from '$lib/components/Modal.svelte';
 
 	/**
-	 * Pantalla generica de catalogo: formulario de alta/edicion arriba y tabla
-	 * abajo. Los tres catalogos simples (tipos de evento, proveedores y
-	 * colaboradores) solo se diferencian en sus campos, asi que se declaran con
-	 * `fields` en vez de duplicar el marcado tres veces.
+	 * Pantalla generica de catalogo: tabla, y el alta/edicion en un dialogo.
+	 * Los tres catalogos simples (tipos de evento, proveedores y colaboradores)
+	 * solo se diferencian en sus campos, asi que se declaran con `fields` en vez
+	 * de duplicar el marcado tres veces.
 	 *
 	 * Cada campo: { name, label, type?, required?, placeholder?, full? }
 	 * `type` acepta 'text' | 'email' | 'color' | 'textarea'.
@@ -16,50 +17,137 @@
 		entries,
 		form = null,
 		/** Columnas de la tabla: { field, label, kind? } */
-		columns
+		columns,
+		/** Ancho del dialogo: 'sm' una columna, 'md' dos. */
+		size = 'md'
 	} = $props();
 
-	// El formulario sirve para alta y edicion: al editar se precarga la fila.
+	// El dialogo sirve para alta y edicion: al editar se precarga la fila.
+	let open = $state(false);
 	let editingId = $state(null);
 	let draft = $state({});
+
+	/**
+	 * Error del guardado, en estado propio y NO leido de `form`.
+	 * `form` es unico por pagina: los `?/toggle` de cada fila escriben en el
+	 * mismo objeto, asi que mirarlo aqui haria que desactivar una fila pintase
+	 * su mensaje dentro del dialogo.
+	 */
+	let errorGuardar = $state(null);
 
 	const values = $derived(form?.values ?? draft);
 	const isEditing = $derived(editingId !== null);
 
-	function startEdit(entry) {
-		editingId = String(entry.id);
-		draft = { ...entry };
-	}
-
-	function cancelEdit() {
+	function abrirAlta() {
 		editingId = null;
 		draft = {};
+		errorGuardar = null;
+		open = true;
 	}
+
+	function abrirEdicion(entry) {
+		editingId = String(entry.id);
+		draft = { ...entry };
+		errorGuardar = null;
+		open = true;
+	}
+
+	function cerrar() {
+		open = false;
+		editingId = null;
+		draft = {};
+		errorGuardar = null;
+	}
+
+	const alGuardar = () => async ({ update, result }) => {
+		// `reset` solo en exito: en error hay que conservar lo tecleado.
+		await update({ reset: result.type === 'success' });
+		if (result.type === 'success') {
+			cerrar();
+		} else {
+			errorGuardar = result.data?.error ?? 'No se pudo guardar.';
+		}
+	};
 </script>
 
 <section class="panel">
+	<div class="page-header">
+		<button type="button" class="btn-primary" onclick={abrirAlta}>Nueva entrada</button>
+	</div>
+
 	{#if hint}
 		<p class="panel-hint">{hint}</p>
 	{/if}
 
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-	{#if form?.success}
-		<div class="alert-success" role="status">{form.success}</div>
+	<!-- Los mensajes de pagina se callan mientras el dialogo esta abierto: su
+	     error se pinta dentro, y detras no debe quedar el mismo texto repetido. -->
+	{#if !open}
+		{#if form?.error}
+			<div class="alert-error" role="alert">{form.error}</div>
+		{/if}
+		{#if form?.success}
+			<div class="alert-success" role="status">{form.success}</div>
+		{/if}
 	{/if}
 
-	<h2 class="catalog-subtitle">{isEditing ? 'Editar entrada' : 'Nueva entrada'}</h2>
+	{#if entries.length === 0}
+		<p class="empty-state">Todavía no hay entradas. Agrega la primera con «Nueva entrada».</p>
+	{:else}
+		<table class="data-table">
+			<thead>
+				<tr>
+					{#each columns as column (column.field)}
+						<th>{column.label}</th>
+					{/each}
+					<th>Estado</th>
+					<th>Acciones</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each entries as entry (entry.id)}
+					{@const active = entry.is_active === 1}
+					<tr class:row-inactive={!active}>
+						{#each columns as column (column.field)}
+							<td>
+								{#if column.kind === 'color'}
+									<span class="color-chip" style={`background:${entry[column.field] || '#6366f1'}`}
+									></span>
+									<span class="color-value">{entry[column.field] || '—'}</span>
+								{:else}
+									{entry[column.field] || '—'}
+								{/if}
+							</td>
+						{/each}
+						<td>
+							<span class="badge" class:badge-active={active} class:badge-inactive={!active}>
+								{active ? 'Activa' : 'Inactiva'}
+							</span>
+						</td>
+						<td class="row-actions">
+							<button type="button" class="btn-link" onclick={() => abrirEdicion(entry)}>
+								Editar
+							</button>
+							<form method="POST" action="?/toggle" use:enhance>
+								<input type="hidden" name="id" value={entry.id} />
+								<input type="hidden" name="is_active" value={active ? '2' : '1'} />
+								<button type="submit" class={active ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
+									{active ? 'Desactivar' : 'Reactivar'}
+								</button>
+							</form>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
+</section>
 
-	<form
-		method="POST"
-		action="?/save"
-		class="form-grid"
-		use:enhance={() => async ({ update, result }) => {
-			await update({ reset: result.type === 'success' });
-			if (result.type === 'success') cancelEdit();
-		}}
-	>
+<Modal bind:open {size} title={isEditing ? 'Editar entrada' : 'Nueva entrada'} onclose={cerrar}>
+	{#if errorGuardar}
+		<div class="alert-error" role="alert">{errorGuardar}</div>
+	{/if}
+
+	<form id="catalog-form" method="POST" action="?/save" class="form-grid" use:enhance={alGuardar}>
 		{#if isEditing}
 			<input type="hidden" name="id" value={editingId} />
 		{/if}
@@ -93,78 +181,17 @@
 				{/if}
 			</div>
 		{/each}
-
-		<div class="form-actions">
-			<button type="submit" class="btn-primary">
-				{isEditing ? 'Guardar cambios' : 'Agregar'}
-			</button>
-			{#if isEditing}
-				<button type="button" class="btn-secondary" onclick={cancelEdit}>Cancelar</button>
-			{/if}
-		</div>
 	</form>
-</section>
 
-<section class="panel">
-	<h2 class="catalog-subtitle">Registradas ({entries.length})</h2>
-
-	{#if entries.length === 0}
-		<p class="empty-state">Todavía no hay entradas. Agrega la primera arriba.</p>
-	{:else}
-		<table class="data-table">
-			<thead>
-				<tr>
-					{#each columns as column (column.field)}
-						<th>{column.label}</th>
-					{/each}
-					<th>Estado</th>
-					<th>Acciones</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each entries as entry (entry.id)}
-					{@const active = entry.is_active === 1}
-					<tr class:row-inactive={!active}>
-						{#each columns as column (column.field)}
-							<td>
-								{#if column.kind === 'color'}
-									<span class="color-chip" style={`background:${entry[column.field] || '#6366f1'}`}
-									></span>
-									<span class="color-value">{entry[column.field] || '—'}</span>
-								{:else}
-									{entry[column.field] || '—'}
-								{/if}
-							</td>
-						{/each}
-						<td>
-							<span class="badge" class:badge-active={active} class:badge-inactive={!active}>
-								{active ? 'Activa' : 'Inactiva'}
-							</span>
-						</td>
-						<td class="row-actions">
-							<button type="button" class="btn-link" onclick={() => startEdit(entry)}>Editar</button>
-							<form method="POST" action="?/toggle" use:enhance>
-								<input type="hidden" name="id" value={entry.id} />
-								<input type="hidden" name="is_active" value={active ? '2' : '1'} />
-								<button type="submit" class={active ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
-									{active ? 'Desactivar' : 'Reactivar'}
-								</button>
-							</form>
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	{/if}
-</section>
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
+		<button type="submit" form="catalog-form" class="btn-primary">
+			{isEditing ? 'Guardar cambios' : 'Agregar'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
-	.catalog-subtitle {
-		margin: 0 0 var(--sp-4);
-		font-size: var(--font-md);
-		font-weight: 600;
-	}
-
 	.color-input {
 		padding: 2px;
 		height: 38px;
@@ -176,26 +203,23 @@
 		width: 14px;
 		height: 14px;
 		border-radius: 4px;
-		vertical-align: middle;
-		margin-right: var(--sp-2);
-		border: 1px solid var(--border);
+		margin-right: 6px;
+		vertical-align: -2px;
 	}
 
 	.color-value {
-		font-size: var(--font-xs);
+		font-size: var(--font-sm);
 		color: var(--text-muted);
-	}
-
-	/* Las inactivas se atenuan pero siguen legibles: hay que poder leerlas
-	   para decidir si reactivarlas. */
-	.row-inactive td {
-		opacity: 0.6;
 	}
 
 	.row-actions {
 		display: flex;
 		align-items: center;
 		gap: var(--sp-3);
+	}
+
+	.row-inactive td {
+		opacity: 0.65;
 	}
 
 	.btn-sm {

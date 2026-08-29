@@ -37,11 +37,14 @@ export const actions: Actions = {
 		const id = text(form, 'id');
 		const name = text(form, 'name');
 		const color = text(form, 'color') || '#6366f1';
-		if (!name) return fail(400, { error: 'El nombre de la categoría es obligatorio.' });
+		// `values` viaja en todo `fail`: el dialogo se re-renderiza al recibir la
+		// respuesta y sin esto se quedaria vacio.
+		const values = { name, color };
+		if (!name) return fail(400, { error: 'El nombre de la categoría es obligatorio.', values });
 
 		const duplicate = await getCategoryRepository().findByName(ctx, name);
 		if (duplicate && String(duplicate.id) !== id) {
-			return fail(400, { error: `Ya existe la categoría «${name}» en esta empresa.` });
+			return fail(400, { error: `Ya existe la categoría «${name}» en esta empresa.`, values });
 		}
 
 		const saved = id
@@ -98,12 +101,13 @@ export const actions: Actions = {
 		const id = text(form, 'id');
 		const categoryId = text(form, 'category_id');
 		const name = text(form, 'name');
-		if (!categoryId) return fail(400, { error: 'Seleccione una categoría.' });
-		if (!name) return fail(400, { error: 'El nombre de la subcategoría es obligatorio.' });
+		const values = { category_id: categoryId, name };
+		if (!categoryId) return fail(400, { error: 'Seleccione una categoría.', values });
+		if (!name) return fail(400, { error: 'El nombre de la subcategoría es obligatorio.', values });
 
 		const duplicate = await getSubcategoryRepository().findByName(ctx, categoryId, name);
 		if (duplicate && String(duplicate.id) !== id) {
-			return fail(400, { error: `Ya existe «${name}» en esa categoría.` });
+			return fail(400, { error: `Ya existe «${name}» en esa categoría.`, values });
 		}
 
 		const saved = id

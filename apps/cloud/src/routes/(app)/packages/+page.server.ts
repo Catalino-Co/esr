@@ -30,10 +30,19 @@ export const actions: Actions = {
 		const form = await event.request.formData();
 
 		const name = String(form.get('name') ?? '').trim();
-		if (!name) return fail(400, { error: 'El nombre del paquete es obligatorio.' });
+		// `values` viaja en todo `fail`: el dialogo se re-renderiza al recibir la
+		// respuesta y sin esto se quedaria vacio.
+		const values = {
+			name,
+			description: String(form.get('description') ?? '').trim(),
+			suggested_price: String(form.get('suggested_price') ?? '')
+		};
+		if (!name) return fail(400, { error: 'El nombre del paquete es obligatorio.', values });
 
 		const duplicate = await getPackageRepository().findByName(ctx, name);
-		if (duplicate) return fail(400, { error: `Ya existe el paquete «${name}» en esta empresa.` });
+		if (duplicate) {
+			return fail(400, { error: `Ya existe el paquete «${name}» en esta empresa.`, values });
+		}
 
 		const created = await getPackageRepository().create(ctx, {
 			name,
