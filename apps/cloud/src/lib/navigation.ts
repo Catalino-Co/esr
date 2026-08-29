@@ -127,6 +127,10 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 		subtitle: 'Información que aparece en los documentos'
 	},
 	{ prefix: '/settings/members', title: 'Miembros', subtitle: 'Usuarios y roles de la empresa' },
+	{ prefix: '/settings/categories', title: 'Categorías', subtitle: 'Organizan el inventario. Cada categoría puede tener subcategorías.' },
+	{ prefix: '/settings/event-types', title: 'Tipos de evento', subtitle: 'Clasifican los eventos de la empresa y aparecen en los reportes.' },
+	{ prefix: '/settings/suppliers', title: 'Proveedores', subtitle: 'Empresas y personas a las que se subcontrata equipo o servicios.' },
+	{ prefix: '/settings/collaborators', title: 'Colaboradores', subtitle: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.' },
 	{ prefix: '/settings', title: 'Configuración', subtitle: 'Ajustes de la empresa activa' },
 	{ prefix: '/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
 	{ prefix: '/docs', title: 'Documentación', subtitle: 'Manual de usuario de ESR Cloud' }

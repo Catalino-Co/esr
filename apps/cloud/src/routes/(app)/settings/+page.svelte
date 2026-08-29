@@ -15,6 +15,30 @@
 			permission: 'settings.company.update'
 		},
 		{
+			href: '/settings/categories',
+			title: 'Categorías',
+			description: 'Organizan el inventario. Cada categoría puede tener subcategorías.',
+			permission: 'settings.catalogs.manage'
+		},
+		{
+			href: '/settings/event-types',
+			title: 'Tipos de evento',
+			description: 'Clasifican los eventos de la empresa y aparecen en los reportes.',
+			permission: 'settings.catalogs.manage'
+		},
+		{
+			href: '/settings/suppliers',
+			title: 'Proveedores',
+			description: 'Empresas y personas a las que se subcontrata equipo o servicios.',
+			permission: 'settings.catalogs.manage'
+		},
+		{
+			href: '/settings/collaborators',
+			title: 'Colaboradores',
+			description: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.',
+			permission: 'settings.catalogs.manage'
+		},
+		{
 			href: '/settings/members',
 			title: 'Miembros y roles',
 			description: 'Invita usuarios existentes a la empresa y define qué puede hacer cada uno.',

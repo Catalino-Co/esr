@@ -99,6 +99,69 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 		);
 	}
 
+	// Catalogos base (Fase 8b). Sin ellos la app arranca sin nada que elegir
+	// al crear un evento o clasificar un articulo.
+	const eventTypes = [
+		['Boda', '#e11d48'],
+		['Corporativo', '#2563eb'],
+		['Cumpleanos', '#f59e0b'],
+		['Concierto', '#7c3aed']
+	];
+	for (const [name, color] of eventTypes) {
+		await client.query(
+			`INSERT INTO event_types (company_id, name, color, is_active)
+			 VALUES ($1, $2, $3, 1)
+			 ON CONFLICT DO NOTHING`,
+			[companyId, name, color]
+		);
+	}
+
+	const catalogTree: Array<[string, string, string[]]> = [
+		['Sonido', '#2563eb', ['Bocinas', 'Consolas', 'Microfonos']],
+		['Iluminacion', '#f59e0b', ['Luces LED', 'Seguidores']],
+		['Mobiliario', '#10b981', ['Sillas', 'Mesas', 'Carpas']]
+	];
+	for (const [name, color, children] of catalogTree) {
+		const category = await client.query<{ id: number }>(
+			`INSERT INTO categories (company_id, name, color, is_active)
+			 VALUES ($1, $2, $3, 1)
+			 ON CONFLICT DO NOTHING
+			 RETURNING id`,
+			[companyId, name, color]
+		);
+		const categoryId =
+			category.rows[0]?.id ??
+			(
+				await client.query<{ id: number }>(
+					'SELECT id FROM categories WHERE company_id = $1 AND LOWER(TRIM(name)) = LOWER($2)',
+					[companyId, name]
+				)
+			).rows[0].id;
+
+		for (const child of children) {
+			await client.query(
+				`INSERT INTO subcategories (company_id, category_id, name, is_active)
+				 VALUES ($1, $2, $3, 1)
+				 ON CONFLICT DO NOTHING`,
+				[companyId, categoryId, child]
+			);
+		}
+	}
+
+	await client.query(
+		`INSERT INTO suppliers (company_id, name, service, contact, phone, is_active)
+		 VALUES ($1, 'Proveedor Demo', 'Transporte', 'Contacto Demo', '809-000-0001', 1)
+		 ON CONFLICT DO NOTHING`,
+		[companyId]
+	);
+
+	await client.query(
+		`INSERT INTO collaborators (company_id, name, role, phone, is_active)
+		 VALUES ($1, 'Colaborador Demo', 'Tecnico', '809-000-0002', 1)
+		 ON CONFLICT DO NOTHING`,
+		[companyId]
+	);
+
 	await client.query(
 		`INSERT INTO company_info (company_id, id, name, rnc, phone, email, address)
 		 VALUES ($1, 1, $2, '000-00000-0', '809-000-0000', $3, 'Santo Domingo, Republica Dominicana')

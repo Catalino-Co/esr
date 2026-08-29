@@ -7,6 +7,10 @@
 		// Apariencia no lleva permiso: es preferencia personal del usuario.
 		{ href: '/settings/appearance', label: 'Apariencia', permission: null },
 		{ href: '/settings/company', label: 'Empresa', permission: 'settings.company.update' },
+		{ href: '/settings/categories', label: 'Categorías', permission: 'settings.catalogs.manage' },
+		{ href: '/settings/event-types', label: 'Tipos de evento', permission: 'settings.catalogs.manage' },
+		{ href: '/settings/suppliers', label: 'Proveedores', permission: 'settings.catalogs.manage' },
+		{ href: '/settings/collaborators', label: 'Colaboradores', permission: 'settings.catalogs.manage' },
 		{ href: '/settings/members', label: 'Miembros', permission: 'settings.members.manage' }
 	];
 

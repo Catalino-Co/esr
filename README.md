@@ -531,8 +531,43 @@ Configuracion, cuyo contenido base es Apariencia, que es una preferencia
 personal del usuario y no configuracion de empresa. Cada subseccion sensible
 exige su propio permiso en su `load`.
 
-Pendiente de Fase 8b: los catalogos (`categories`, `event_types`, `suppliers`,
-`collaborators`), que consumiran `settings.catalogs.manage`.
+### Fase 8b - Catalogos de la empresa
+
+Cuatro catalogos bajo Configuracion, todos con `settings.catalogs.manage`, que
+tienen `admin` y `gerente` pero no `operador` ni `lector`:
+
+```text
+/settings/categories      -> categories + subcategories (arbol de dos niveles)
+/settings/event-types     -> event_types
+/settings/suppliers       -> suppliers
+/settings/collaborators   -> collaborators
+```
+
+**Nada se borra: se desactiva.** Los registros historicos (eventos, articulos,
+ordenes) apuntan a estas filas por id, asi que un borrado real dejaria huerfanos
+o reescribiria el pasado. Al desactivar algo en uso la pantalla avisa cuantos
+registros lo referencian, pero no lo impide: el historico conserva su valor.
+
+La logica repetida —validar el nombre, rechazar duplicados, guardar y auditar—
+vive una sola vez en `apps/cloud/src/lib/server/catalogs.ts`, y la pantalla
+generica en `lib/components/settings/CatalogManager.svelte`, que se configura
+declarando `fields` y `columns`. Categorias tiene pagina propia porque las
+subcategorias cuelgan de un padre.
+
+#### Unicidad por empresa (migracion 007)
+
+`event_types` venia del modelo de una sola empresa con `name TEXT UNIQUE`. La
+migracion 002 le agrego `company_id` pero **nunca toco esa restriccion**, asi
+que el UNIQUE seguia siendo global: la segunda empresa que intentara crear
+"Boda" chocaba contra el tipo de otra empresa, y de paso revelaba que ese
+nombre ya existia en algun sitio. La migracion 007 lo reemplaza por indices
+unicos `(company_id, LOWER(TRIM(name)))` en los cuatro catalogos —
+`(company_id, category_id, LOWER(TRIM(name)))` en subcategorias.
+
+Normalizar en el indice evita que "Boda" y " boda " convivan en la misma
+empresa. Las pantallas ademas consultan antes de escribir para dar un mensaje
+claro, pero **la barrera real es el indice**: entre la consulta y el INSERT cabe
+una escritura concurrente.
 
 Comandos:
 

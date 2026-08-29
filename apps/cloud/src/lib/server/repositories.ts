@@ -1,10 +1,12 @@
 import {
 	PostgresAuditLogRepository,
 	PostgresCategoryRepository,
+	PostgresCollaboratorRepository,
 	PostgresChecklistRepository,
 	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
 	PostgresCustomerRepository,
+	PostgresEventTypeRepository,
 	PostgresEventRepository,
 	PostgresIncidentRepository,
 	PostgresInventoryRepository,
@@ -12,6 +14,7 @@ import {
 	PostgresQuoteRepository,
 	PostgresRentalRepository,
 	PostgresStockMovementRepository,
+	PostgresSupplierRepository,
 	PostgresSubcategoryRepository,
 	QuoteConversionService,
 	getCompanyDocumentInfo,
@@ -34,6 +37,9 @@ let workOrderOperationsService: WorkOrderOperationsService | null = null;
 let auditLogRepository: PostgresAuditLogRepository | null = null;
 let companySettingsRepository: PostgresCompanySettingsRepository | null = null;
 let memberRepository: PostgresMemberRepository | null = null;
+let eventTypeRepository: PostgresEventTypeRepository | null = null;
+let supplierRepository: PostgresSupplierRepository | null = null;
+let collaboratorRepository: PostgresCollaboratorRepository | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -113,6 +119,21 @@ export function getCompanySettingsRepository(): PostgresCompanySettingsRepositor
 export function getMemberRepository(): PostgresMemberRepository {
 	if (!memberRepository) memberRepository = new PostgresMemberRepository();
 	return memberRepository;
+}
+
+export function getEventTypeRepository(): PostgresEventTypeRepository {
+	if (!eventTypeRepository) eventTypeRepository = new PostgresEventTypeRepository();
+	return eventTypeRepository;
+}
+
+export function getSupplierRepository(): PostgresSupplierRepository {
+	if (!supplierRepository) supplierRepository = new PostgresSupplierRepository();
+	return supplierRepository;
+}
+
+export function getCollaboratorRepository(): PostgresCollaboratorRepository {
+	if (!collaboratorRepository) collaboratorRepository = new PostgresCollaboratorRepository();
+	return collaboratorRepository;
 }
 
 export { getCompanyDocumentInfo };
