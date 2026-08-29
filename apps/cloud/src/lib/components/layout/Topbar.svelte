@@ -20,18 +20,6 @@
 		</div>
 	</div>
 
-	<div class="topbar-center">
-		<label class="search-shell">
-			<span class="search-icon" aria-hidden="true">{ICONS.search}</span>
-			<input
-				type="search"
-				placeholder="Buscar cliente, evento, cotización…"
-				disabled
-				aria-label="Búsqueda global (próximamente)"
-			/>
-		</label>
-	</div>
-
 	<div class="topbar-right">
 		<span class="company-pill">{company?.name ?? '—'}</span>
 	</div>
@@ -70,36 +58,6 @@
 		color: var(--text-muted);
 	}
 
-	.topbar-center {
-		flex: 1;
-		max-width: 420px;
-	}
-
-	.search-shell {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-2);
-		padding: var(--sp-2) var(--sp-3);
-		border: 1px solid var(--border);
-		border-radius: var(--border-radius-sm);
-		background: var(--bg-input);
-	}
-
-	.search-icon {
-		font-size: var(--font-sm);
-		color: var(--text-muted);
-	}
-
-	.search-shell input {
-		flex: 1;
-		min-width: 0;
-		border: none;
-		outline: none;
-		background: transparent;
-		font-size: var(--font-sm);
-		color: var(--text-primary);
-	}
-
 	.topbar-right {
 		display: flex;
 		align-items: center;
@@ -134,10 +92,6 @@
 	@media (max-width: 900px) {
 		.mobile-menu-btn {
 			display: block;
-		}
-
-		.topbar-center {
-			display: none;
 		}
 	}
 

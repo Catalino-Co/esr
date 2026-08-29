@@ -53,14 +53,6 @@
 			icon: ICONS.incidents
 		}
 	];
-
-	const quickActions = [
-		{ href: '/customers/new', label: 'Nuevo cliente', enabled: true },
-		{ href: '/events/new', label: 'Nuevo evento', enabled: true },
-		{ href: '/quotes/new', label: 'Nueva cotización', enabled: true },
-		{ href: '/work-orders', label: 'Ver órdenes', enabled: true },
-		{ href: '/inventory/new', label: 'Nuevo artículo', enabled: true }
-	];
 </script>
 
 <div class="dashboard">
@@ -139,19 +131,6 @@
 					{/each}
 				</ul>
 			{/if}
-		</article>
-
-		<article class="panel-card quick-actions-card">
-			<div class="panel-card-header">
-				<h3>Acciones rápidas</h3>
-			</div>
-			<div class="quick-actions">
-				{#each quickActions as action (action.href)}
-					{#if action.enabled}
-						<a class="quick-action" href={action.href}>{action.label}</a>
-					{/if}
-				{/each}
-			</div>
 		</article>
 	</section>
 </div>
@@ -298,32 +277,6 @@
 		padding: 12px 0;
 		color: var(--cloud-muted);
 		font-size: 0.88rem;
-	}
-
-	.quick-actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 10px;
-	}
-
-	.quick-action {
-		padding: 10px 14px;
-		border-radius: 8px;
-		border: 1px solid var(--cloud-border);
-		background: var(--cloud-bg);
-		color: var(--cloud-text);
-		font-size: 0.86rem;
-		font-weight: 600;
-	}
-
-	.quick-action:hover {
-		border-color: #c5d0e3;
-		background: var(--cloud-primary-soft);
-		color: var(--cloud-primary);
-	}
-
-	.quick-actions-card {
-		grid-column: 1 / -1;
 	}
 
 	@media (max-width: 900px) {
