@@ -80,7 +80,7 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: linear-gradient(135deg, #435ebe 0%, #2f4388 100%);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-active) 100%);
   }
 
   .login-box {
@@ -141,12 +141,12 @@
   }
 
   .input-group input:focus {
-    border-color: #435ebe;
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(67, 94, 190, 0.1);
   }
 
   .btn-login {
-    background-color: #435ebe;
+    background-color: var(--accent);
     color: white;
     border: none;
     padding: 14px;
@@ -159,7 +159,7 @@
   }
 
   .btn-login:hover:not(:disabled) {
-    background-color: #2f4388;
+    background-color: var(--accent-hover);
   }
 
   .btn-login:disabled {
@@ -168,18 +168,20 @@
   }
 
   .alert-error {
-    background-color: #fee2e2;
-    color: #ef4444;
+    /* El rojo puro como color de letra no pasa contraste: el par legible
+       es --danger-bg de fondo con --danger-text encima. */
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
     padding: 12px;
     border-radius: 6px;
     font-size: 0.85rem;
     text-align: center;
-    border: 1px solid #f87171;
+    border: 1px solid var(--danger);
   }
 
   .login-footer {
     text-align: center;
     margin-top: 30px;
-    color: #a0aec0;
+    color: var(--text-muted);
   }
 </style>

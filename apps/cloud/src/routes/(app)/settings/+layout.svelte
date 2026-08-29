@@ -46,11 +46,14 @@
 		border-bottom: 1px solid var(--cloud-border);
 	}
 
+	/* --text-muted da 4.8:1 sobre blanco, pero estas pestañas van sobre
+	   --surface-sunken y ahi se queda en 4.47:1, justo por debajo de AA.
+	   El escalon de arriba, --text-secondary, aguanta los dos fondos. */
 	.settings-tab {
 		padding: 10px 16px;
 		font-size: 0.9rem;
 		font-weight: 600;
-		color: var(--cloud-muted);
+		color: var(--text-secondary);
 		border-bottom: 2px solid transparent;
 		margin-bottom: -1px;
 	}

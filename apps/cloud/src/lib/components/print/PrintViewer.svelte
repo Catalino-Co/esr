@@ -51,14 +51,14 @@
 	}
 
 	.btn-back {
-		background: #e8edf3;
-		color: #2563eb;
-		border: 1px solid #e2e8f0;
+		background: var(--surface-sunken);
+		color: var(--accent);
+		border: 1px solid var(--border);
 	}
 
 	.btn-print {
-		background: #2563eb;
-		color: #fff;
+		background: var(--accent);
+		color: var(--text-on-accent);
 		border: none;
 	}
 

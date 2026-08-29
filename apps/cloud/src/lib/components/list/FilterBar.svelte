@@ -154,7 +154,7 @@
 
 	.filters-search input:focus {
 		border-color: var(--border-focus);
-		box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+		box-shadow: var(--focus-ring);
 	}
 
 	/* La X nativa del type=search duplica el borrado y descuadra la altura. */
@@ -185,7 +185,7 @@
 
 	.filters-control--date input:focus {
 		border-color: var(--border-focus);
-		box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+		box-shadow: var(--focus-ring);
 	}
 
 	/* Visible solo para quien navega sin JavaScript o con teclado. */

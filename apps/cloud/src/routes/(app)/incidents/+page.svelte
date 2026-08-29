@@ -36,7 +36,7 @@
 
 <style>
 	.btn-link {
-		color: var(--primary);
+		color: var(--text-brand);
 		text-decoration: none;
 		font-size: 0.9rem;
 	}

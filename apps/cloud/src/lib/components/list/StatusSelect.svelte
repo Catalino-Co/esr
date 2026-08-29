@@ -70,7 +70,7 @@
 	   transparente y su anillo quedaría por dentro del borde. */
 	.status-select:focus-within {
 		border-color: var(--border-focus);
-		box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+		box-shadow: var(--focus-ring);
 	}
 
 	select {

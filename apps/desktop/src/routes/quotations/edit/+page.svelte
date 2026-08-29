@@ -690,7 +690,7 @@
     font-weight: 600; cursor: pointer; white-space: nowrap; transition: .15s;
   }
   .btn-add:hover { filter: brightness(1.1); }
-  .btn-added { background: #6366f1; }
+  .btn-added { background: var(--accent); }
 
   /* ── Stock ───────────────────────────────────────────────────────────── */
   .stock-ok   { color: var(--success); font-weight: 600; }

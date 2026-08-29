@@ -1,11 +1,23 @@
 {
-	"version": "0.0.1",
-	"configurations": [
-		{
-			"name": "cloud",
-			"runtimeExecutable": "pnpm",
-			"runtimeArgs": ["dev:cloud"],
-			"port": 5178
-		}
-	]
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cloud",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev:cloud"
+      ],
+      "port": 5178
+    },
+    {
+      "name": "desktop",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "desktop",
+        "dev:svelte"
+      ],
+      "port": 5175
+    }
+  ]
 }

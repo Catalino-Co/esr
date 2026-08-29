@@ -25,13 +25,13 @@
   --primary: var(--brand-primary);
   --primary-hover: var(--brand-secondary);
   --secondary: var(--text-secondary);
-  --success: var(--brand-success);
-  --warning: var(--brand-warning);
-  --danger: var(--brand-danger);
+  /* --success, --warning, --danger y --radius-lg NO se listan aqui: desde
+     que son nombres canonicos en theme.css, un `--danger: var(--brand-danger)`
+     cierra el ciclo —porque alli --brand-danger es var(--danger)— y deja la
+     propiedad invalida en silencio. Los hereda directamente. */
   --info: var(--brand-info);
   --radius-sm: var(--border-radius-sm);
   --radius-md: var(--border-radius);
-  --radius-lg: var(--border-radius-lg);
 }
 
 html {
@@ -79,6 +79,28 @@ body {
 a {
   text-decoration: none;
   color: inherit;
+}
+
+/* `a { color: inherit }` de arriba pisa el color de letra de las variantes
+   de boton: las de theme.css van dentro de @layer y lo no-capado gana
+   siempre, sin importar la especificidad. Los ocho `<a class="btn-primary">`
+   de la app salian con la letra azul marino del body sobre el indigo, a
+   2.8:1. Se les devuelve aqui su color, que es donde toca segun la
+   cabecera de theme.css: se corrige en el app.css, no con !important. */
+a.btn-primary,
+a.btn-danger,
+a.btn-success,
+a.btn-info {
+	color: var(--text-on-accent);
+}
+
+a.btn-warning {
+	color: #1f1300;
+}
+
+a.btn-secondary,
+a.btn-ghost {
+	color: var(--text-primary);
 }
 
 /* Base Layout */

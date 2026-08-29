@@ -12,21 +12,22 @@
 	   referencia ciclica que deja la propiedad invalida en silencio. */
 	--cloud-bg: var(--bg-base);
 	--cloud-surface: var(--bg-surface);
-	--cloud-primary: var(--brand-primary);
-	--cloud-primary-soft: var(--bg-elevated);
+	--cloud-primary: var(--accent);
+	--cloud-primary-soft: var(--accent-subtle);
 	--cloud-text: var(--text-primary);
 	--cloud-muted: var(--text-muted);
 	--cloud-border: var(--border);
-	--cloud-danger: var(--brand-danger);
-	--cloud-success: var(--brand-success);
-	--cloud-warning: var(--brand-warning);
+	--cloud-border-strong: var(--border-strong);
+	--cloud-danger: var(--danger);
+	--cloud-success: var(--success);
+	--cloud-warning: var(--warning);
 	--cloud-shadow-sm: var(--shadow-sm);
 	--cloud-shadow-md: var(--shadow-md);
 
-	/* La barra lateral es siempre oscura: valores literales, nunca
-	   apuntando a un token que cambie con el tema. */
-	--cloud-sidebar: #111827;
-	--cloud-sidebar-soft: #1f2937;
+	/* La barra lateral es siempre oscura, igual en claro que en oscuro:
+	   sale de --sidebar-bg, que vive fuera de los bloques de tema. */
+	--cloud-sidebar: var(--sidebar-bg);
+	--cloud-sidebar-soft: var(--sidebar-item-active);
 
 	--topbar-height: 72px;
 }
@@ -40,6 +41,28 @@ body {
 a {
 	color: inherit;
 	text-decoration: none;
+}
+
+/* `a { color: inherit }` de arriba pisa el color de letra de las variantes
+   de boton: las de theme.css van dentro de @layer y lo no-capado gana
+   siempre, sin importar la especificidad. Los ocho `<a class="btn-primary">`
+   de la app salian con la letra azul marino del body sobre el indigo, a
+   2.8:1. Se les devuelve aqui su color, que es donde toca segun la
+   cabecera de theme.css: se corrige en el app.css, no con !important. */
+a.btn-primary,
+a.btn-danger,
+a.btn-success,
+a.btn-info {
+	color: var(--text-on-accent);
+}
+
+a.btn-warning {
+	color: #1f1300;
+}
+
+a.btn-secondary,
+a.btn-ghost {
+	color: var(--text-primary);
 }
 
 button,
@@ -63,7 +86,7 @@ p {
 
 .eyebrow {
 	margin: 0 0 6px;
-	color: var(--brand-primary);
+	color: var(--accent);
 	font-size: var(--font-xs);
 	font-weight: 800;
 	text-transform: uppercase;
@@ -143,7 +166,7 @@ p {
 .form-grid textarea:focus {
 	outline: none;
 	border-color: var(--border-focus);
-	box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+	box-shadow: var(--focus-ring);
 }
 
 /* El auto-fit no tiene equivalente en Workshop: sin esto, todos los

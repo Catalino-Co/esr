@@ -193,7 +193,7 @@
 		color: var(--cloud-muted);
 	}
 
-	.accent-blue .stat-icon { background: #eff6ff; color: #2563eb; }
+	.accent-blue .stat-icon { background: var(--accent-subtle); color: var(--accent); }
 	.accent-indigo .stat-icon { background: #eef2ff; color: #4f46e5; }
 	.accent-cyan .stat-icon { background: #ecfeff; color: #0891b2; }
 	.accent-amber .stat-icon { background: #fffbeb; color: #d97706; }

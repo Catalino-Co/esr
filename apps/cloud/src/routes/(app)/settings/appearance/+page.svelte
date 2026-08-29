@@ -106,18 +106,21 @@
 		border: 1px solid var(--border);
 	}
 
+	/* Literales a proposito: la miniatura muestra el tema claro y el
+	   oscuro a la vez, asi que no puede usar tokens —se resolverian los
+	   del tema activo en las dos—. Copiados de --surface-page. */
 	.theme-preview--light {
-		background: #f0f4f8;
+		background: #f6f8fb;
 	}
 	.theme-preview--dark {
-		background: #0f172a;
+		background: #020617;
 	}
 
 	.tp-sidebar {
 		width: 26px;
 		height: 100%;
 		flex-shrink: 0;
-		background: #1a2744;
+		background: #1e1b4b;
 	}
 
 	.tp-content {
@@ -142,6 +145,6 @@
 		background: #cbd5e1;
 	}
 	.theme-preview--dark .tp-bar {
-		background: #1e3a5f;
+		background: #334155;
 	}
 </style>

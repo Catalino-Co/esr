@@ -826,7 +826,7 @@
     font-weight:600; cursor:pointer; white-space:nowrap; transition:.15s;
   }
   .btn-add:hover { filter:brightness(1.1); }
-  .btn-added { background:#6366f1; }
+  .btn-added { background: var(--accent); }
   .serial-chip {
     margin-left:6px; font-size:.65rem; font-weight:700;
     background:rgba(245,158,11,.14); color:#b45309;

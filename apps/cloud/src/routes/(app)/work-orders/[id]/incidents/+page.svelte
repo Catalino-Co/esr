@@ -100,7 +100,7 @@
 	.btn-link {
 		background: none;
 		border: none;
-		color: var(--primary);
+		color: var(--text-brand);
 		cursor: pointer;
 		text-decoration: none;
 		margin-right: 8px;

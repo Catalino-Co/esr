@@ -425,6 +425,62 @@ paquete, cantidad de linea mayor que cero y estados de serial cerrados. Ademas
 `work_order_item_serials` gana `company_id`, para poder filtrar la asignacion
 sin cruzar con `work_orders` en cada consulta.
 
+## Paleta
+
+Los tokens viven en `packages/config/src/theme.css` y los consumen las dos
+apps. La fuente unica son los nombres cortos —`--accent`, `--surface`,
+`--text-muted`…—; el vocabulario historico de ESR (`--brand-primary`,
+`--bg-base`, `--sb-*`, `--primary`…) sigue existiendo como **alias** que
+apuntan a ellos, que es lo que permite cambiar la paleta entera sin tocar los
+~250 usos repartidos por las dos apps.
+
+**Un alias nunca lleva un literal.** Si un `app.css` escribe
+`--danger: var(--brand-danger)` y `theme.css` tiene
+`--brand-danger: var(--danger)`, el ciclo deja la propiedad **invalida en
+silencio**: no hay error, simplemente no pinta. Le paso a Desktop con
+`--success`, `--warning`, `--danger` y `--radius-lg` al adoptar esta paleta.
+
+### Tres reglas
+
+1. **`--text-muted` es el ultimo escalon legible**, no el mas claro. Da 4.8:1
+   sobre `--surface` y pasa AA: es el de los encabezados de tabla.
+   `--text-placeholder` se queda en 2.6:1 y solo vale para placeholders e
+   iconos decorativos.
+2. **`--accent` senala una cosa por pantalla**: boton primario, item activo del
+   nav, anillo de foco y enlaces. Repartido tambien por badges, iconos y
+   bordes deja de senalar nada.
+3. **El color puro de un estado no es el color de su letra.** Cada estado son
+   tres tokens: `--success` para el punto o el borde, `--success-bg` de fondo y
+   `--success-text` encima. `#10b981` como texto sobre blanco no pasa
+   contraste.
+
+### El umbral depende del fondo, no del color
+
+Dos consecuencias medidas, no deducidas:
+
+- `--text-muted` (#64748b) da 4.8:1 sobre `--surface` pero **4.47:1 sobre
+  `--surface-sunken`**. Lo que va sobre el fondo hundido sube a
+  `--text-secondary`.
+- En el tema oscuro ese mismo gris cae a **3.07:1** sobre `--surface`. Por eso
+  la escala de texto oscura sube un escalon completo respecto a la clara y
+  #64748b pasa a ser alli el placeholder. Es la regla 1 aplicada a su propio
+  fondo.
+
+La barra lateral es el caso inverso: `--sb-text-item` es #94a3b8, que en claro
+seria solo placeholder, pero sobre el indigo oscuro da 5.8:1.
+
+### Barra lateral
+
+`--sidebar-bg` y los `--sb-*` viven **fuera** de los bloques de tema: la barra
+es siempre oscura. Cualquier color suyo que se tome de un token que si cambia
+con el tema se rompe al pasar a oscuro; le paso al avatar, que con
+`var(--accent)` bajaba a 4.47:1 en oscuro y ahora usa `--sb-avatar-bg`.
+
+Es `position: sticky; top: 0` con `align-self: flex-start`. Sin eso mide
+100vh dentro de un `.app-shell` que crece con el contenido, y en cuanto la
+pagina es mas alta que la ventana la barra se queda arriba y debajo asoma el
+fondo claro. Desktop no lo notaba porque su `body` lleva `overflow: hidden`.
+
 ## Estado de Circulacion y Barras de Filtro
 
 ### Estado de circulacion
