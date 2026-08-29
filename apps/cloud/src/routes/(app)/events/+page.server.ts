@@ -1,3 +1,4 @@
+import { SELECTABLE_STATES, parseRecordState } from '@esr/core';
 import type { PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository } from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
@@ -8,10 +9,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
 	const status = url.searchParams.get('status')?.trim() || undefined;
+	const state = parseRecordState(url.searchParams.get('state'));
 
 	const [events, customers] = await Promise.all([
-		getEventRepository().list(ctx, { search, status, limit: 100, offset: 0 }),
-		getCustomerRepository().list(ctx, { is_active: 1, limit: 500, offset: 0 })
+		getEventRepository().list(ctx, { search, status, state, limit: 100, offset: 0 }),
+		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 500, offset: 0 })
 	]);
 
 	const customerMap = new Map(customers.map((customer) => [customer.id, customer.name]));
@@ -22,6 +24,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			client_name: event.client_id ? customerMap.get(event.client_id) ?? '—' : '—'
 		})),
 		search: search ?? '',
-		status: status ?? ''
+		status: status ?? '',
+		state
 	};
 };

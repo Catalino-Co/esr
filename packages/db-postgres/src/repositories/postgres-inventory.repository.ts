@@ -1,8 +1,9 @@
-import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId, InventoryItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
 export class PostgresInventoryRepository implements TenantInventoryRepository {
@@ -24,7 +25,8 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		}
 		if (filters.status) { params.push(filters.status); where.push(`status = $${params.length}`); }
 		if (filters.category_id) { params.push(filters.category_id); where.push(`category_id = $${params.length}`); }
-		if (filters.is_active != null) { params.push(filters.is_active); where.push(`is_active = $${params.length}`); }
+		// Sin estado explicito se listan solo los activos.
+		appendStateFilter(params, where, filters.state);
 		const result = await this.pool.query<InventoryItem>(
 			`SELECT * FROM items WHERE ${where.join(' AND ')} ORDER BY name${appendPagination(params, filters)}`, params
 		);
@@ -67,8 +69,11 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
-		await this.pool.query('UPDATE items SET is_active = 0 WHERE company_id = $1 AND id = $2', [requireCompanyId(ctx), id]);
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
+		await this.pool.query(
+			'UPDATE items SET is_active = $3 WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
+		);
 	}
 
 	async findAvailableByDateRange(ctx: RepositoryContext, input: AvailabilityInput = {}): Promise<InventoryAvailability[]> {

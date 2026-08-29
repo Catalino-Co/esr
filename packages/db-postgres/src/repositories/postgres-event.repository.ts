@@ -1,8 +1,9 @@
-import type { EventConflictInput, EventListFilters, RepositoryContext, TenantCreateEventInput, TenantEventRepository } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import type { EventConflictInput, EventListFilters, RecordState, RepositoryContext, TenantCreateEventInput, TenantEventRepository } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId, Event } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
 export class PostgresEventRepository implements TenantEventRepository {
@@ -23,6 +24,9 @@ export class PostgresEventRepository implements TenantEventRepository {
 			params.push(`%${filters.search}%`);
 			where.push(`(name ILIKE $${params.length} OR location ILIKE $${params.length})`);
 		}
+		// Estado de circulacion. Esta consulta ignoraba `is_active` por completo,
+		// asi que los desactivados seguian saliendo en la lista.
+		appendStateFilter(params, where, filters.state);
 		if (filters.status) {
 			params.push(filters.status);
 			where.push(`status = $${params.length}`);
@@ -97,10 +101,11 @@ export class PostgresEventRepository implements TenantEventRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
-		await this.pool.query('UPDATE events SET is_active = 0 WHERE company_id = $1 AND id = $2', [
-			requireCompanyId(ctx), id
-		]);
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
+		await this.pool.query(
+			'UPDATE events SET is_active = $3 WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
+		);
 	}
 
 	async cancel(ctx: RepositoryContext, id: ESRId): Promise<Event> {

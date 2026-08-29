@@ -1,4 +1,5 @@
 <script>
+	import RecordStateControl from '$lib/components/list/RecordStateControl.svelte';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
@@ -11,6 +12,12 @@
 		<h1>{item.name}</h1>
 		<a class="btn-secondary" href="/inventory">Volver al listado</a>
 	</div>
+
+	<RecordStateControl
+		state={item.is_active}
+		editable={can('inventory.archive')}
+		noun="artículo"
+	/>
 
 	{#if form?.success}
 		<p class="badge badge-active">Cambios guardados.</p>
@@ -109,11 +116,6 @@
 		</div>
 	</form>
 
-	{#if item.is_active && can('inventory.deactivate')}
-		<form method="POST" action="?/deactivate" style="margin-top: 16px" use:enhance>
-			<button type="submit" class="btn-danger">Desactivar artículo</button>
-		</form>
-	{/if}
 </section>
 
 {#if data.isSerialized}

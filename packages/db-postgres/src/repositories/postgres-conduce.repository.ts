@@ -1,11 +1,22 @@
-import type { RepositoryContext } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import type { RecordStateFilter, RepositoryContext } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { Conduce, ConduceItem, ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
-export type ConduceListFilters = { work_order_id?: ESRId; conduce_type?: string; limit?: number; offset?: number };
+export type ConduceListFilters = {
+	/** Estado de circulacion; por defecto, solo activos. */
+	state?: RecordStateFilter;
+	work_order_id?: ESRId;
+	conduce_type?: string;
+	/** Numero de conduce o cliente. */
+	search?: string;
+	status?: string;
+	limit?: number;
+	offset?: number;
+};
 
 export class PostgresConduceRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
@@ -29,7 +40,8 @@ export class PostgresConduceRepository {
 
 	async list(ctx: RepositoryContext, filters: ConduceListFilters = {}): Promise<Conduce[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
-		const where = ['company_id = $1', 'is_active = 1'];
+		const where = ['company_id = $1'];
+		appendStateFilter(params, where, filters.state);
 		if (filters.work_order_id) {
 			params.push(filters.work_order_id);
 			where.push(`work_order_id = $${params.length}`);
@@ -37,6 +49,14 @@ export class PostgresConduceRepository {
 		if (filters.conduce_type) {
 			params.push(filters.conduce_type);
 			where.push(`conduce_type = $${params.length}`);
+		}
+		if (filters.status) {
+			params.push(filters.status);
+			where.push(`status = $${params.length}`);
+		}
+		if (filters.search) {
+			params.push(`%${filters.search}%`);
+			where.push(`note_number ILIKE $${params.length}`);
 		}
 		const result = await this.pool.query<Conduce>(
 			`SELECT * FROM conduces WHERE ${where.join(' AND ')} ORDER BY created_at DESC${appendPagination(params, filters)}`,

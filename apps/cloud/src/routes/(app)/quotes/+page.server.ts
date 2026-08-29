@@ -1,3 +1,4 @@
+import { parseRecordState } from '@esr/core';
 import type { PageServerLoad } from './$types';
 import {
 	getCustomerRepository,
@@ -12,8 +13,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
 	const status = url.searchParams.get('status')?.trim() || undefined;
+	// Estado de circulacion, eje distinto del estado de negocio de arriba.
+	const state = parseRecordState(url.searchParams.get('state'));
 
-	const quotes = await getQuoteRepository().list(ctx, { search, status, limit: 100, offset: 0 });
+	const quotes = await getQuoteRepository().list(ctx, { search, status, state, limit: 100, offset: 0 });
 	const customers = await getCustomerRepository().list(ctx, { limit: 500, offset: 0 });
 	const events = await getEventRepository().list(ctx, { limit: 500, offset: 0 });
 
@@ -27,6 +30,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			event_name: quote.event_id ? eventMap.get(quote.event_id) ?? '—' : '—'
 		})),
 		search: search ?? '',
-		status: status ?? ''
+		status: status ?? '',
+		state
 	};
 };

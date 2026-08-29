@@ -12,6 +12,7 @@ import { requireCompanyId } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 
 /**
  * Base comun de los catalogos simples. Las tres tablas se consultan igual y
@@ -42,14 +43,15 @@ abstract class PostgresCatalogRepository<TDraft extends { id?: ESRId | null; nam
 	}
 
 	async list(ctx: RepositoryContext, options: CatalogListOptions = {}): Promise<TDraft[]> {
+		const params: unknown[] = [requireCompanyId(ctx)];
 		const where = ['company_id = $1'];
-		if (!options.includeInactive) where.push('is_active = 1');
+		appendStateFilter(params, where, options.state);
 		const result = await this.pool.query<TDraft>(
 			`SELECT ${this.columns}
 			 FROM ${this.table}
 			 WHERE ${where.join(' AND ')}
-			 ORDER BY is_active DESC, name`,
-			[requireCompanyId(ctx)]
+			 ORDER BY name`,
+			params
 		);
 		return result.rows;
 	}

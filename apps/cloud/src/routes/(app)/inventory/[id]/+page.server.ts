@@ -1,6 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { isSerializedInventoryItem, parseSerialLines, uniqueSerialLines } from '@esr/core';
+import { RECORD_STATE, RECORD_STATE_LABELS, isRecordState, isSerializedInventoryItem, parseSerialLines, uniqueSerialLines } from '@esr/core';
 import {
 	getCategoryRepository,
 	getInventoryRepository,
@@ -190,19 +190,27 @@ export const actions: Actions = {
 
 		return { success: true };
 	},
-	deactivate: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requirePermission(locals, 'inventory.deactivate');
+	setState: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'inventory.archive');
 		const ctx = toTenantContext(companyId);
-		const item = await getInventoryRepository().findById(ctx, params.id);
-		if (!item) error(404, 'Artículo no encontrado');
-		await getInventoryRepository().deactivate(ctx, params.id);
-		await recordAuditLog({ locals, request, getClientAddress }, {
-			action: 'inventory.deactivated',
-			entity_type: 'inventory',
-			entity_id: String(params.id),
-			description: `Artículo desactivado: ${item.name}`
+		const form = await event.request.formData();
+
+		const state = Number(form.get('state'));
+		if (!isRecordState(state)) return fail(400, { error: 'Estado no válido.' });
+
+		const record = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!record) error(404, 'Artículo no encontrado');
+
+		await getInventoryRepository().setState(ctx, event.params.id, state);
+
+		await recordAuditLog(event, {
+			action: 'record.state_changed',
+			entity_type: 'inventory_item',
+			entity_id: String(event.params.id),
+			description: `Artículo «${record.name}» → ${RECORD_STATE_LABELS[state]}`
 		});
-		throw redirect(303, '/inventory');
+
+		return { success: `«${record.name}» ahora está ${RECORD_STATE_LABELS[state].toLowerCase()}.` };
 	}
 };
 

@@ -11,7 +11,7 @@ import type {
 	TenantPackageRepository,
 	TenantSerialRepository
 } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -24,8 +24,7 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 	}
 
 	async list(ctx: RepositoryContext, options: CatalogListOptions = {}): Promise<PackageDraft[]> {
-		const where = ['p.company_id = $1'];
-		if (!options.includeInactive) where.push('p.is_active = 1');
+		const state = options.state ?? DEFAULT_RECORD_STATE;
 
 		// El conteo de lineas se resuelve aqui para no tener que pedir los items
 		// de cada paquete solo para pintar el listado.
@@ -35,9 +34,9 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 				(SELECT COUNT(*)::int FROM package_items pi
 				 WHERE pi.company_id = p.company_id AND pi.package_id = p.id) AS item_count
 			 FROM packages p
-			 WHERE ${where.join(' AND ')}
-			 ORDER BY p.is_active DESC, p.name`,
-			[requireCompanyId(ctx)]
+			 WHERE p.company_id = $1 AND p.is_active = $2
+			 ORDER BY p.name`,
+			[requireCompanyId(ctx), state]
 		);
 		return result.rows;
 	}

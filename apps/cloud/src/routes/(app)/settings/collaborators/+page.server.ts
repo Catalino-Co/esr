@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { RECORD_STATE, SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	isValidEmail,
@@ -20,10 +21,11 @@ const NAMES: CatalogAuditNames = {
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
-	// includeInactive: la pantalla de configuración también debe poder
-	// reactivar lo que se desactivó antes.
-	const entries = await getCollaboratorRepository().list(toTenantContext(companyId), { includeInactive: true });
-	return { entries };
+	// Sin selector de estado: la pantalla muestra activos e inactivos a la vez,
+	// porque reactivar solo se puede desde la propia fila.
+	const state = SELECTABLE_STATES;
+	const entries = await getCollaboratorRepository().list(toTenantContext(companyId), { state });
+	return { entries, state };
 };
 
 export const actions: Actions = {
@@ -65,7 +67,7 @@ export const actions: Actions = {
 			repo: getCollaboratorRepository(),
 			names: NAMES,
 			id,
-			isActive: text(form, 'is_active') === '1' ? 1 : 0
+			isActive: text(form, 'is_active') === '1' ? RECORD_STATE.ACTIVE : RECORD_STATE.INACTIVE
 		});
 	}
 };

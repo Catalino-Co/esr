@@ -1,8 +1,14 @@
 <script>
 	import { enhance } from '$app/forms';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import { can } from '$lib/can';
+	import { stateSelect } from '$lib/list-filters';
 
 	let { data, form } = $props();
+
+	// El alta era un formulario siempre visible dentro del panel; ahora se abre
+	// desde la cabecera, para que las nueve pantallas tengan la misma forma.
+	let creating = $state(false);
 
 	const money = (v) =>
 		Number(v ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -11,7 +17,17 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Paquetes</h1>
+		{#if can('packages.create')}
+			<button type="button" class="btn-primary" onclick={() => (creating = !creating)}>
+				{creating ? 'Cancelar' : 'Nuevo paquete'}
+			</button>
+		{/if}
 	</div>
+
+	<FilterBar
+		search={{ name: 'search', placeholder: 'Nombre del paquete', value: data.search }}
+		selects={[stateSelect(data.state)]}
+	/>
 
 	<p class="panel-hint">
 		Agrupan artículos que se alquilan juntos. Desde una cotización se insertan de una vez y se
@@ -25,7 +41,7 @@
 		<div class="alert-success" role="status">{form.success}</div>
 	{/if}
 
-	{#if can('packages.create')}
+	{#if can('packages.create') && creating}
 		<form method="POST" action="?/create" class="form-grid" use:enhance>
 			<div class="form-field">
 				<label for="name">Nombre *</label>
@@ -78,7 +94,7 @@
 						</td>
 						<td class="acciones">
 							<a href="/packages/{pkg.id}">Ver</a>
-							{#if can('packages.deactivate')}
+							{#if can('packages.archive')}
 								<form method="POST" action="?/toggle" use:enhance>
 									<input type="hidden" name="id" value={pkg.id} />
 									<input type="hidden" name="is_active" value={activo ? '0' : '1'} />

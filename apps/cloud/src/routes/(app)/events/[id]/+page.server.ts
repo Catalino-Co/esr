@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { RECORD_STATE_LABELS, SELECTABLE_STATES, isRecordState } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository, getQuoteRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
@@ -12,7 +13,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const event = await getEventRepository().findById(ctx, params.id);
 	if (!event) error(404, 'Evento no encontrado');
 
-	const customers = await getCustomerRepository().list(ctx, { is_active: 1, limit: 500, offset: 0 });
+	const customers = await getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 500, offset: 0 });
 	const client = event.client_id
 		? await getCustomerRepository().findById(ctx, event.client_id)
 		: null;
@@ -91,12 +92,26 @@ export const actions: Actions = {
 		});
 		throw redirect(303, `/events/${params.id}`);
 	},
-	deactivate: async ({ locals, params }) => {
-		const { companyId } = requirePermission(locals, 'events.deactivate');
+	setState: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'events.archive');
 		const ctx = toTenantContext(companyId);
-		const event = await getEventRepository().findById(ctx, params.id);
-		if (!event) error(404, 'Evento no encontrado');
-		await getEventRepository().deactivate(ctx, params.id);
-		throw redirect(303, '/events');
+		const form = await event.request.formData();
+
+		const state = Number(form.get('state'));
+		if (!isRecordState(state)) return fail(400, { error: 'Estado no válido.' });
+
+		const record = await getEventRepository().findById(ctx, event.params.id);
+		if (!record) error(404, 'Evento no encontrado');
+
+		await getEventRepository().setState(ctx, event.params.id, state);
+
+		await recordAuditLog(event, {
+			action: 'record.state_changed',
+			entity_type: 'event',
+			entity_id: String(event.params.id),
+			description: `Evento «${record.name}» → ${RECORD_STATE_LABELS[state]}`
+		});
+
+		return { success: `«${record.name}» ahora está ${RECORD_STATE_LABELS[state].toLowerCase()}.` };
 	}
 };

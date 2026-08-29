@@ -7,12 +7,13 @@ import {
 	type TenantCreateQuoteInput,
 	type TenantQuoteRepository
 } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId, Quote, QuoteItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
-import type { QuoteListFilters } from '@esr/core';
+import type { QuoteListFilters, RecordState } from '@esr/core';
 
 const ACTIVE_RESERVATION_STATUSES = [
 	'confirmado',
@@ -66,6 +67,9 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 				`(q.quote_number ILIKE $${params.length} OR c.name ILIKE $${params.length} OR e.name ILIKE $${params.length})`
 			);
 		}
+		// Estado de circulacion. Esta consulta ignoraba `is_active` por completo,
+		// asi que los desactivados seguian saliendo en la lista.
+		appendStateFilter(params, where, filters.state, 'q.');
 		if (filters.status) {
 			params.push(filters.status);
 			where.push(`q.status = $${params.length}`);
@@ -165,11 +169,11 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
-		await this.pool.query('UPDATE quotations SET is_active = 0 WHERE company_id = $1 AND id = $2', [
-			requireCompanyId(ctx),
-			id
-		]);
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
+		await this.pool.query(
+			'UPDATE quotations SET is_active = $3 WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
+		);
 	}
 
 	async listItems(ctx: RepositoryContext, quoteId: ESRId, client?: pg.PoolClient): Promise<QuoteItem[]> {

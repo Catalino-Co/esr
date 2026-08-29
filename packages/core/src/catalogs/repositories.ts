@@ -1,4 +1,5 @@
 import type { ESRId } from '@esr/schemas';
+import type { RecordState, RecordStateFilter } from '../shared/record-state';
 import type { RepositoryContext } from '../shared/tenant';
 
 /**
@@ -9,9 +10,13 @@ import type { RepositoryContext } from '../shared/tenant';
  */
 
 export type CatalogListOptions = {
-	/** Por defecto solo se devuelven los activos. La pantalla de configuracion
-	 *  necesita ver tambien los inactivos para poder reactivarlos. */
-	includeInactive?: boolean;
+	/**
+	 * Estado de circulacion a listar. Sin valor se devuelven los activos.
+	 *
+	 * Sustituye al antiguo `includeInactive?: boolean`, que no podia expresar
+	 * tres estados: un booleano solo distingue "activos" de "todos".
+	 */
+	state?: RecordStateFilter;
 };
 
 export type EventTypeDraft = {

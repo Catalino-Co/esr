@@ -1,9 +1,12 @@
 import type { ESRId, Quote, QuoteItem } from '@esr/schemas';
+import type { RecordState, RecordStateFilter } from '../shared/record-state';
 import type { RepositoryContext } from '../shared/tenant';
 
 export type CreateQuoteInput = Omit<Quote, 'id'> & { items: QuoteItem[] };
 export type TenantCreateQuoteInput = Omit<CreateQuoteInput, 'company_id'>;
-export type QuoteListFilters = { search?: string; status?: string; event_id?: ESRId; created_from?: string; limit?: number; offset?: number };
+export type QuoteListFilters = {
+	/** Estado de circulacion; por defecto, solo activos. */
+	state?: RecordStateFilter; search?: string; status?: string; event_id?: ESRId; created_from?: string; limit?: number; offset?: number };
 
 export type AddQuoteItemInput = {
 	item_id: ESRId;
@@ -33,7 +36,12 @@ export interface TenantQuoteRepository {
 	findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<Quote[]>;
 	create(ctx: RepositoryContext, data: TenantCreateQuoteInput): Promise<Quote>;
 	update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateQuoteInput>): Promise<Quote>;
-	deactivate(ctx: RepositoryContext, id: ESRId): Promise<void>;
+	/**
+	 * Cambia el estado de circulacion. Sustituye al antiguo `deactivate()`, que
+	 * fijaba 0 a pelo y no tenia inverso: con tres estados hace falta poder
+	 * mover el registro en las dos direcciones.
+	 */
+	setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void>;
 	listItems(ctx: RepositoryContext, quoteId: ESRId): Promise<QuoteItem[]>;
 	addItem(ctx: RepositoryContext, quoteId: ESRId, data: AddQuoteItemInput): Promise<QuoteItem>;
 	updateItem(ctx: RepositoryContext, quoteId: ESRId, itemId: ESRId, data: Partial<AddQuoteItemInput>): Promise<QuoteItem>;

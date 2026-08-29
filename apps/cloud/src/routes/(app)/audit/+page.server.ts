@@ -20,7 +20,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		offset: 0
 	});
 
+	// Valores reales para poblar el select de entidad, en vez de pedir al
+	// usuario que adivine la cadena exacta.
+	const entityTypes = [...new Set(logs.map((log) => log.entity_type).filter(Boolean))].sort();
+
 	return {
+		entityTypes,
 		logs,
 		action: action ?? '',
 		entityType: entityType ?? '',

@@ -1,3 +1,4 @@
+import { parseRecordState } from '@esr/core';
 import type { PageServerLoad } from './$types';
 import { summarizePayments } from '@esr/core';
 import { requirePermission } from '$lib/server/permissions';
@@ -10,10 +11,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const status = url.searchParams.get('status') ?? '';
 	const search = url.searchParams.get('search') ?? '';
+	const state = parseRecordState(url.searchParams.get('state'));
 
 	const contracts = await getContractRepository().list(ctx, {
 		status: status || undefined,
-		search: search || undefined
+		search: search || undefined,
+		state
 	});
 
 	// El saldo de cada contrato sale de su cotización menos lo cobrado. Se
@@ -28,5 +31,5 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		})
 	);
 
-	return { contracts: rows, status, search };
+	return { contracts: rows, status, search, state };
 };

@@ -1,3 +1,4 @@
+import { RECORD_STATE } from '@esr/core';
 import type { PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { getCategoryRepository, getInventoryRepository } from '$lib/server/repositories';
@@ -16,7 +17,7 @@ export const load: PageServerLoad = async (event) => {
 			search,
 			status,
 			category_id: category,
-			is_active: 1,
+			state: RECORD_STATE.ACTIVE,
 			limit: 500,
 			offset: 0
 		}),

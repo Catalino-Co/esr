@@ -1,8 +1,9 @@
-import type { CustomerListFilters, RepositoryContext, TenantCreateCustomerInput, TenantCustomerRepository } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import type { CustomerListFilters, RecordState, RepositoryContext, TenantCreateCustomerInput, TenantCustomerRepository } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { Customer, ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
 export class PostgresCustomerRepository implements TenantCustomerRepository {
@@ -24,10 +25,8 @@ export class PostgresCustomerRepository implements TenantCustomerRepository {
 			params.push(`%${filters.search}%`);
 			where.push(`(name ILIKE $${params.length} OR email ILIKE $${params.length} OR phone ILIKE $${params.length})`);
 		}
-		if (filters.is_active != null) {
-			params.push(filters.is_active);
-			where.push(`is_active = $${params.length}`);
-		}
+		// Sin estado explicito se listan solo los activos.
+		appendStateFilter(params, where, filters.state);
 		const result = await this.pool.query<Customer>(
 			`SELECT * FROM clients WHERE ${where.join(' AND ')} ORDER BY name${appendPagination(params, filters)}`,
 			params
@@ -67,10 +66,11 @@ export class PostgresCustomerRepository implements TenantCustomerRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
-		await this.pool.query('UPDATE clients SET is_active = 0 WHERE company_id = $1 AND id = $2', [
-			requireCompanyId(ctx), id
-		]);
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
+		await this.pool.query(
+			'UPDATE clients SET is_active = $3 WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
+		);
 	}
 }
 

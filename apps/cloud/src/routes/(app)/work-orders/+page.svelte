@@ -1,4 +1,6 @@
 <script>
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import { businessSelect, stateSelect } from '$lib/list-filters';
 	let { data } = $props();
 </script>
 
@@ -7,16 +9,20 @@
 		<h1>Órdenes de trabajo</h1>
 	</div>
 
-	<form class="filter-bar" method="GET">
-		<input type="search" name="search" placeholder="Buscar por cliente" value={data.search} />
-		<select name="status">
-			<option value="">Todos</option>
-			<option value="confirmado" selected={data.status === 'confirmado'}>Confirmado</option>
-			<option value="cerrado" selected={data.status === 'cerrado'}>Cerrado</option>
-			<option value="cancelado" selected={data.status === 'cancelado'}>Cancelado</option>
-		</select>
-		<button type="submit" class="btn-secondary">Filtrar</button>
-	</form>
+	<FilterBar
+		search={{ name: 'search', placeholder: 'Cliente o responsable', value: data.search }}
+		selects={[
+			businessSelect(data.status, 'Cualquier estado', [
+				{ value: 'confirmado', label: 'Confirmado' },
+				{ value: 'en_preparacion', label: 'En preparación' },
+				{ value: 'entregado', label: 'Entregado' },
+				{ value: 'devuelto', label: 'Devuelto' },
+				{ value: 'cerrado', label: 'Cerrado' },
+				{ value: 'cancelado', label: 'Cancelado' }
+			]),
+			stateSelect(data.state)
+		]}
+	/>
 
 	{#if data.orders.length === 0}
 		<p class="empty-state">No hay órdenes.</p>

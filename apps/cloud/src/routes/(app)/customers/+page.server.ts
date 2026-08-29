@@ -1,19 +1,21 @@
+import { parseRecordState } from '@esr/core';
 import type { PageServerLoad } from './$types';
-import { getCustomerRepository } from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
+import { getCustomerRepository } from '$lib/server/repositories';
 import { toTenantContext } from '$lib/server/tenant';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'customers.view');
 	const search = url.searchParams.get('search')?.trim() || undefined;
-	const status = url.searchParams.get('status');
+	// Sin `state` en la URL se listan los activos: no existe vista «todos».
+	const state = parseRecordState(url.searchParams.get('state'));
 
 	const customers = await getCustomerRepository().list(toTenantContext(companyId), {
 		search,
-		is_active: status === 'inactive' ? 0 : status === 'active' ? 1 : undefined,
+		state,
 		limit: 100,
 		offset: 0
 	});
 
-	return { customers, search: search ?? '', status: status ?? 'all' };
+	return { customers, search: search ?? '', state };
 };

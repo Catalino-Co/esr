@@ -11,26 +11,26 @@ export const PERMISSIONS = [
 	'customers.view',
 	'customers.create',
 	'customers.update',
-	'customers.deactivate',
+	'customers.archive',
 
 	// Inventario
 	'inventory.view',
 	'inventory.create',
 	'inventory.update',
-	'inventory.deactivate',
+	'inventory.archive',
 
 	// Paquetes
 	'packages.view',
 	'packages.create',
 	'packages.update',
-	'packages.deactivate',
+	'packages.archive',
 
 	// Eventos
 	'events.view',
 	'events.create',
 	'events.update',
 	'events.cancel',
-	'events.deactivate',
+	'events.archive',
 
 	// Cotizaciones
 	'quotes.view',
@@ -39,18 +39,21 @@ export const PERMISSIONS = [
 	'quotes.approve',
 	'quotes.cancel',
 	'quotes.convert',
+	'quotes.archive',
 
 	// Ordenes de trabajo
 	'work_orders.view',
 	'work_orders.prepare',
 	'work_orders.cancel',
 	'work_orders.close',
+	'work_orders.archive',
 
 	// Operacion
 	'operations.deliver',
 	'operations.return',
 	'checklists.save',
 	'conduces.view',
+	'conduces.archive',
 
 	// Contratos
 	'contracts.view',
@@ -58,6 +61,7 @@ export const PERMISSIONS = [
 	'contracts.update',
 	'contracts.sign',
 	'contracts.cancel',
+	'contracts.archive',
 
 	// Pagos
 	'payments.view',
@@ -151,11 +155,16 @@ const STAFF_PERMISSIONS: Permission[] = [
 
 const MANAGER_PERMISSIONS: Permission[] = [
 	...STAFF_PERMISSIONS,
-	'customers.deactivate',
-	'inventory.deactivate',
-	'packages.deactivate',
+	// Archivar retira un registro de circulacion; no borra nada.
+	'customers.archive',
+	'inventory.archive',
+	'packages.archive',
 	'events.cancel',
-	'events.deactivate',
+	'events.archive',
+	'quotes.archive',
+	'work_orders.archive',
+	'contracts.archive',
+	'conduces.archive',
 	'quotes.approve',
 	'quotes.cancel',
 	'quotes.convert',

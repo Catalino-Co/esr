@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { RECORD_STATE, RECORD_STATE_LABELS, isRecordState } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
@@ -41,17 +42,26 @@ export const actions: Actions = {
 		});
 		return { success: true };
 	},
-	deactivate: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requirePermission(locals, 'customers.deactivate');
-		const customer = await getCustomerRepository().findById(toTenantContext(companyId), params.id);
-		if (!customer) error(404, 'Cliente no encontrado');
-		await getCustomerRepository().deactivate(toTenantContext(companyId), params.id);
-		await recordAuditLog({ locals, request, getClientAddress }, {
-			action: 'customer.deactivated',
+	setState: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'customers.archive');
+		const ctx = toTenantContext(companyId);
+		const form = await event.request.formData();
+
+		const state = Number(form.get('state'));
+		if (!isRecordState(state)) return fail(400, { error: 'Estado no válido.' });
+
+		const record = await getCustomerRepository().findById(ctx, event.params.id);
+		if (!record) error(404, 'Cliente no encontrado');
+
+		await getCustomerRepository().setState(ctx, event.params.id, state);
+
+		await recordAuditLog(event, {
+			action: 'record.state_changed',
 			entity_type: 'customer',
-			entity_id: String(params.id),
-			description: `Cliente desactivado: ${customer.name}`
+			entity_id: String(event.params.id),
+			description: `Cliente «${record.name}» → ${RECORD_STATE_LABELS[state]}`
 		});
-		throw redirect(303, '/customers');
+
+		return { success: `«${record.name}» ahora está ${RECORD_STATE_LABELS[state].toLowerCase()}.` };
 	}
 };

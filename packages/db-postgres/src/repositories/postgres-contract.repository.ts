@@ -1,4 +1,5 @@
 import type {
+	RecordState,
 	ContractListFilters,
 	PaymentListFilters,
 	RepositoryContext,
@@ -6,10 +7,11 @@ import type {
 	TenantCreatePaymentInput,
 	TenantPaymentRepository
 } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { Contract, ESRId, Payment } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
 const CONTRACT_COLUMNS = `
@@ -66,7 +68,8 @@ export class PostgresContractRepository implements TenantContractRepository {
 
 	async list(ctx: RepositoryContext, filters: ContractListFilters = {}): Promise<ContractView[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
-		const where = ['c.company_id = $1', 'c.is_active = 1'];
+		const where = ['c.company_id = $1'];
+		appendStateFilter(params, where, filters.state, 'c.');
 
 		if (filters.status) {
 			params.push(filters.status);
@@ -167,10 +170,10 @@ export class PostgresContractRepository implements TenantContractRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
 		await this.pool.query(
-			'UPDATE contracts SET is_active = 0, updated_at = NOW() WHERE company_id = $1 AND id = $2',
-			[requireCompanyId(ctx), id]
+			'UPDATE contracts SET is_active = $3, updated_at = NOW() WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
 		);
 	}
 }

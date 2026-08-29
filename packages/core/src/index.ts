@@ -1,5 +1,6 @@
 export * from './shared/result';
 export * from './shared/tenant';
+export * from './shared/record-state';
 
 export * from './authorization/permissions';
 

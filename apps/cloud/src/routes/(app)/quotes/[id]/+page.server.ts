@@ -1,7 +1,7 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
-import { summarizePayments, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
+import { SELECTABLE_STATES, summarizePayments, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
 import {
 	getContractRepository,
 	getCustomerRepository,
@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
 			getCustomerRepository().findById(ctx, quote.client_id),
-			getInventoryRepository().list(ctx, { is_active: 1, limit: 200, offset: 0 }),
+			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
 			getRentalRepository().findByQuotationId(ctx, params.id),
 			getContractRepository().findByQuotationId(ctx, params.id),
 			getPaymentRepository().listForQuotation(ctx, params.id),

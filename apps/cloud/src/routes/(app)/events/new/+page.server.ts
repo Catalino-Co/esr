@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { getCustomerRepository, getEventRepository } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
@@ -9,7 +10,7 @@ import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$li
 export const load: PageServerLoad = async ({ locals }) => {
 	const { companyId } = requirePermission(locals, 'events.create');
 	const customers = await getCustomerRepository().list(toTenantContext(companyId), {
-		is_active: 1,
+		state: SELECTABLE_STATES,
 		limit: 500,
 		offset: 0
 	});

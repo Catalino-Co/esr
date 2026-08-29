@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { validateCreateQuoteInput } from '@esr/schemas';
 import {
@@ -17,7 +18,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const [events, customers] = await Promise.all([
 		getEventRepository().list(ctx, { limit: 200, offset: 0 }),
-		getCustomerRepository().list(ctx, { is_active: 1, limit: 200, offset: 0 })
+		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 })
 	]);
 
 	let selectedEvent = null;

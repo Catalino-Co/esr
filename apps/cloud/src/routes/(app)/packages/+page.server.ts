@@ -1,17 +1,26 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { parseRecordState } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
 import { getPackageRepository } from '$lib/server/repositories';
 import { toTenantContext } from '$lib/server/tenant';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'packages.view');
-	// includeInactive: hay que poder ver y reactivar los desactivados.
-	const packages = await getPackageRepository().list(toTenantContext(companyId), {
-		includeInactive: true
-	});
-	return { packages };
+	// Esta pantalla tampoco recibia `url`: no tenia filtros.
+	const state = parseRecordState(url.searchParams.get('state'));
+	const search = url.searchParams.get('search')?.trim().toLowerCase() || '';
+
+	const packages = await getPackageRepository().list(toTenantContext(companyId), { state });
+
+	// El repositorio de paquetes no filtra por texto; con catalogos de este
+	// tamaño no compensa una consulta nueva, se filtra en memoria.
+	const filtered = search
+		? packages.filter((pkg) => (pkg.name ?? '').toLowerCase().includes(search))
+		: packages;
+
+	return { packages: filtered, state, search: url.searchParams.get('search') ?? '' };
 };
 
 export const actions: Actions = {
@@ -44,7 +53,7 @@ export const actions: Actions = {
 	},
 
 	toggle: async (event) => {
-		const { companyId } = requirePermission(event.locals, 'packages.deactivate');
+		const { companyId } = requirePermission(event.locals, 'packages.archive');
 		const ctx = toTenantContext(companyId);
 		const form = await event.request.formData();
 

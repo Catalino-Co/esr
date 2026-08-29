@@ -1,4 +1,7 @@
 <script>
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import { stateSelect } from '$lib/list-filters';
+
 	let { data } = $props();
 </script>
 
@@ -6,6 +9,24 @@
 	<div class="page-header">
 		<h1>Conduces</h1>
 	</div>
+
+	<FilterBar
+		search={{ name: 'search', placeholder: 'Número de conduce', value: data.search }}
+		selects={[
+			{
+				name: 'type',
+				label: 'Cualquier tipo',
+				value: data.type,
+				width: '11rem',
+				options: [
+					{ value: '', label: 'Cualquier tipo' },
+					{ value: 'entrega', label: 'Entrega' },
+					{ value: 'devolucion', label: 'Devolución' }
+				]
+			},
+			stateSelect(data.state)
+		]}
+	/>
 
 	{#if data.conduces.length === 0}
 		<p class="empty-state">Sin conduces registrados.</p>

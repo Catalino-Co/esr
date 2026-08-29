@@ -4,20 +4,21 @@ import type { CategoryDraft, SubcategoryDraft, TenantCategoryRepository, TenantS
 import type { ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 
 export class PostgresCategoryRepository implements TenantCategoryRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
 
 	async list(ctx: RepositoryContext, options: CatalogListOptions = {}): Promise<CategoryDraft[]> {
+		const params: unknown[] = [requireCompanyId(ctx)];
 		const where = ['company_id = $1'];
-		// La pantalla de configuracion necesita ver las inactivas para reactivarlas.
-		if (!options.includeInactive) where.push('is_active = 1');
+		appendStateFilter(params, where, options.state);
 		const result = await this.pool.query<CategoryDraft>(
 			`SELECT id, company_id, name, color, is_active
 			 FROM categories
 			 WHERE ${where.join(' AND ')}
-			 ORDER BY is_active DESC, name`,
-			[requireCompanyId(ctx)]
+			 ORDER BY name`,
+			params
 		);
 		return result.rows;
 	}
@@ -80,7 +81,7 @@ export class PostgresSubcategoryRepository implements TenantSubcategoryRepositor
 	): Promise<SubcategoryDraft[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
 		const where = ['company_id = $1'];
-		if (!options.includeInactive) where.push('is_active = 1');
+		appendStateFilter(params, where, options.state);
 		if (categoryId) {
 			params.push(categoryId);
 			where.push(`category_id = $${params.length}`);
@@ -89,7 +90,7 @@ export class PostgresSubcategoryRepository implements TenantSubcategoryRepositor
 			`SELECT id, company_id, category_id, name, is_active
 			 FROM subcategories
 			 WHERE ${where.join(' AND ')}
-			 ORDER BY is_active DESC, name`,
+			 ORDER BY name`,
 			params
 		);
 		return result.rows;

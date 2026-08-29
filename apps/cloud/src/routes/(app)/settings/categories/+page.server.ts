@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { RECORD_STATE, SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { text } from '$lib/server/catalogs';
@@ -15,14 +16,16 @@ import { toTenantContext } from '$lib/server/tenant';
 export const load: PageServerLoad = async ({ locals }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
 	const ctx = toTenantContext(companyId);
+	// Igual que los demas catalogos: activos e inactivos juntos, porque el
+	// boton Reactivar vive en la fila.
+	const state = SELECTABLE_STATES;
 
-	// includeInactive para poder reactivar lo que se desactivo antes.
 	const [categories, subcategories] = await Promise.all([
-		getCategoryRepository().list(ctx, { includeInactive: true }),
-		getSubcategoryRepository().list(ctx, undefined, { includeInactive: true })
+		getCategoryRepository().list(ctx, { state }),
+		getSubcategoryRepository().list(ctx, undefined, { state })
 	]);
 
-	return { categories, subcategories };
+	return { categories, subcategories, state };
 };
 
 export const actions: Actions = {
@@ -42,8 +45,8 @@ export const actions: Actions = {
 		}
 
 		const saved = id
-			? await getCategoryRepository().update(ctx, id, { name, color, is_active: 1 })
-			: await getCategoryRepository().create(ctx, { name, color, is_active: 1 });
+			? await getCategoryRepository().update(ctx, id, { name, color, is_active: RECORD_STATE.ACTIVE })
+			: await getCategoryRepository().create(ctx, { name, color, is_active: RECORD_STATE.ACTIVE });
 
 		await recordAuditLog(event, {
 			action: id ? 'settings.category.updated' : 'settings.category.created',
@@ -61,16 +64,16 @@ export const actions: Actions = {
 		const ctx = toTenantContext(companyId);
 
 		const id = text(form, 'id');
-		const isActive = text(form, 'is_active') === '1' ? 1 : 0;
+		const isActive = text(form, 'is_active') === '1' ? RECORD_STATE.ACTIVE : RECORD_STATE.INACTIVE;
 		if (!id) return fail(400, { error: 'Falta el identificador.' });
 
-		const categories = await getCategoryRepository().list(ctx, { includeInactive: true });
+		const categories = await getCategoryRepository().list(ctx, { state: SELECTABLE_STATES });
 		const entry = categories.find((c) => String(c.id) === id);
 		if (!entry) return fail(404, { error: 'Categoría no encontrada.' });
 
 		// Al desactivar se avisa cuantos articulos la usan. No se bloquea: el
 		// inventario historico debe conservar su categoria.
-		const usages = isActive === 0 ? await getCategoryRepository().countUsages(ctx, id) : 0;
+		const usages = isActive === RECORD_STATE.INACTIVE ? await getCategoryRepository().countUsages(ctx, id) : 0;
 
 		await getCategoryRepository().setActive(ctx, id, isActive);
 
@@ -107,12 +110,12 @@ export const actions: Actions = {
 			? await getSubcategoryRepository().update(ctx, id, {
 					category_id: categoryId,
 					name,
-					is_active: 1
+					is_active: RECORD_STATE.ACTIVE
 				})
 			: await getSubcategoryRepository().create(ctx, {
 					category_id: categoryId,
 					name,
-					is_active: 1
+					is_active: RECORD_STATE.ACTIVE
 				});
 
 		await recordAuditLog(event, {
@@ -131,11 +134,11 @@ export const actions: Actions = {
 		const ctx = toTenantContext(companyId);
 
 		const id = text(form, 'id');
-		const isActive = text(form, 'is_active') === '1' ? 1 : 0;
+		const isActive = text(form, 'is_active') === '1' ? RECORD_STATE.ACTIVE : RECORD_STATE.INACTIVE;
 		if (!id) return fail(400, { error: 'Falta el identificador.' });
 
 		const subcategories = await getSubcategoryRepository().list(ctx, undefined, {
-			includeInactive: true
+			state: SELECTABLE_STATES
 		});
 		const entry = subcategories.find((s) => String(s.id) === id);
 		if (!entry) return fail(404, { error: 'Subcategoría no encontrada.' });

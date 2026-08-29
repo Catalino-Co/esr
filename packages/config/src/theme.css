@@ -29,8 +29,23 @@
 	   JS) y por eso parpadea antes de hidratar. Con el claro como base,
 	   el primer paint —o una app sin JS— ya sale correcto. */
 	:root {
-		--brand-primary: #2563eb;
-		--brand-secondary: #1d4ed8;
+		/* Rampa azul unica. Antes habia tres azules sin relacion —el primario
+		   #2563eb, el borde activo #3b82f6 y el texto activo #93c5fd— sobre un
+		   fondo de sidebar #1a2744 que no pertenecia a ninguna rampa. Todo el
+		   azul de la app sale ahora de aqui, sidebar incluida, para que se lea
+		   como un solo color. */
+		--blue-950: #172554;
+		--blue-900: #1e3a8a;
+		--blue-800: #1e40af;
+		--blue-700: #1d4ed8;
+		--blue-600: #2563eb;
+		--blue-500: #3b82f6;
+		--blue-400: #60a5fa;
+		--blue-300: #93c5fd;
+		--blue-100: #dbeafe;
+
+		--brand-primary: var(--blue-600);
+		--brand-secondary: var(--blue-700);
 		--brand-accent: #f59e0b;
 		--brand-success: #10b981;
 		--brand-danger: #ef4444;
@@ -50,14 +65,14 @@
 		--text-secondary: #475569;
 		--text-muted: #94a3b8;
 		--text-inverse: #f1f5f9;
-		--text-brand: #2563eb;
+		--text-brand: var(--blue-600);
 		--text-success: #059669;
 		--text-danger: #dc2626;
 		--text-warning: #d97706;
 
 		--border: #e2e8f0;
 		--border-light: #cbd5e1;
-		--border-focus: #2563eb;
+		--border-focus: var(--blue-600);
 
 		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
 		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -112,16 +127,16 @@
 		/* Paleta de la barra lateral. Va fuera de los bloques de tema a
 		   proposito: la sidebar es siempre oscura, igual en claro que en
 		   oscuro, tal como en Workshop. */
-		--sb-bg: #1a2744;
+		--sb-bg: var(--blue-950);
 		--sb-border: rgba(255, 255, 255, 0.08);
 		--sb-text-title: #f1f5f9;
 		--sb-text-item: #94a3b8;
 		--sb-text-item-hover: #f1f5f9;
-		--sb-text-label: #4a6080;
+		--sb-text-label: #64769c;
 		--sb-hover-bg: rgba(255, 255, 255, 0.07);
-		--sb-active-bg: rgba(37, 99, 235, 0.2);
-		--sb-active-color: #93c5fd;
-		--sb-active-border: #3b82f6;
+		--sb-active-bg: rgba(37, 99, 235, 0.22);
+		--sb-active-color: var(--blue-300);
+		--sb-active-border: var(--blue-500);
 
 		/* Vocabulario heredado de ESR, re-apuntado a los tokens nuevos.
 		   Ojo: aqui solo pueden entrar nombres que NO existan ya arriba.
@@ -160,14 +175,14 @@
 		--text-secondary: #94a3b8;
 		--text-muted: #64748b;
 		--text-inverse: #0f172a;
-		--text-brand: #60a5fa;
+		--text-brand: var(--blue-400);
 		--text-success: #34d399;
 		--text-danger: #f87171;
 		--text-warning: #fbbf24;
 
 		--border: #1e3a5f;
 		--border-light: #2d4a6b;
-		--border-focus: #2563eb;
+		--border-focus: var(--blue-500);
 
 		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
 		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);

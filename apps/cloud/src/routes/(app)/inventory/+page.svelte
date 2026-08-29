@@ -1,4 +1,6 @@
 <script>
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import { businessSelect, stateSelect } from '$lib/list-filters';
 	import { can } from '$lib/can';
 	let { data } = $props();
 </script>
@@ -11,15 +13,26 @@
 		{/if}
 	</div>
 
-	<form class="filter-bar" method="GET">
-		<input type="search" name="search" placeholder="Buscar por nombre o código" value={data.search} />
-		<select name="status">
-			<option value="">Todos los estados</option>
-			<option value="disponible" selected={data.status === 'disponible'}>Disponible</option>
-			<option value="mantenimiento" selected={data.status === 'mantenimiento'}>Mantenimiento</option>
-		</select>
-		<button type="submit" class="btn-secondary">Buscar</button>
-	</form>
+	<FilterBar
+		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}
+		selects={[
+			{
+				name: 'category',
+				label: 'Cualquier categoría',
+				value: data.categoryId,
+				width: '11rem',
+				options: [
+					{ value: '', label: 'Cualquier categoría' },
+					...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
+				]
+			},
+			businessSelect(data.status, 'Cualquier disponibilidad', [
+				{ value: 'disponible', label: 'Disponible' },
+				{ value: 'mantenimiento', label: 'Mantenimiento' }
+			], '12rem'),
+			stateSelect(data.state)
+		]}
+	/>
 
 	{#if data.items.length === 0}
 		<p class="empty-state">No hay artículos para mostrar.</p>

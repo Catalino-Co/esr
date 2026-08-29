@@ -1,3 +1,4 @@
+import { RECORD_STATE } from '@esr/core';
 import type { RequestHandler } from './$types';
 import { toCsv } from '$lib/server/csv';
 import { getCategoryRepository, getInventoryRepository } from '$lib/server/repositories';
@@ -16,7 +17,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			search,
 			status,
 			category_id: category,
-			is_active: 1,
+			state: RECORD_STATE.ACTIVE,
 			limit: 5000,
 			offset: 0
 		}),

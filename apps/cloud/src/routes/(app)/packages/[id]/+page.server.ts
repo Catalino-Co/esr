@@ -1,5 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
-import { mergePackageItem } from '@esr/core';
+import { SELECTABLE_STATES, mergePackageItem } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const [items, inventory] = await Promise.all([
 		getPackageRepository().listItems(ctx, params.id),
-		getInventoryRepository().list(ctx, { is_active: 1, limit: 300, offset: 0 })
+		getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 300, offset: 0 })
 	]);
 
 	return { pkg, items, inventory };

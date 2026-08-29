@@ -111,6 +111,9 @@ p {
 	align-items: center;
 }
 
+/* `.filter-bar` ya no la usan los nueve listados —tienen <FilterBar>— pero
+   siguen usandola las tres pantallas de reportes, que filtran por rango de
+   fechas y quedan fuera de este rediseño. */
 .filter-bar {
 	display: flex;
 	flex-wrap: wrap;

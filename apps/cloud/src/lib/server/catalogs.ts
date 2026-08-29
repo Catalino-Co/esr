@@ -1,3 +1,4 @@
+import { RECORD_STATE } from '@esr/core';
 import { fail } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { CatalogListOptions, RepositoryContext } from '@esr/core';
@@ -124,14 +125,17 @@ export async function toggleCatalogEntry<TDraft extends { id?: ESRId | null; nam
 
 	await repo.setActive(ctx, id, isActive);
 
+	// Comparacion explicita: el inactivo es `2`, que como booleano es cierto.
+	const activated = isActive === RECORD_STATE.ACTIVE;
+
 	await recordAuditLog(event, {
-		action: isActive ? `${names.action}.reactivated` : `${names.action}.deactivated`,
+		action: activated ? `${names.action}.reactivated` : `${names.action}.deactivated`,
 		entity_type: names.entity,
 		entity_id: String(id),
-		description: `${names.label} ${isActive ? 'reactivado' : 'desactivado'}: ${entry.name}`
+		description: `${names.label} ${activated ? 'reactivado' : 'desactivado'}: ${entry.name}`
 	});
 
 	return {
-		success: `«${entry.name}» ${isActive ? 'se reactivó' : 'se desactivó'}.`
+		success: `«${entry.name}» ${activated ? 'se reactivó' : 'se desactivó'}.`
 	};
 }

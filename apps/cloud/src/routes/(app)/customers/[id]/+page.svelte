@@ -1,4 +1,5 @@
 <script>
+	import RecordStateControl from '$lib/components/list/RecordStateControl.svelte';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
@@ -11,6 +12,12 @@
 		<h1>{customer.name}</h1>
 		<a class="btn-secondary" href="/customers">Volver al listado</a>
 	</div>
+
+	<RecordStateControl
+		state={customer.is_active}
+		editable={can('customers.archive')}
+		noun="cliente"
+	/>
 
 	{#if form?.success}
 		<p class="badge badge-active">Cambios guardados.</p>
@@ -62,9 +69,4 @@
 		</div>
 	</form>
 
-	{#if customer.is_active && can('customers.deactivate')}
-		<form method="POST" action="?/deactivate" class="page-actions" style="margin-top: 16px" use:enhance>
-			<button type="submit" class="btn-danger">Desactivar cliente</button>
-		</form>
-	{/if}
 </section>

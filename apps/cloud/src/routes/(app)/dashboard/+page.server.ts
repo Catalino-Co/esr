@@ -1,3 +1,4 @@
+import { RECORD_STATE } from '@esr/core';
 import type { PageServerLoad } from './$types';
 import {
 	getCustomerRepository,
@@ -22,7 +23,7 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
 
 	const [customers, inventory, events, quotes, orders, incidents] = await Promise.all([
 		getCustomerRepository().list(ctx, { limit: 500, offset: 0 }),
-		getInventoryRepository().list(ctx, { is_active: 1, limit: 500, offset: 0 }),
+		getInventoryRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: 500, offset: 0 }),
 		getEventRepository().list(ctx, { limit: 500, offset: 0 }),
 		getQuoteRepository().list(ctx, { limit: 20, offset: 0 }),
 		getRentalRepository().list(ctx, { limit: 20, offset: 0 }),

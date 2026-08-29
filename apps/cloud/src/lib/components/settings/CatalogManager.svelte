@@ -151,7 +151,7 @@
 							<button type="button" class="btn-link" onclick={() => startEdit(entry)}>Editar</button>
 							<form method="POST" action="?/toggle" use:enhance>
 								<input type="hidden" name="id" value={entry.id} />
-								<input type="hidden" name="is_active" value={active ? '0' : '1'} />
+								<input type="hidden" name="is_active" value={active ? '2' : '1'} />
 								<button type="submit" class={active ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
 									{active ? 'Desactivar' : 'Reactivar'}
 								</button>

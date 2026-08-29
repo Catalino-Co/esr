@@ -1,4 +1,5 @@
 <script>
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	let { data } = $props();
 
 	function formatDate(value) {
@@ -14,13 +15,27 @@
 	</div>
 	<p class="page-intro">Registro de acciones críticas. Solo lectura — no se pueden editar ni eliminar entradas.</p>
 
-	<form class="filter-bar" method="GET">
-		<input type="text" name="action" placeholder="Acción (ej. quote.approved)" value={data.action} />
-		<input type="text" name="entityType" placeholder="Entidad (ej. quote)" value={data.entityType} />
-		<input type="date" name="dateFrom" value={data.dateFrom} />
-		<input type="date" name="dateTo" value={data.dateTo} />
-		<button type="submit" class="btn-secondary">Filtrar</button>
-	</form>
+	<!-- Auditoria no tiene estado de circulacion: es un registro de solo
+	     lectura. Recibe la misma barra con sus propios filtros. -->
+	<FilterBar
+		search={{ name: 'action', placeholder: 'Acción exacta (ej. quote.approved)', value: data.action }}
+		selects={[
+			{
+				name: 'entityType',
+				label: 'Cualquier entidad',
+				value: data.entityType,
+				width: '11rem',
+				options: [
+					{ value: '', label: 'Cualquier entidad' },
+					...data.entityTypes.map((entity) => ({ value: entity, label: entity }))
+				]
+			}
+		]}
+		dates={[
+			{ name: 'dateFrom', label: 'Desde', value: data.dateFrom },
+			{ name: 'dateTo', label: 'Hasta', value: data.dateTo }
+		]}
+	/>
 
 	{#if data.logs.length === 0}
 		<p class="empty-state">No hay registros de auditoría para los filtros seleccionados.</p>

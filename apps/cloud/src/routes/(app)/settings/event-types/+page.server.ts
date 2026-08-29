@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { RECORD_STATE, SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	optionalText,
@@ -19,12 +20,11 @@ const NAMES: CatalogAuditNames = {
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
-	// includeInactive: la pantalla de configuración también debe poder
-	// reactivar lo que se desactivó antes.
-	const entries = await getEventTypeRepository().list(toTenantContext(companyId), {
-		includeInactive: true
-	});
-	return { entries };
+	// Sin selector de estado: la pantalla muestra activos e inactivos a la vez,
+	// porque reactivar solo se puede desde la propia fila.
+	const state = SELECTABLE_STATES;
+	const entries = await getEventTypeRepository().list(toTenantContext(companyId), { state });
+	return { entries, state };
 };
 
 export const actions: Actions = {
@@ -51,12 +51,12 @@ export const actions: Actions = {
 		const { companyId } = requirePermission(event.locals, 'settings.catalogs.manage');
 		const form = await event.request.formData();
 		const id = text(form, 'id');
-		const isActive = text(form, 'is_active') === '1' ? 1 : 0;
+		const isActive = text(form, 'is_active') === '1' ? RECORD_STATE.ACTIVE : RECORD_STATE.INACTIVE;
 		if (!id) return fail(400, { error: 'Falta el identificador.' });
 
 		// Al desactivar se avisa si hay eventos que lo usan: no se bloquea,
 		// porque el histórico debe conservar su tipo, pero conviene saberlo.
-		if (isActive === 0) {
+		if (isActive === RECORD_STATE.INACTIVE) {
 			const usages = await getEventTypeRepository().countUsages(toTenantContext(companyId), id);
 			const result = await toggleCatalogEntry({
 				event,

@@ -1,35 +1,36 @@
 <script>
+	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import { can } from '$lib/can';
+	import { stateSelect } from '$lib/list-filters';
+
 	let { data } = $props();
 </script>
 
 <section class="panel">
 	<div class="page-header">
 		<h1>Clientes</h1>
-		<div class="page-actions">
-			{#if can('customers.create')}
-				<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
-			{/if}
-		</div>
+		{#if can('customers.create')}
+			<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
+		{/if}
 	</div>
 
-	<form class="filter-bar" method="GET">
-		<input type="search" name="search" placeholder="Buscar por nombre, email o teléfono" value={data.search} />
-		<select name="status" value={data.status}>
-			<option value="all" selected={data.status === 'all'}>Todos</option>
-			<option value="active" selected={data.status === 'active'}>Activos</option>
-			<option value="inactive" selected={data.status === 'inactive'}>Inactivos</option>
-		</select>
-		<button type="submit" class="btn-secondary">Buscar</button>
-	</form>
+	<FilterBar
+		search={{
+			name: 'search',
+			placeholder: 'Nombre, email o teléfono',
+			value: data.search
+		}}
+		selects={[stateSelect(data.state)]}
+	/>
 
 	{#if data.customers.length === 0}
-		<p class="empty-state">No hay clientes para mostrar.</p>
+		<p class="empty-state">No hay clientes con este filtro.</p>
 	{:else}
 		<table class="data-table">
 			<thead>
 				<tr>
-					<th>Nombre</th>
+					<th>Cliente</th>
 					<th>Email</th>
 					<th>Teléfono</th>
 					<th>Estado</th>
@@ -43,8 +44,8 @@
 						<td>{customer.email || '—'}</td>
 						<td>{customer.phone || '—'}</td>
 						<td>
-							<span class="badge {customer.is_active ? 'badge-active' : 'badge-inactive'}">
-								{customer.is_active ? 'Activo' : 'Inactivo'}
+							<span class="badge {recordStateBadgeClass(customer.is_active)}">
+								{recordStateLabel(customer.is_active)}
 							</span>
 						</td>
 						<td><a href="/customers/{customer.id}">Ver / editar</a></td>

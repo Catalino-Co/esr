@@ -425,6 +425,70 @@ paquete, cantidad de linea mayor que cero y estados de serial cerrados. Ademas
 `work_order_item_serials` gana `company_id`, para poder filtrar la asignacion
 sin cruzar con `work_orders` en cada consulta.
 
+## Estado de Circulacion y Barras de Filtro
+
+### Estado de circulacion
+
+`is_active` dejo de ser un booleano. Ahora tiene tres valores, los mismos que
+ESR Pro Desktop ya usaba en produccion:
+
+| Valor | Estado | Significado |
+| --- | --- | --- |
+| `1` | Activo | En uso normal. |
+| `2` | Inactivo | Pausa reversible. Sigue ofreciendose en los selectores. |
+| `0` | Archivado | Retirado de circulacion. Desaparece de todo selector. |
+
+Es un eje **independiente** del estado de negocio: una cotizacion puede estar
+`aprobada` y `archivada` a la vez.
+
+La fuente unica es `packages/core/src/shared/record-state.ts`. Los repositorios
+filtran con `appendStateFilter()`
+(`packages/db-postgres/src/repositories/state-filter.ts`), que acepta un estado
+o varios: los listados piden uno y los **selectores** piden
+`SELECTABLE_STATES`, porque un inactivo aun puede elegirse y un archivado no.
+
+**Archivar sustituye al borrado, pero no habia ninguno.** Se reviso Cloud,
+Desktop y los repositorios: no existe un solo borrado de entidad de negocio
+expuesto al usuario. Los `DELETE FROM` que hay son internos (reemplazar las
+lineas de una cotizacion, soltar un serial al devolver).
+
+El estado se cambia desde el **detalle** de cada entidad, con
+`RecordStateControl.svelte`. Las filas de las listas solo muestran el badge.
+Los permisos `*.deactivate` pasaron a llamarse `*.archive`.
+
+#### Migracion 010
+
+Los `is_active = 0` de Cloud significaban "el usuario pulso Desactivar", que
+equivale a **inactivo**: se migraron a `2`, dejando el `0` libre con su nuevo
+significado. Se anadio un CHECK `is_active IN (0,1,2)` a las 14 tablas, que
+hasta entonces aceptaban cualquier entero.
+
+### Barra de filtros
+
+`apps/cloud/src/lib/components/list/FilterBar.svelte` es la unica barra de los
+nueve listados. Es **una fila horizontal**: el buscador crece (`flex: 1 1 auto`)
+y los selects tienen base fija. El `.filter-bar` anterior daba `width: 100%` a
+cada control sin `flex-basis`, asi que todos pedian el ancho entero y luego
+encogian segun su contenido.
+
+**Filtra en vivo**, con debounce de 300 ms; no hay boton de buscar. La
+navegacion usa `goto(url, { keepFocus: true, replaceState: true })`:
+`keepFocus` es imprescindible o el cursor sale del input en cada tecla. El
+`<form method="GET">` envolvente y un submit oculto mantienen el filtrado sin
+JavaScript.
+
+`StatusSelect.svelte` es un `<select>` nativo con `appearance: none`, punto de
+color y chevron propio: conserva teclado, lector de pantalla y el desplegable
+del sistema, que en movil supera a cualquier imitacion.
+
+Donde ya habia estado de negocio (cotizaciones, ordenes, contratos, conduces) la
+barra lleva **dos selects**. Inventario gano el de categoria, que el repositorio
+ya soportaba pero la pantalla no ofrecia; conduces gano busqueda y tipo, que
+exigieron ampliar `ConduceListFilters`.
+
+**No hay vista «Todos»**: la lista siempre muestra un estado concreto y la
+busqueda respeta el seleccionado.
+
 ## Sistema de Diseno
 
 Las tres apps de CCO comparten el mismo lenguaje visual, portado desde CCO

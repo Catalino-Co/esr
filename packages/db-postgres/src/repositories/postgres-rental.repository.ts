@@ -1,8 +1,9 @@
-import type { RentalOrderListFilters, RepositoryContext, TenantCreateRentalOrderInput, TenantRentalOrderRepository } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import type { RecordState, RentalOrderListFilters, RepositoryContext, TenantCreateRentalOrderInput, TenantRentalOrderRepository } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId, Quote, QuoteItem, RentalOrder, RentalOrderItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 
 export class PostgresRentalRepository implements TenantRentalOrderRepository {
@@ -162,6 +163,9 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 			params.push(`%${filters.search}%`);
 			where.push(`(c.name ILIKE $${params.length} OR wo.responsible_person ILIKE $${params.length})`);
 		}
+		// Estado de circulacion. Esta consulta ignoraba `is_active` por completo,
+		// asi que los desactivados seguian saliendo en la lista.
+		appendStateFilter(params, where, filters.state, 'wo.');
 		if (filters.status) { params.push(filters.status); where.push(`wo.status = $${params.length}`); }
 		if (filters.date) { params.push(filters.date); where.push(`wo.date = $${params.length}`); }
 		const result = await this.pool.query<RentalOrder>(
@@ -206,10 +210,11 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		return result.rows[0];
 	}
 
-	async deactivate(ctx: RepositoryContext, id: ESRId): Promise<void> {
-		await this.pool.query('UPDATE work_orders SET is_active = 0 WHERE company_id = $1 AND id = $2', [
-			requireCompanyId(ctx), id
-		]);
+	async setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void> {
+		await this.pool.query(
+			'UPDATE work_orders SET is_active = $3 WHERE company_id = $1 AND id = $2',
+			[requireCompanyId(ctx), id, state]
+		);
 	}
 
 	async updateItemsStatus(
