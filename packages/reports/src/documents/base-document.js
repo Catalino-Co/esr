@@ -38,9 +38,18 @@ const PRINT_STYLES = `
 `;
 
 /**
- * Los datos de empresa salen de `company_info`, cuyas columnas admiten NULL:
- * por eso los opcionales son `string|null` y no solo `string|undefined`.
- * @param {{ title: string; company: { name: string; rnc?: string|null; phone?: string|null; email?: string|null; address?: string|null }; meta?: Array<{ label: string; value: string }>; bodyHtml: string; footer?: string }} input
+ * Datos de empresa que encabezan todo documento. Salen de `company_info`, cuyas
+ * columnas admiten NULL: por eso los opcionales son `string|null` y no solo
+ * `string|undefined`.
+ *
+ * Vive aqui, y no en cada documento, porque los cuatro lo comparten y
+ * declararlo por duplicado choca al reexportarlos desde index.js.
+ *
+ * @typedef {{ name: string, rnc?: string|null, phone?: string|null, email?: string|null, address?: string|null }} DocCompany
+ */
+
+/**
+ * @param {{ title: string; company: DocCompany; meta?: Array<{ label: string; value: string }>; bodyHtml: string; footer?: string }} input
  */
 export function renderBaseDocument(input) {
 	const companyLines = [

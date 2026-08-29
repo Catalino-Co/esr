@@ -3,8 +3,6 @@ import { formatDate } from '../formatters/date.js';
 import { renderBaseDocument, escapeHtml } from './base-document.js';
 
 /**
- * Los campos opcionales llegan como `null` desde PostgreSQL, no como `undefined`.
- * @typedef {{ name: string, rnc?: string|null, phone?: string|null, email?: string|null, address?: string|null }} DocCompany
  * @typedef {{
  *   id?: string|number|null, number?: string|null, date?: string|null, status?: string|null,
  *   terms?: string|null, notes?: string|null,
@@ -26,7 +24,7 @@ import { renderBaseDocument, escapeHtml } from './base-document.js';
  * afectan. Ambos llegan ya resueltos en `summary`.
  *
  * @param {{
- *   company: DocCompany;
+ *   company: import('./base-document.js').DocCompany;
  *   contract: DocContract;
  *   customer?: { name?: string }|null;
  *   event?: { name?: string }|null;
