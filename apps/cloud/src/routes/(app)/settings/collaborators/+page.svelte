@@ -20,7 +20,6 @@
 </script>
 
 <CatalogManager
-	title="Colaboradores"
 	hint="Equipo que ejecuta la operación: técnicos, choferes, despachadores y montaje."
 	{fields}
 	{columns}

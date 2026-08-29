@@ -84,7 +84,7 @@
 		font-size: var(--font-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 
 	.state-form {
@@ -113,7 +113,7 @@
 		flex: 1 1 100%;
 		margin: 0;
 		font-size: var(--font-xs);
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 
 	.sr-only {

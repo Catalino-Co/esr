@@ -6,9 +6,6 @@
 <svelte:head><title>Documentación — ESR Cloud</title></svelte:head>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Manual de usuario</h1>
-	</div>
 	<p class="panel-hint">
 		Guía de cada módulo de ESR Cloud. Elige una sección para empezar.
 	</p>

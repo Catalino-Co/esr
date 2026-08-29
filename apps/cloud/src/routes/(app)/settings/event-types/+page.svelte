@@ -17,7 +17,6 @@
 </script>
 
 <CatalogManager
-	title="Tipos de evento"
 	hint="Clasifican los eventos de la empresa. Se usan al crear un evento y en los reportes."
 	{fields}
 	{columns}

@@ -11,9 +11,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Reportes</h1>
-	</div>
 	<p class="page-intro">Consultas operativas básicas filtradas por su empresa activa.</p>
 
 	<div class="report-grid">

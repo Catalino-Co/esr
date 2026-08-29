@@ -18,10 +18,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Apariencia</h1>
-	</div>
-
 	<p class="panel-hint">
 		Elige el tema visual de la aplicación. El cambio se aplica de inmediato y se recuerda en este
 		navegador.

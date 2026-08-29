@@ -6,12 +6,11 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Inventario</h1>
-		{#if can('inventory.create')}
+	{#if can('inventory.create')}
+		<div class="page-header">
 			<a class="btn-primary" href="/inventory/new">Nuevo artículo</a>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}

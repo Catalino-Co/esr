@@ -5,10 +5,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Órdenes de trabajo</h1>
-	</div>
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Cliente o responsable', value: data.search }}
 		selects={[

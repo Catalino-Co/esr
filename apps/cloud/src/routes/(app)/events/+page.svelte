@@ -6,12 +6,11 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Eventos</h1>
-		{#if can('events.create')}
+	{#if can('events.create')}
+		<div class="page-header">
 			<a class="btn-primary" href="/events/new">Nuevo evento</a>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Título o lugar', value: data.search }}

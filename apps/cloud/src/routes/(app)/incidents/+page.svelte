@@ -3,10 +3,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Incidencias</h1>
-	</div>
-
 	{#if data.incidents.length === 0}
 		<p class="empty-state">Sin incidencias registradas.</p>
 	{:else}

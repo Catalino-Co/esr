@@ -6,12 +6,11 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Cotizaciones</h1>
-		{#if can('quotes.create')}
+	{#if can('quotes.create')}
+		<div class="page-header">
 			<a class="btn-primary" href="/quotes/new">Nueva cotización</a>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número, cliente o evento', value: data.search }}

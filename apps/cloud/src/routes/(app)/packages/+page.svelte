@@ -15,14 +15,13 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Paquetes</h1>
-		{#if can('packages.create')}
+	{#if can('packages.create')}
+		<div class="page-header">
 			<button type="button" class="btn-primary" onclick={() => (creating = !creating)}>
 				{creating ? 'Cancelar' : 'Nuevo paquete'}
 			</button>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Nombre del paquete', value: data.search }}

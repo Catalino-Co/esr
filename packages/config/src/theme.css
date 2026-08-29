@@ -615,10 +615,13 @@
 		background: #ecfeff;
 		color: #0e7490;
 	}
+	/* --text-secondary, no --text-muted: el gris apagado pasa AA sobre
+	   --surface, pero estas badges van sobre --surface-sunken y ahi se queda
+	   en 4.34:1. El umbral depende del fondo, no del color. */
 	.badge-muted,
 	.badge-inactive {
 		background: var(--bg-elevated);
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 
 	/* Success, warning, danger y primary NO se repiten aqui: sus tres

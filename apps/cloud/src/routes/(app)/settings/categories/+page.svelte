@@ -52,10 +52,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Categorías</h1>
-	</div>
-
 	<p class="panel-hint">
 		Organizan el inventario. Cada categoría puede tener subcategorías; los artículos se clasifican
 		con ambas.

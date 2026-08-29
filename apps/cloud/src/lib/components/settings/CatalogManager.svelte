@@ -11,7 +11,6 @@
 	 * `type` acepta 'text' | 'email' | 'color' | 'textarea'.
 	 */
 	let {
-		title,
 		hint = '',
 		fields,
 		entries,
@@ -39,10 +38,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>{title}</h1>
-	</div>
-
 	{#if hint}
 		<p class="panel-hint">{hint}</p>
 	{/if}

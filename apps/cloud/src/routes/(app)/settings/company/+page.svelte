@@ -7,10 +7,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Datos de la empresa</h1>
-	</div>
-
 	<p class="panel-hint">
 		Esta información encabeza las cotizaciones, órdenes, conduces y checklists imprimibles.
 	</p>

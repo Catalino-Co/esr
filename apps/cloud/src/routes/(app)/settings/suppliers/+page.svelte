@@ -22,7 +22,6 @@
 </script>
 
 <CatalogManager
-	title="Proveedores"
 	hint="Empresas y personas a las que se subcontrata equipo o servicios."
 	{fields}
 	{columns}

@@ -10,9 +10,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Auditoría</h1>
-	</div>
 	<p class="page-intro">Registro de acciones críticas. Solo lectura — no se pueden editar ni eliminar entradas.</p>
 
 	<!-- Auditoria no tiene estado de circulacion: es un registro de solo

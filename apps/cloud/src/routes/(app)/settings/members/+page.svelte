@@ -8,10 +8,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Miembros</h1>
-	</div>
-
 	{#if form?.error}
 		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}

@@ -6,10 +6,6 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Conduces</h1>
-	</div>
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número de conduce', value: data.search }}
 		selects={[

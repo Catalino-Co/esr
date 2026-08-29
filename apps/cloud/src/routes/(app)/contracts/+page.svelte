@@ -13,12 +13,11 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Contratos</h1>
-		{#if can('contracts.create')}
+	{#if can('contracts.create')}
+		<div class="page-header">
 			<a class="btn-primary" href="/quotes?status=aprobada">Generar desde cotización</a>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número o cliente', value: data.search }}

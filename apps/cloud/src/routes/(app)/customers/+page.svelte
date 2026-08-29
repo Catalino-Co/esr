@@ -8,12 +8,11 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<h1>Clientes</h1>
-		{#if can('customers.create')}
+	{#if can('customers.create')}
+		<div class="page-header">
 			<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<FilterBar
 		search={{

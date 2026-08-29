@@ -128,6 +128,14 @@ p {
 	font-size: 1.6rem;
 }
 
+/* El titulo vive en el topbar, asi que en los listados el header solo lleva
+   la accion primaria. Con un unico hijo, el `space-between` de arriba lo
+   empuja a la IZQUIERDA en vez de dejarlo donde estaba: este margen lo
+   devuelve a la derecha sin depender de cuantos hijos haya. */
+.page-header > :first-child:last-child {
+	margin-left: auto;
+}
+
 .page-actions {
 	display: flex;
 	gap: var(--sp-3);
