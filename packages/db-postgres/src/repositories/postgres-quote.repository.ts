@@ -39,7 +39,12 @@ function mapQuoteItem(row: QuoteItemRow): QuoteItem {
 		quantity: Number(row.quantity || 0),
 		price: Number(row.price || 0),
 		total: Number(row.total || 0),
-		is_package: Boolean(row.package_id)
+		is_package: Boolean(row.package_id),
+		// Sin estas dos, la conversion a orden y la comprobacion de
+		// disponibilidad reciben siempre `undefined`, por mucho que la fila
+		// las traiga: el INSERT las escribe y el mapeo las tiraba.
+		start_date: row.start_date ?? null,
+		end_date: row.end_date ?? null
 	};
 }
 

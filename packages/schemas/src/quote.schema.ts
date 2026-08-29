@@ -37,6 +37,14 @@ export type QuoteItem = {
 	price: number;
 	total?: number;
 	is_package?: boolean;
+	/**
+	 * Ventana de alquiler de esta linea, cuando difiere de la del evento.
+	 * Columnas `start_date`/`end_date` de `quotation_items` (migracion 004).
+	 * Se propagan a la orden y a la reserva de stock al convertir la
+	 * cotizacion, y son las fechas con las que se comprueba disponibilidad.
+	 */
+	start_date?: Nullable<string>;
+	end_date?: Nullable<string>;
 };
 
 export function validateQuoteInput(quote: Pick<Quote, 'client_id'>): ValidationResult {
