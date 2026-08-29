@@ -386,6 +386,45 @@ cotizacion —los cancelados no cuentan, para poder rehacer uno anulado por
 error—, los indices de lectura, y dos CHECK que la aplicacion ya validaba pero
 la base no: importe de pago mayor que cero y estados cerrados.
 
+### Fase 8d - Paquetes y seriales
+
+**Paquetes** (`/packages`) agrupan articulos que se alquilan juntos. Su razon de
+ser es el boton **Insertar paquete** de la cotizacion: explota el paquete en
+lineas sueltas, cada una con el **precio vigente** del articulo, no con el
+`suggested_price`. Asi un cambio de tarifa no queda congelado en un paquete
+definido hace meses. Una vez insertadas, las lineas se editan como cualquier
+otra. Si un articulo ya esta en el paquete, se suma la cantidad en vez de
+duplicar la linea (`mergePackageItem` en core).
+
+**Seriales** identifican unidades fisicas concretas. Un articulo se marca como
+serializado desde su ficha (`item_type`), y entonces:
+
+- Sus existencias dejan de teclearse: `total_quantity` y `available_quantity`
+  se derivan de los seriales registrados. El campo pasa a solo lectura.
+- Al **entregar**, en vez de un campo numerico se marcan las unidades concretas
+  que salen. Pasan a `entregado` y quedan ligadas a la orden.
+- Al **devolver** solo se ofrecen las unidades que salieron con esa orden.
+  Vuelven a `disponible`.
+- `mantenimiento` y `retirado` se marcan a mano desde la ficha y sacan la unidad
+  de circulacion sin borrarla.
+
+Ciclo: `disponible -> (entrega) entregado -> (devolucion) disponible`.
+
+Si una unidad vuelve dañada, la incidencia se registra aparte: el serial **no**
+pasa a mantenimiento automaticamente, porque eso lo decide quien la revisa.
+
+Permisos: `packages.view/create/update/deactivate`. Los seriales no tienen
+permiso propio —son una propiedad del articulo— y se gobiernan con
+`inventory.update`; la asignacion en entrega, con `operations.deliver`.
+
+#### Migracion 009
+
+Numero de serie unico por articulo y empresa —normalizado a mayusculas sin
+espacios—, nombre de paquete unico por empresa, un articulo una sola vez por
+paquete, cantidad de linea mayor que cero y estados de serial cerrados. Ademas
+`work_order_item_serials` gana `company_id`, para poder filtrar la asignacion
+sin cruzar con `work_orders` en cada consulta.
+
 ## Sistema de Diseno
 
 Las tres apps de CCO comparten el mismo lenguaje visual, portado desde CCO

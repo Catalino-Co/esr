@@ -19,6 +19,12 @@ export const PERMISSIONS = [
 	'inventory.update',
 	'inventory.deactivate',
 
+	// Paquetes
+	'packages.view',
+	'packages.create',
+	'packages.update',
+	'packages.deactivate',
+
 	// Eventos
 	'events.view',
 	'events.create',
@@ -108,6 +114,7 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	'settings.view',
 	'customers.view',
 	'inventory.view',
+	'packages.view',
 	'events.view',
 	'quotes.view',
 	'work_orders.view',
@@ -124,6 +131,9 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'customers.update',
 	'inventory.create',
 	'inventory.update',
+	// Los seriales son una propiedad del articulo: se gobiernan con inventory.*
+	'packages.create',
+	'packages.update',
 	'events.create',
 	'events.update',
 	'quotes.create',
@@ -143,6 +153,7 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	...STAFF_PERMISSIONS,
 	'customers.deactivate',
 	'inventory.deactivate',
+	'packages.deactivate',
 	'events.cancel',
 	'events.deactivate',
 	'quotes.approve',

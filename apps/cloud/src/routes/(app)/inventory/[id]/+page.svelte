@@ -57,8 +57,29 @@
 			</select>
 		</div>
 		<div class="form-field">
+			<label for="item_type">Tipo de control</label>
+			<select id="item_type" name="item_type">
+				<option value="cantidad" selected={!data.isSerialized}>Por cantidad</option>
+				<option value="serializado" selected={data.isSerialized}>Por número de serie</option>
+			</select>
+			<span class="form-hint">
+				Serializado permite saber qué unidad concreta salió a cada evento.
+			</span>
+		</div>
+		<div class="form-field">
 			<label for="total_quantity">Cantidad total *</label>
-			<input id="total_quantity" name="total_quantity" type="number" min="0" value={item.total_quantity ?? 0} />
+			<input
+				id="total_quantity"
+				name="total_quantity"
+				type="number"
+				min="0"
+				value={item.total_quantity ?? 0}
+				readonly={data.isSerialized}
+				title={data.isSerialized ? 'Se calcula a partir de los números de serie registrados' : undefined}
+			/>
+			{#if data.isSerialized}
+				<span class="form-hint">Se deriva de los números de serie registrados.</span>
+			{/if}
 		</div>
 		<div class="form-field">
 			<label for="rental_price">Precio alquiler</label>
@@ -94,3 +115,108 @@
 		</form>
 	{/if}
 </section>
+
+{#if data.isSerialized}
+	<section class="panel">
+		<h2 class="sec-title">Números de serie ({data.serials.length})</h2>
+		<p class="panel-hint">
+			Cada número identifica una unidad física. Al entregar se eligen las unidades concretas que
+			salen; vuelven a estar disponibles al registrar la devolución.
+		</p>
+
+		{#if can('inventory.update')}
+			<form method="POST" action="?/addSerials" class="form-grid" use:enhance>
+				<div class="form-field full">
+					<label for="serials">Agregar seriales (uno por línea)</label>
+					<textarea id="serials" name="serials" rows="4" placeholder="SN-0001&#10;SN-0002"></textarea>
+				</div>
+				<div class="form-field full">
+					<button type="submit" class="btn-primary">Agregar seriales</button>
+				</div>
+			</form>
+		{/if}
+
+		{#if data.serials.length === 0}
+			<p class="empty-state">
+				Todavía no hay unidades registradas. Sin ellas el artículo no se puede entregar.
+			</p>
+		{:else}
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Número de serie</th>
+						<th>Estado</th>
+						<th>Orden</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.serials as serial (serial.id)}
+						{@const entregado = serial.status === 'entregado'}
+						<tr>
+							<td>{serial.serial_number}</td>
+							<td>
+								<span
+									class="badge"
+									class:badge-active={serial.status === 'disponible'}
+									class:badge-warning={serial.status === 'mantenimiento'}
+									class:badge-danger={entregado}
+									class:badge-inactive={serial.status === 'retirado'}
+								>
+									{serial.status}
+								</span>
+							</td>
+							<td>
+								{#if entregado && serial.work_order_id}
+									<a href="/work-orders/{serial.work_order_id}">#{serial.work_order_id}</a>
+								{:else}
+									—
+								{/if}
+							</td>
+							<td>
+								{#if can('inventory.update') && !entregado}
+									<form method="POST" action="?/setSerialStatus" class="linea" use:enhance>
+										<input type="hidden" name="serial_id" value={serial.id} />
+										<select name="status" aria-label={`Estado de ${serial.serial_number}`}>
+											<option value="disponible" selected={serial.status === 'disponible'}>
+												Disponible
+											</option>
+											<option value="mantenimiento" selected={serial.status === 'mantenimiento'}>
+												Mantenimiento
+											</option>
+											<option value="retirado" selected={serial.status === 'retirado'}>
+												Retirado
+											</option>
+										</select>
+										<button type="submit" class="btn-link">Guardar</button>
+									</form>
+								{:else if entregado}
+									<span class="nota">Se libera al registrar la devolución</span>
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+	</section>
+{/if}
+
+<style>
+	.sec-title {
+		margin: 0 0 var(--sp-3);
+		font-size: var(--font-md);
+		font-weight: 600;
+	}
+
+	.linea {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
+	.nota {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+</style>

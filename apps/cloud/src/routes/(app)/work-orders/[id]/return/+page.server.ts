@@ -1,7 +1,11 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getReturnableQuantity } from '@esr/core';
-import { getRentalRepository, getWorkOrderOperationsService } from '$lib/server/repositories';
+import {
+	getRentalRepository,
+	getSerialRepository,
+	getWorkOrderOperationsService
+} from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
@@ -26,7 +30,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		}))
 		.filter((item) => item.returnable > 0);
 
-	return { order, items: returnableItems };
+	// Las unidades concretas que salieron con esta orden: son exactamente las
+	// que pueden volver. No se ofrecen otras.
+	const deliveredSerials = await getSerialRepository().listByWorkOrder(ctx, params.id);
+	const withSerials = returnableItems.map((item) => ({
+		...item,
+		deliveredSerials: deliveredSerials.filter(
+			(serial) => String(serial.item_id) === String(item.item_id)
+		)
+	}));
+
+	return { order, items: withSerials };
 };
 
 export const actions: Actions = {
@@ -35,20 +49,44 @@ export const actions: Actions = {
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 
-		const lines: Array<{ work_order_item_id: string; quantity: number; condition: string; notes?: string }> = [];
+		const lines: Array<{
+			work_order_item_id: string;
+			quantity: number;
+			condition: string;
+			notes?: string;
+			serial_ids?: string[];
+		}> = [];
+		// Igual que en la entrega: un artículo serializado manda `serial_<id>` y
+		// ningún `qty_`, así que hay que recorrer los dos prefijos.
 		const itemIds = new Set<string>();
-		for (const [key] of form.entries()) {
+		for (const key of form.keys()) {
 			if (key.startsWith('qty_')) itemIds.add(key.slice(4));
+			else if (key.startsWith('serial_')) itemIds.add(key.slice(7));
 		}
 
 		for (const itemId of itemIds) {
-			const quantity = Number(form.get(`qty_${itemId}`));
 			const condition = String(form.get(`condition_${itemId}`) ?? 'good');
 			const notes = String(form.get(`notes_${itemId}`) ?? '').trim() || undefined;
-			if (quantity <= 0) continue;
 			if (!VALID_CONDITIONS.includes(condition)) {
 				return fail(400, { error: 'Condición de devolución inválida.' });
 			}
+
+			// En un artículo serializado la cantidad devuelta la determinan las
+			// unidades marcadas.
+			const serialIds = form.getAll(`serial_${itemId}`).map(String).filter(Boolean);
+			if (serialIds.length) {
+				lines.push({
+					work_order_item_id: itemId,
+					quantity: serialIds.length,
+					condition,
+					notes,
+					serial_ids: serialIds
+				});
+				continue;
+			}
+
+			const quantity = Number(form.get(`qty_${itemId}`));
+			if (quantity <= 0) continue;
 			lines.push({ work_order_item_id: itemId, quantity, condition, notes });
 		}
 
@@ -83,9 +121,13 @@ export const actions: Actions = {
 				`/work-orders/${params.id}?returned=${result.conduce.note_number}${incidentCount ? `&incidents=${incidentCount}` : ''}`
 			);
 		} catch (err) {
+			// `redirect()` de SvelteKit se lanza como excepcion: sin esto el catch
+			// se lo tragaba y la accion respondia "no se pudo" aunque hubiera
+			// funcionado. Se re-lanza para que el framework lo procese.
+			if (isRedirect(err)) throw err;
+
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) throw err;
 			const message = err instanceof Error ? err.message : 'No se pudo completar la devolución.';
-			return fail(400, { error: message });
-		}
+			return fail(400, { error: message });}
 	}
 };

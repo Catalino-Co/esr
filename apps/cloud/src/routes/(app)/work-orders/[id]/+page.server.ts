@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	getChecklistRepository,
@@ -86,10 +86,14 @@ export const actions: Actions = {
 			});
 			throw redirect(303, '/work-orders');
 		} catch (err) {
+			// `redirect()` de SvelteKit se lanza como excepcion: sin esto el catch
+			// se lo tragaba y la accion respondia "no se pudo" aunque hubiera
+			// funcionado. Se re-lanza para que el framework lo procese.
+			if (isRedirect(err)) throw err;
+
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) throw err;
 			const message = err instanceof Error ? err.message : 'No se pudo cancelar la orden.';
-			return fail(400, { error: message });
-		}
+			return fail(400, { error: message });}
 	},
 	close: async ({ locals, params, request, getClientAddress }) => {
 		const { companyId } = requirePermission(locals, 'work_orders.close');

@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
 import { summarizePayments, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
@@ -7,6 +7,7 @@ import {
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
+	getPackageRepository,
 	getPaymentRepository,
 	getQuoteConversionService,
 	getQuoteRepository,
@@ -23,7 +24,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
-	const [items, event, customer, inventory, linkedOrder, linkedContract, payments] =
+	const [items, event, customer, inventory, linkedOrder, linkedContract, payments, packages] =
 		await Promise.all([
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
@@ -31,7 +32,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getInventoryRepository().list(ctx, { is_active: 1, limit: 200, offset: 0 }),
 			getRentalRepository().findByQuotationId(ctx, params.id),
 			getContractRepository().findByQuotationId(ctx, params.id),
-			getPaymentRepository().listForQuotation(ctx, params.id)
+			getPaymentRepository().listForQuotation(ctx, params.id),
+			getPackageRepository().list(ctx)
 		]);
 
 	return {
@@ -42,6 +44,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		inventory,
 		linkedOrder,
 		linkedContract,
+		packages,
 		// El estado de cuenta se muestra tambien aqui: el dinero vive en la
 		// cotizacion, exista o no un contrato.
 		summary: summarizePayments(quote.total, payments),
@@ -69,6 +72,49 @@ export const actions: Actions = {
 		await getQuoteRepository().addItem(ctx, params.id, { item_id, quantity, price });
 		return { success: true };
 	},
+	addPackage: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'quotes.update');
+		const ctx = toTenantContext(companyId);
+		const quote = await getQuoteRepository().findById(ctx, event.params.id);
+		if (!quote) error(404, 'Cotización no encontrada');
+		const editCheck = validateQuoteCanEdit(quote);
+		if (!editCheck.ok) return fail(400, { error: editCheck.error });
+
+		const form = await event.request.formData();
+		const packageId = String(form.get('package_id') ?? '').trim();
+		if (!packageId) return fail(400, { error: 'Seleccione un paquete.' });
+
+		const pkg = await getPackageRepository().findById(ctx, packageId);
+		if (!pkg) return fail(404, { error: 'Paquete no encontrado.' });
+
+		const lines = await getPackageRepository().listItems(ctx, packageId);
+		if (!lines.length) {
+			return fail(400, { error: `El paquete «${pkg.name}» está vacío.` });
+		}
+
+		// Se explota en líneas sueltas con el precio VIGENTE de cada artículo,
+		// no con el precio sugerido del paquete: así un cambio de tarifa no
+		// queda congelado en un paquete definido hace meses. Una vez insertadas,
+		// las líneas se editan como cualquier otra.
+		for (const line of lines) {
+			await getQuoteRepository().addItem(ctx, event.params.id, {
+				item_id: line.item_id,
+				quantity: Number(line.quantity) || 1,
+				price: Number(line.rental_price) || 0
+			});
+		}
+
+		await recordAuditLog(event, {
+			action: 'quote.package_added',
+			entity_type: 'quote',
+			entity_id: String(event.params.id),
+			description: `Paquete «${pkg.name}» insertado en la cotización`,
+			metadata: { packageId, lineas: lines.length }
+		});
+
+		return { success: `Paquete «${pkg.name}» insertado: ${lines.length} línea(s).` };
+	},
+
 	updateItem: async ({ request, locals, params }) => {
 		const { companyId } = requirePermission(locals, 'quotes.update');
 		const ctx = toTenantContext(companyId);
@@ -187,8 +233,12 @@ export const actions: Actions = {
 			});
 			throw redirect(303, `/work-orders/${order.id}`);
 		} catch (conversionError) {
+			// `redirect()` de SvelteKit se lanza como excepcion: sin esto el catch
+			// se lo tragaba y la accion respondia "no se pudo" aunque hubiera
+			// funcionado. Se re-lanza para que el framework lo procese.
+			if (isRedirect(conversionError)) throw conversionError;
+
 			const message = conversionError instanceof Error ? conversionError.message : 'No se pudo convertir la cotización.';
-			return fail(400, { error: message });
-		}
+			return fail(400, { error: message });}
 	}
 };

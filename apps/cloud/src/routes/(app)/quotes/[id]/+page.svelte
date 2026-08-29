@@ -83,6 +83,28 @@
 	{/if}
 
 	{#if mayEdit}
+		{#if data.packages.length > 0}
+			<h3 style="margin-top: 24px">Agregar paquete</h3>
+			<form method="POST" action="?/addPackage" class="form-grid" use:enhance>
+				<div class="form-field">
+					<label for="package_id">Paquete</label>
+					<select id="package_id" name="package_id" required>
+						{#each data.packages as pkg (pkg.id)}
+							<option value={pkg.id}>{pkg.name} ({pkg.item_count} artículo(s))</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-field">
+					<span class="form-field-label">&nbsp;</span>
+					<button type="submit" class="btn-secondary">Insertar paquete</button>
+				</div>
+				<p class="panel-hint" style="grid-column: 1 / -1">
+					Se añade como líneas sueltas, con el precio vigente de cada artículo. Después se editan
+					como cualquier otra línea.
+				</p>
+			</form>
+		{/if}
+
 		<h3 style="margin-top: 24px">Agregar artículo</h3>
 		<form method="POST" action="?/addItem" class="form-grid" use:enhance>
 			<div class="form-field">

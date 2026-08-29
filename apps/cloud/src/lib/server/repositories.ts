@@ -12,9 +12,11 @@ import {
 	PostgresIncidentRepository,
 	PostgresInventoryRepository,
 	PostgresMemberRepository,
+	PostgresPackageRepository,
 	PostgresPaymentRepository,
 	PostgresQuoteRepository,
 	PostgresRentalRepository,
+	PostgresSerialRepository,
 	PostgresStockMovementRepository,
 	PostgresSupplierRepository,
 	PostgresSubcategoryRepository,
@@ -44,6 +46,8 @@ let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
 let contractRepository: PostgresContractRepository | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
+let packageRepository: PostgresPackageRepository | null = null;
+let serialRepository: PostgresSerialRepository | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -148,6 +152,16 @@ export function getContractRepository(): PostgresContractRepository {
 export function getPaymentRepository(): PostgresPaymentRepository {
 	if (!paymentRepository) paymentRepository = new PostgresPaymentRepository();
 	return paymentRepository;
+}
+
+export function getPackageRepository(): PostgresPackageRepository {
+	if (!packageRepository) packageRepository = new PostgresPackageRepository();
+	return packageRepository;
+}
+
+export function getSerialRepository(): PostgresSerialRepository {
+	if (!serialRepository) serialRepository = new PostgresSerialRepository();
+	return serialRepository;
 }
 
 export { getCompanyDocumentInfo };

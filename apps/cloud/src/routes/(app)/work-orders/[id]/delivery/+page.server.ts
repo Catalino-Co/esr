@@ -1,10 +1,12 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getDeliverableQuantity } from '@esr/core';
+import { getDeliverableQuantity, isSerializedInventoryItem } from '@esr/core';
 import {
 	getCustomerRepository,
 	getEventRepository,
+	getInventoryRepository,
 	getRentalRepository,
+	getSerialRepository,
 	getWorkOrderOperationsService
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
@@ -34,7 +36,23 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		}))
 		.filter((item) => item.deliverable > 0);
 
-	return { order, items: deliverableItems, customer, event };
+	// Para los artículos serializados hay que ofrecer las unidades concretas
+	// disponibles: en ellos la cantidad no se teclea, se elige.
+	const withSerials = await Promise.all(
+		deliverableItems.map(async (item) => {
+			const inventoryItem = await getInventoryRepository().findById(ctx, item.item_id);
+			if (!isSerializedInventoryItem(inventoryItem)) {
+				return { ...item, serialized: false, availableSerials: [] };
+			}
+			return {
+				...item,
+				serialized: true,
+				availableSerials: await getSerialRepository().listAvailableForItem(ctx, item.item_id)
+			};
+		})
+	);
+
+	return { order, items: withSerials, customer, event };
 };
 
 export const actions: Actions = {
@@ -43,15 +61,38 @@ export const actions: Actions = {
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 
-		const lines: Array<{ work_order_item_id: string; quantity: number }> = [];
-		for (const [key, value] of form.entries()) {
-			if (!key.startsWith('qty_')) continue;
-			const itemId = key.slice(4);
-			const quantity = Number(value);
+		const lines: Array<{
+			work_order_item_id: string;
+			quantity: number;
+			serial_ids?: string[];
+		}> = [];
+
+		// Un artículo por cantidad manda `qty_<id>`; uno serializado manda una o
+		// varias `serial_<id>` y NINGÚN `qty_`. Hay que recorrer ambos prefijos:
+		// mirar solo `qty_` dejaba fuera los serializados por completo.
+		const itemIds = new Set<string>();
+		for (const key of form.keys()) {
+			if (key.startsWith('qty_')) itemIds.add(key.slice(4));
+			else if (key.startsWith('serial_')) itemIds.add(key.slice(7));
+		}
+
+		for (const itemId of itemIds) {
+			// En un artículo serializado la cantidad la determinan los seriales
+			// marcados, no el campo numérico.
+			const serialIds = form.getAll(`serial_${itemId}`).map(String).filter(Boolean);
+			if (serialIds.length) {
+				lines.push({ work_order_item_id: itemId, quantity: serialIds.length, serial_ids: serialIds });
+				continue;
+			}
+			const quantity = Number(form.get(`qty_${itemId}`) ?? 0);
 			if (quantity > 0) lines.push({ work_order_item_id: itemId, quantity });
 		}
 
-		if (!lines.length) return fail(400, { error: 'Indique al menos un artículo con cantidad mayor a 0.' });
+		if (!lines.length) {
+			return fail(400, {
+				error: 'Indique al menos un artículo con cantidad mayor a 0, o marque sus unidades.'
+			});
+		}
 
 		try {
 			const result = await getWorkOrderOperationsService().completeDelivery(ctx, params.id, {
@@ -81,9 +122,13 @@ export const actions: Actions = {
 			});
 			throw redirect(303, `/work-orders/${params.id}?delivered=${result.conduce.note_number}`);
 		} catch (err) {
+			// `redirect()` de SvelteKit se lanza como excepcion: sin esto el catch
+			// se lo tragaba y la accion respondia "no se pudo" aunque hubiera
+			// funcionado. Se re-lanza para que el framework lo procese.
+			if (isRedirect(err)) throw err;
+
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) throw err;
 			const message = err instanceof Error ? err.message : 'No se pudo completar la entrega.';
-			return fail(400, { error: message });
-		}
+			return fail(400, { error: message });}
 	}
 };

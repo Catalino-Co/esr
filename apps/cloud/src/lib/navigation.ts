@@ -76,6 +76,13 @@ export const navItems: NavItemConfig[] = [
 		permission: 'inventory.view'
 	},
 	{
+		href: '/packages',
+		label: 'Paquetes',
+		icon: ICONS.packages,
+		matchPrefix: '/packages',
+		permission: 'packages.view'
+	},
+	{
 		href: '/reports',
 		label: 'Reportes',
 		icon: ICONS.reports,
@@ -123,6 +130,7 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/work-orders', title: 'Órdenes', subtitle: 'Operación y entregas' },
 	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Entregas y devoluciones' },
 	{ prefix: '/incidents', title: 'Incidencias', subtitle: 'Seguimiento operativo' },
+	{ prefix: '/packages', title: 'Paquetes', subtitle: 'Artículos que se alquilan juntos' },
 	{ prefix: '/reports', title: 'Reportes', subtitle: 'Consultas operativas básicas' },
 	{
 		prefix: '/settings/appearance',

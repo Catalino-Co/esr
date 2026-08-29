@@ -28,7 +28,20 @@
 							<td>{item.name}</td>
 							<td>{item.returnable}</td>
 							<td>
-								<input type="number" name="qty_{item.id}" min="0" max={item.returnable} value="0" class="input-narrow" />
+								{#if item.deliveredSerials.length > 0}
+									<!-- Solo pueden volver las unidades que salieron con esta orden. -->
+									<fieldset class="unidades">
+										<legend class="unidades-legend">Marque las unidades que regresan</legend>
+										{#each item.deliveredSerials as serial (serial.id)}
+											<label class="unidad">
+												<input type="checkbox" name="serial_{item.id}" value={serial.id} />
+												<span>{serial.serial_number}</span>
+											</label>
+										{/each}
+									</fieldset>
+								{:else}
+									<input type="number" name="qty_{item.id}" min="0" max={item.returnable} value="0" class="input-narrow" />
+								{/if}
 							</td>
 							<td>
 								<select name="condition_{item.id}">
@@ -59,4 +72,27 @@
 <style>
 	.input-narrow { width: 100px; }
 	.block-label { display: block; }
+
+	.unidades {
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		padding: var(--sp-2) var(--sp-3);
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2) var(--sp-4);
+		max-width: 420px;
+	}
+
+	.unidades-legend {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		padding: 0 var(--sp-1);
+	}
+
+	.unidad {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-1);
+		font-size: var(--font-sm);
+	}
 </style>
