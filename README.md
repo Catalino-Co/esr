@@ -469,6 +469,24 @@ Dos consecuencias medidas, no deducidas:
 La barra lateral es el caso inverso: `--sb-text-item` es #94a3b8, que en claro
 seria solo placeholder, pero sobre el indigo oscuro da 5.8:1.
 
+### El acento oscuro pasa por un ojo de aguja
+
+`--accent` en oscuro tiene que cumplir dos cosas a la vez, y tiran en
+direcciones contrarias: el boton primario es **letra blanca encima** del acento
+(pide 4.5:1) y a la vez una **forma sobre el panel** (pide 3:1 contra
+`--surface`). Aclararlo mejora la forma y empeora la letra; oscurecerlo, al
+reves:
+
+| Acento oscuro | Letra blanca | Forma sobre el panel |
+| --- | --- | --- |
+| `#6366f1` | 4.47 ✗ | 3.27 ✓ |
+| `#4f46e5` (el del tema claro) | 6.29 ✓ | 2.33 ✗ |
+| **`#635bfb`** | **4.75 ✓** | **3.08 ✓** |
+
+La banda que cumple las dos es estrecha —luminancia entre 0.177 y 0.183— pero
+existe. `#635bfb` cae dentro y conserva el tono 243 del acento claro, asi que
+la identidad no cambia.
+
 ### Barra lateral
 
 `--sidebar-bg` y los `--sb-*` viven **fuera** de los bloques de tema: la barra

@@ -226,8 +226,17 @@
 		--border: #334155;
 		--border-strong: #475569;
 
-		--accent: #6366f1;
-		--accent-hover: #818cf8;
+		/* El acento oscuro tiene que pasar por un ojo de aguja: el boton primario
+		   es letra blanca ENCIMA del acento (pide 4.5:1) y a la vez una forma
+		   sobre el panel (pide 3:1 contra --surface). Bajarlo al #4f46e5 del
+		   tema claro arregla la letra —6.29:1— pero deja la forma en 2.33; el
+		   #6366f1 anterior hacia lo contrario: forma 3.27, letra 4.47.
+		   #635bfb cumple los dos —4.75 y 3.08— y conserva el tono 243 del
+		   acento claro, asi que la identidad no cambia.
+		   --accent-active NO sigue a los otros dos: aqui hace de color de LETRA
+		   sobre --accent-subtle en badges, alertas y toasts. */
+		--accent: #635bfb;
+		--accent-hover: #7f79fc;
 		--accent-active: #a5b4fc;
 		--accent-subtle: #312e81;
 		--accent-border: #4338ca;
