@@ -225,26 +225,33 @@ p {
    reserva para «esto modifica algo».
    El lapiz va en `::before`, como el `+` de `.btn-new`: es decorativo, el
    texto ya dice Editar, y asi hereda `currentColor` sin ensuciar el marcado. */
-.btn-edit {
+/* Geometria comun de las acciones de fila. Solo cambia el color: ambar el que
+   modifica, neutro el que solo lleva a mirar. */
+.btn-edit,
+.btn-view {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	padding: var(--sp-1) var(--sp-3);
-	/* El borde va del color del texto, no gris: --border-strong da 1.48:1
-	   sobre blanco y a esa distancia no se ve que haya una caja, que es
-	   justo el problema que este boton venia a resolver. Con --warning-text
-	   son 5.02:1 en claro y 8.76:1 en oscuro, sin inventar un token nuevo. */
-	border: 1px solid var(--warning-text);
 	border-radius: var(--border-radius-sm);
 	background: var(--surface);
-	color: var(--warning-text);
 	font-size: var(--font-sm);
 	font-weight: 600;
 	line-height: 1.4;
 	white-space: nowrap;
 	cursor: pointer;
 	text-decoration: none;
+	border: 1px solid;
 	transition: all var(--transition-fast);
+}
+
+/* El borde de los dos va del color de SU texto, no de un gris: --border-strong
+   da 1.48:1 sobre blanco y a esa distancia no se ve que haya una caja, que es
+   justo el problema que estos botones vienen a resolver. Ningun gris del
+   sistema llega a 3:1 en los dos temas. */
+.btn-edit {
+	border-color: var(--warning-text);
+	color: var(--warning-text);
 }
 
 .btn-edit::before {
@@ -253,13 +260,35 @@ p {
 	line-height: 1;
 }
 
-.btn-edit:hover {
+.btn-edit:hover,
+.btn-edit:focus-visible {
 	background: var(--warning-bg);
 }
 
-.btn-edit:focus-visible {
+/* Ver solo lleva a mirar: va en gris, no en el acento. El acento se reserva a
+   una accion por pantalla —la primaria de la barra— y repartirlo por cada fila
+   lo dejaria sin significar nada. */
+.btn-view {
+	border-color: var(--text-muted);
+	color: var(--text-secondary);
+}
+
+/* La flecha va DETRAS y apunta adelante: estos botones navegan a un detalle. */
+.btn-view::after {
+	content: '→';
+	font-size: 1.05em;
+	line-height: 1;
+}
+
+.btn-view:hover,
+.btn-view:focus-visible {
+	background: var(--surface-sunken);
+	border-color: var(--text-secondary);
+}
+
+.btn-edit:focus-visible,
+.btn-view:focus-visible {
 	outline: none;
-	background: var(--warning-bg);
 	box-shadow: var(--focus-ring);
 }
 

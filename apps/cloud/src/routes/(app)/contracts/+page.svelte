@@ -63,7 +63,7 @@
 						<td class="num" class:saldado={contract.summary.settled}>
 							{contract.summary.settled ? 'Saldado' : money(contract.summary.balance)}
 						</td>
-						<td><a href="/contracts/{contract.id}">Ver</a></td>
+						<td><a class="btn-view" href="/contracts/{contract.id}">Ver</a></td>
 					</tr>
 				{/each}
 			</tbody>

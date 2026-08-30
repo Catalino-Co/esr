@@ -104,7 +104,7 @@
 							</span>
 						</td>
 						<td class="acciones">
-							<a href="/packages/{pkg.id}">Ver</a>
+							<a class="btn-view" href="/packages/{pkg.id}">Ver</a>
 							{#if can('packages.archive')}
 								<form method="POST" action="?/toggle" use:enhance>
 									<input type="hidden" name="id" value={pkg.id} />

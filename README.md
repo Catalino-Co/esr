@@ -575,10 +575,16 @@ de `--warning-text`, el color que el sistema ya reserva para «esto modifica
 algo». Antes era un `.btn-link`, o sea texto suelto del color de los enlaces,
 que en una columna de acciones no se distingue de un enlace cualquiera.
 
-El borde va del **color del texto**, no gris: `--border-strong` da 1.48:1 sobre
-blanco y a esa distancia no se ve que haya una caja, que es justo el problema
-que el boton venia a resolver. Con `--warning-text` son 5.02:1 en claro y
-8.76:1 en oscuro, sin inventar un token nuevo.
+`.btn-view` es su gemelo para las filas que solo llevan a mirar: misma
+geometria, gris en vez de ambar, y una flecha `→` detras porque navegan a un
+detalle. **No usa el acento**: ese se reserva a una accion por pantalla —la
+primaria de la barra— y repartirlo por cada fila lo dejaria sin significar
+nada.
+
+El borde de los dos va del **color de su texto**, no de un gris:
+`--border-strong` da 1.48:1 sobre blanco y a esa distancia no se ve que haya
+una caja, que es justo el problema que estos botones vienen a resolver. Ningun
+gris del sistema llega a 3:1 en los dos temas.
 
 Los botones que **abren** un alta llevan `.btn-new`, que les pone un `+` con
 `::before`. Va en CSS y no en el marcado porque es decorativo —el texto ya dice

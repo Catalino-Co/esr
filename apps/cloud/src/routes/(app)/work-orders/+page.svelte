@@ -42,7 +42,7 @@
 						<td>{order.event_name}</td>
 						<td>{order.status}</td>
 						<td>{Number(order.total || 0).toFixed(2)}</td>
-						<td><a href="/work-orders/{order.id}">Ver</a></td>
+						<td><a class="btn-view" href="/work-orders/{order.id}">Ver</a></td>
 					</tr>
 				{/each}
 			</tbody>

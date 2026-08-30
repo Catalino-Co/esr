@@ -47,7 +47,7 @@
 						<td>{quote.event_name}</td>
 						<td>{quote.status}</td>
 						<td>{Number(quote.total || 0).toFixed(2)}</td>
-						<td><a href="/quotes/{quote.id}">Ver</a></td>
+						<td><a class="btn-view" href="/quotes/{quote.id}">Ver</a></td>
 					</tr>
 				{/each}
 			</tbody>
