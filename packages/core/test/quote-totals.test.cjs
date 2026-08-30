@@ -56,47 +56,54 @@ function cargarGemeloTypeScript() {
 
 /** Casos que cubren lo que distingue a esta formula de una suma cualquiera. */
 const CASOS = [
-  {
-    nombre: 'sin lineas',
-    items: [], discount: 0, tax: 0
-  },
+  { nombre: 'sin lineas', items: [] },
   {
     nombre: 'una linea, sin descuento ni impuesto',
-    items: [{ quantity: 3, price: 100 }], discount: 0, tax: 0
+    items: [{ quantity: 3, price: 100 }]
   },
   {
-    nombre: 'descuento e impuesto son IMPORTES, no porcentajes',
-    items: [{ quantity: 2, price: 500 }], discount: 150, tax: 63
+    nombre: 'las tasas son PORCENTAJES, no importes',
+    items: [{ quantity: 2, price: 500, discount_rate: 15, tax_rate: 18 }]
   },
   {
-    nombre: 'el descuento puede superar al subtotal y el total va en negativo',
-    items: [{ quantity: 1, price: 10 }], discount: 50, tax: 0
+    nombre: 'el impuesto va sobre la base YA rebajada, no sobre el bruto',
+    items: [{ quantity: 1, price: 1000, discount_rate: 50, tax_rate: 18 }]
+  },
+  {
+    nombre: 'tasas por linea distintas en la misma cotizacion',
+    items: [
+      { quantity: 200, price: 150, discount_rate: 0, tax_rate: 18 },
+      { quantity: 2, price: 1200, discount_rate: 5, tax_rate: 18 },
+      { quantity: 1, price: 800, discount_rate: 0, tax_rate: 0 }
+    ]
+  },
+  {
+    nombre: 'un descuento del 100% deja la linea en cero',
+    items: [{ quantity: 3, price: 400, discount_rate: 100, tax_rate: 18 }]
   },
   {
     nombre: 'una linea con total 0 explicito NO se recalcula',
-    items: [{ quantity: 4, price: 25, total: 0 }], discount: 0, tax: 0
+    items: [{ quantity: 4, price: 25, total: 0, tax_rate: 18 }]
   },
   {
     nombre: 'el `total` de la linea manda sobre cantidad por precio',
-    items: [{ quantity: 4, price: 25, total: 7 }], discount: 0, tax: 0
+    items: [{ quantity: 4, price: 25, total: 7, tax_rate: 18 }]
   },
   {
     nombre: 'los NUMERIC de PostgreSQL llegan como cadena',
-    items: [{ quantity: '3', price: '19.99' }], discount: '5.50', tax: '2.25'
+    items: [{ quantity: '3', price: '19.99', discount_rate: '2.5', tax_rate: '18' }]
   },
   {
     nombre: 'valores ausentes cuentan como cero',
-    items: [{ quantity: undefined, price: null }], discount: undefined, tax: null
+    items: [{ quantity: undefined, price: null, discount_rate: null, tax_rate: undefined }]
   },
   {
-    nombre: 'varias lineas',
+    nombre: 'fracciones de centimo: se redondea por linea y luego se suma',
     items: [
-      { quantity: 1, price: 1200 },
-      { quantity: 10, price: 35.5 },
-      { quantity: 2, price: 0 }
-    ],
-    discount: 100,
-    tax: 90
+      { quantity: 3, price: 33.33, tax_rate: 18 },
+      { quantity: 7, price: 1.11, discount_rate: 3, tax_rate: 18 },
+      { quantity: 11, price: 0.07, tax_rate: 18 }
+    ]
   }
 ];
 
@@ -110,42 +117,78 @@ test('quote totals: las dos implementaciones dan lo mismo', (t) => {
 
   for (const caso of CASOS) {
     assert.deepEqual(
-      cjs.calculateQuoteTotals(caso.items, caso.discount, caso.tax),
-      ts.calculateQuoteTotals(caso.items, caso.discount, caso.tax),
+      cjs.calculateQuoteTotals(caso.items),
+      ts.calculateQuoteTotals(caso.items),
       `divergen en: ${caso.nombre}`
     );
   }
 });
 
-test('quote totals: el total de linea coincide en las dos', (t) => {
+test('quote totals: el desglose de linea coincide en las dos', (t) => {
   if (!ts) {
     t.skip('esbuild no se pudo resolver');
     return;
   }
 
-  for (const linea of [
-    { quantity: 3, price: 100 },
-    { quantity: '3', price: '19.99' },
-    { quantity: 0, price: 500 },
-    { quantity: undefined, price: null }
-  ]) {
+  for (const linea of CASOS.flatMap((c) => c.items)) {
+    assert.deepEqual(
+      cjs.calculateQuoteLineAmounts(linea),
+      ts.calculateQuoteLineAmounts(linea),
+      `divergen en ${JSON.stringify(linea)}`
+    );
     assert.equal(
       cjs.calculateQuoteLineTotal(linea),
       ts.calculateQuoteLineTotal(linea),
-      `divergen en ${JSON.stringify(linea)}`
+      `bruto divergente en ${JSON.stringify(linea)}`
     );
   }
 });
 
 test('quote totals: la forma del resultado es la esperada', () => {
-  const totales = cjs.calculateQuoteTotals([{ quantity: 2, price: 500 }], 150, 63);
-  assert.deepEqual(totales, { subtotal: 1000, discount: 150, tax_amount: 63, total: 913 });
+  // El caso de la vista previa que aprobo el usuario, cifra a cifra.
+  const totales = cjs.calculateQuoteTotals([
+    { quantity: 200, price: 150, discount_rate: 0, tax_rate: 18 },
+    { quantity: 2, price: 1200, discount_rate: 5, tax_rate: 18 }
+  ]);
+  assert.deepEqual(totales, {
+    subtotal: 32400,
+    discount: 120,
+    tax_amount: 5810.4,
+    total: 38090.4
+  });
+});
+
+test('quote totals: el total es la suma de los importes impresos', () => {
+  // La identidad que sostiene el bloque de totales. Si se rompe, el documento
+  // enseña unas lineas que no suman lo que dice el total.
+  const items = [
+    { quantity: 3, price: 33.33, tax_rate: 18 },
+    { quantity: 7, price: 1.11, discount_rate: 3, tax_rate: 18 },
+    { quantity: 11, price: 0.07, tax_rate: 18 }
+  ];
+  const totales = cjs.calculateQuoteTotals(items);
+  const sumaDeImportes = cjs.round2(
+    items.reduce((s, l) => s + cjs.calculateQuoteLineAmounts(l).total, 0)
+  );
+  assert.equal(totales.total, sumaDeImportes);
+  assert.equal(totales.total, cjs.round2(totales.subtotal - totales.discount + totales.tax_amount));
+});
+
+test('quote totals: el impuesto NO se cobra sobre lo que se rebaja', () => {
+  // 1000 con 50% de descuento: la base son 500 y el ITBIS son 90, no 180.
+  const totales = cjs.calculateQuoteTotals([
+    { quantity: 1, price: 1000, discount_rate: 50, tax_rate: 18 }
+  ]);
+  assert.equal(totales.discount, 500);
+  assert.equal(totales.tax_amount, 90);
+  assert.equal(totales.total, 590);
 });
 
 test('quote totals: una linea de cortesia no se recalcula', () => {
   // `?? calculateQuoteLineTotal(item)` y no `|| ...`: con `||`, un total 0
   // legitimo se sustituiria por cantidad × precio y la cortesia se cobraria.
-  const totales = cjs.calculateQuoteTotals([{ quantity: 4, price: 25, total: 0 }]);
+  const totales = cjs.calculateQuoteTotals([{ quantity: 4, price: 25, total: 0, tax_rate: 18 }]);
   assert.equal(totales.subtotal, 0);
+  assert.equal(totales.tax_amount, 0);
   assert.equal(totales.total, 0);
 });

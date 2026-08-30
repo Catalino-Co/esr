@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import {
+    calculateQuoteLineAmounts,
     calculateQuoteLineTotal,
     calculateQuoteTotals,
     formatMoney,
@@ -40,15 +41,20 @@
     event_id: null,
     date: new Date().toISOString().split('T')[0],
     validity_days: 15,
-    discount: 0,
-    tax_amount: 0,
+    // `discount` y `tax_amount` NO estan aqui: dejaron de ser dato de entrada.
+    // Salen de las tasas de cada linea y los escribe el repositorio.
     status: 'borrador',
     notes: '',
     conditions: '50% para reserva. 50% restante antes del evento.'
   };
 
   let cotizacion = { ...VACIA };
-  /** { item_id, package_id, name, code, quantity, price, is_legacy_package } */
+  /**
+   * { item_id, package_id, name, code, quantity, price, discount_rate,
+   *   tax_rate, is_legacy_package }
+   *
+   * `discount_rate` y `tax_rate` son PORCENTAJES (18 es el ITBIS).
+   */
   let lineas = [];
   let guardando = false;
   let error = '';
@@ -81,7 +87,9 @@
     ...l,
     total: calculateQuoteLineTotal({ quantity: l.quantity, price: l.price })
   }));
-  $: totales = calculateQuoteTotals(lineasConTotal, cotizacion.discount, cotizacion.tax_amount);
+  // Sin parametros: los totales son la SUMA de las lineas, no dos importes
+  // tecleados en la cabecera.
+  $: totales = calculateQuoteTotals(lineasConTotal);
 
   // ── Catalogos ────────────────────────────────────────────────────────────
   let clientes = [];
@@ -163,6 +171,8 @@
       code: fila.code,
       quantity: Number(fila.quantity) || 0,
       price: Number(fila.price) || 0,
+      discount_rate: Number(fila.discount_rate) || 0,
+      tax_rate: Number(fila.tax_rate) || 0,
       is_legacy_package: fila.is_legacy_package === 1
     }));
 
@@ -219,8 +229,19 @@
   let agregandoArticulo = false;
   let busqueda = '';
   let seleccion = null;
-  let alta = { quantity: 1, price: 0 };
+  let alta = { quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 };
   let agregados = 0;
+
+  /**
+   * Las tasas que se proponen para una linea NUEVA: las de la ultima linea.
+   *
+   * No hay tasa por defecto en ningun sitio del sistema, y una cotizacion de
+   * veinte lineas con el mismo ITBIS obligaria a teclear «18» veinte veces.
+   */
+  $: tasasSugeridas = {
+    discount_rate: Number(lineas[lineas.length - 1]?.discount_rate) || 0,
+    tax_rate: Number(lineas[lineas.length - 1]?.tax_rate) || 0
+  };
 
   $: resultados = (() => {
     const t = busqueda.trim().toLowerCase();
@@ -240,14 +261,15 @@
   function abrirArticulo() {
     busqueda = '';
     seleccion = null;
-    alta = { quantity: 1, price: 0 };
+    alta = { quantity: 1, price: 0, ...tasasSugeridas };
     agregados = 0;
     agregandoArticulo = true;
   }
 
   function elegirArticulo(articulo) {
     seleccion = articulo;
-    alta = { quantity: 1, price: Number(articulo.rental_price) || 0 };
+    // Las tasas ya elegidas se conservan al cambiar de articulo.
+    alta = { ...alta, quantity: 1, price: Number(articulo.rental_price) || 0 };
   }
 
   function confirmarArticulo() {
@@ -261,12 +283,14 @@
         code: seleccion.internal_code,
         quantity: Number(alta.quantity) || 1,
         price: Number(alta.price) || 0,
+        discount_rate: Number(alta.discount_rate) || 0,
+        tax_rate: Number(alta.tax_rate) || 0,
         is_legacy_package: false
       }
     ];
     agregados += 1;
     seleccion = null;
-    alta = { quantity: 1, price: 0 };
+    alta = { quantity: 1, price: 0, discount_rate: alta.discount_rate, tax_rate: alta.tax_rate };
   }
 
   // ── Dialogo: agregar paquete ─────────────────────────────────────────────
@@ -275,6 +299,12 @@
   // uno, que es el modelo de Cloud. Despues se editan como cualquier otra.
   let agregandoPaquete = false;
   let paqueteElegido = '';
+  /**
+   * Las tasas se eligen UNA vez para todo el paquete: pedirlas por articulo
+   * dentro del dialogo seria rellenar una tabla antes de insertar nada. Una vez
+   * insertadas, cada linea se corrige como cualquier otra.
+   */
+  let tasasPaquete = { discount_rate: 0, tax_rate: 0 };
 
   $: previa = (lineasDePaquete[paqueteElegido] ?? []).map((l) => ({
     item_id: l.item_id,
@@ -283,14 +313,17 @@
     code: l.code,
     quantity: Number(l.quantity) || 0,
     price: Number(l.price) || 0,
+    discount_rate: Number(tasasPaquete.discount_rate) || 0,
+    tax_rate: Number(tasasPaquete.tax_rate) || 0,
     is_legacy_package: false,
     is_active: Number(l.is_active)
   }));
-  $: totalPrevia = previa.reduce((s, l) => s + calculateQuoteLineTotal(l), 0);
+  $: totalPrevia = previa.reduce((s, l) => s + calculateQuoteLineAmounts(l).total, 0);
   $: previaConBajas = previa.some((l) => l.is_active !== 1);
 
   function abrirPaquete() {
     paqueteElegido = '';
+    tasasPaquete = { ...tasasSugeridas };
     agregandoPaquete = true;
   }
 
@@ -321,11 +354,17 @@
         code: l.code,
         quantity: (Number(l.quantity) || 0) * (Number(desgloseLinea.quantity) || 1),
         price: Number(l.price) || 0,
+        // Las lineas nuevas heredan las tasas de la linea de paquete que
+        // sustituyen: desglosar no puede cambiar el impuesto de un documento.
+        discount_rate: Number(desgloseLinea.discount_rate) || 0,
+        tax_rate: Number(desgloseLinea.tax_rate) || 0,
         is_legacy_package: false
       }))
     : [];
-  $: totalDesglose = desglose.reduce((s, l) => s + calculateQuoteLineTotal(l), 0);
-  $: totalAntes = desgloseLinea ? calculateQuoteLineTotal(desgloseLinea) : 0;
+  $: totalDesglose = desglose.reduce((s, l) => s + calculateQuoteLineAmounts(l).total, 0);
+  $: totalAntes = desgloseLinea
+    ? calculateQuoteLineAmounts({ ...desgloseLinea, total: undefined }).total
+    : 0;
 
   function abrirDesglose(indice) {
     desgloseIndice = indice;
@@ -396,7 +435,12 @@
           item_id: l.item_id,
           package_id: l.package_id,
           quantity: l.quantity,
-          price: l.price
+          price: l.price,
+          // Las tasas TIENEN que viajar aqui. Olvidarlas borraria el impuesto
+          // de un documento emitido en el primer guardado, sin ningun error por
+          // el camino; hay una prueba que lo cubre.
+          discount_rate: l.discount_rate,
+          tax_rate: l.tax_rate
         }))
       });
 
@@ -413,6 +457,8 @@
         code: fila.code,
         quantity: Number(fila.quantity) || 0,
         price: Number(fila.price) || 0,
+        discount_rate: Number(fila.discount_rate) || 0,
+        tax_rate: Number(fila.tax_rate) || 0,
         is_legacy_package: fila.is_legacy_package === 1
       }));
       mensaje = 'Cotización guardada.';
@@ -551,6 +597,8 @@
               <th>Código</th>
               <th class="num">Cant.</th>
               <th class="num">Precio</th>
+              <th class="num">Desc. %</th>
+              <th class="num">Imp. %</th>
               <th class="num">Importe</th>
               <th></th>
             </tr>
@@ -579,8 +627,36 @@
                     aria-label="Precio"
                   />
                 </td>
+                <td class="num">
+                  <!-- `step="any"`: con un paso declarado, un valor que no sea
+                       multiplo suyo da `stepMismatch` y el formulario no envia
+                       sin decir nada. El traspaso de las cotizaciones viejas
+                       deja tasas de tres decimales. -->
+                  <input
+                    class="tasa"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    bind:value={linea.discount_rate}
+                    aria-label="Descuento en porcentaje"
+                  />
+                </td>
+                <td class="num">
+                  <input
+                    class="tasa"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    bind:value={linea.tax_rate}
+                    aria-label="Impuesto en porcentaje"
+                  />
+                </td>
+                <!-- Con impuesto y ya rebajado: es lo que se cobra por la linea,
+                     y su suma es el total de la derecha. -->
                 <td class="num importe">
-                  {formatMoney(calculateQuoteLineTotal(linea))}
+                  {formatMoney(calculateQuoteLineAmounts({ ...linea, total: undefined }).total)}
                 </td>
                 <td>
                   <button class="btn-quitar" on:click={() => quitarLinea(i)}>Quitar</button>
@@ -598,31 +674,24 @@
     <div class="card">
       <div class="card-header"><div class="card-title">Totales</div></div>
 
+      <!-- Ni un solo campo: los cuatro numeros son SUMAS de las lineas. -->
       <div class="totals">
         <div class="total-row">
           <span>Subtotal</span>
           <span>{formatMoney(totales.subtotal)}</span>
         </div>
-        <div class="total-row">
-          <label for="cot-descuento">Descuento</label>
-          <input
-            id="cot-descuento"
-            type="number"
-            min="0"
-            step="0.01"
-            bind:value={cotizacion.discount}
-          />
-        </div>
-        <div class="total-row">
-          <label for="cot-impuesto">Impuesto</label>
-          <input
-            id="cot-impuesto"
-            type="number"
-            min="0"
-            step="0.01"
-            bind:value={cotizacion.tax_amount}
-          />
-        </div>
+        {#if totales.discount > 0}
+          <div class="total-row">
+            <span>Descuento</span>
+            <span>−{formatMoney(totales.discount)}</span>
+          </div>
+        {/if}
+        {#if totales.tax_amount > 0}
+          <div class="total-row">
+            <span>Impuesto</span>
+            <span>{formatMoney(totales.tax_amount)}</span>
+          </div>
+        {/if}
         <div class="total-row total-row--final">
           <span>Total</span>
           <span>{formatMoney(totales.total)}</span>
@@ -630,7 +699,8 @@
       </div>
 
       <p class="panel-hint ayuda">
-        Descuento e impuesto son importes, no porcentajes.
+        Descuento e impuesto salen de las columnas «Desc. %» e «Imp. %» de cada
+        ítem.
       </p>
     </div>
 
@@ -704,10 +774,34 @@
       <label for="alta-precio">Precio unitario</label>
       <input id="alta-precio" type="number" min="0" step="0.01" bind:value={alta.price} />
     </div>
+    <div class="form-field">
+      <label for="alta-descuento">Descuento %</label>
+      <input
+        id="alta-descuento"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={alta.discount_rate}
+      />
+    </div>
+    <div class="form-field">
+      <label for="alta-impuesto">Impuesto %</label>
+      <input
+        id="alta-impuesto"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={alta.tax_rate}
+      />
+    </div>
   </div>
 
   <p class="panel-hint ayuda">
-    Importe: {formatMoney((Number(alta.quantity) || 0) * (Number(alta.price) || 0))}
+    <!-- Con impuesto y ya rebajado, igual que la columna de la tabla: si aqui
+         se enseñara el bruto, el numero cambiaria al insertar. -->
+    Importe: {formatMoney(calculateQuoteLineAmounts(alta).total)}
   </p>
 
   <svelte:fragment slot="footer">
@@ -724,7 +818,7 @@
 <!-- ── Dialogo: agregar paquete ────────────────────────────────────────── -->
 <Modal bind:show={agregandoPaquete} title="Agregar paquete" maxWidth="640px">
   <div class="form-grid">
-    <div class="form-field">
+    <div class="form-field full">
       <label for="paq-select">Paquete</label>
       <select id="paq-select" bind:value={paqueteElegido}>
         <option value="">Elija el paquete</option>
@@ -734,6 +828,28 @@
           </option>
         {/each}
       </select>
+    </div>
+    <div class="form-field">
+      <label for="paq-descuento">Descuento %</label>
+      <input
+        id="paq-descuento"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={tasasPaquete.discount_rate}
+      />
+    </div>
+    <div class="form-field">
+      <label for="paq-impuesto">Impuesto %</label>
+      <input
+        id="paq-impuesto"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={tasasPaquete.tax_rate}
+      />
     </div>
   </div>
 
@@ -761,7 +877,7 @@
             </td>
             <td class="num">{l.quantity}</td>
             <td class="num">{formatMoney(l.price)}</td>
-            <td class="num">{formatMoney(calculateQuoteLineTotal(l))}</td>
+            <td class="num">{formatMoney(calculateQuoteLineAmounts(l).total)}</td>
           </tr>
         {/each}
       </tbody>
@@ -818,7 +934,7 @@
               <td>{l.name}</td>
               <td class="num">{l.quantity}</td>
               <td class="num">{formatMoney(l.price)}</td>
-              <td class="num">{formatMoney(calculateQuoteLineTotal(l))}</td>
+              <td class="num">{formatMoney(calculateQuoteLineAmounts(l).total)}</td>
             </tr>
           {/each}
         </tbody>
@@ -939,6 +1055,12 @@
   .importe {
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  /* Una tasa son dos digitos y una coma, no un importe: con la anchura de un
+     campo de dinero, la tabla se va de ancho con las dos columnas nuevas. */
+  .tabla-lineas input.tasa {
+    width: 3.75rem;
   }
 
   .tabla-lineas input {

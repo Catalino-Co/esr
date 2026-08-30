@@ -3,6 +3,7 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
+		calculateQuoteLineAmounts,
 		calculateQuoteLineTotal,
 		calculateQuoteTotals,
 		formatMoney,
@@ -51,8 +52,14 @@
 	 * con el viaje de red, y por eso desapareció el botón «Recalcular».
 	 */
 
-	/** Borrador de la cabecera. Se re-siembra solo cuando cambia el registro. */
-	let borrador = $state({ discount: 0, tax_amount: 0, notes: '' });
+	/**
+	 * Borrador de la cabecera. Se re-siembra solo cuando cambia el registro.
+	 *
+	 * Solo las NOTAS. El descuento y el impuesto salieron de aqui: eran dos
+	 * importes tecleados a mano que no guardaban relacion con lo cotizado.
+	 * Ahora cada linea lleva su tasa y la cabecera enseña la suma.
+	 */
+	let borrador = $state({ notes: '' });
 
 	/** Superposición de líneas: solo las que el usuario ha tocado. */
 	let overlay = $state({});
@@ -61,15 +68,11 @@
 		// Dependencia explícita del id: SvelteKit reutiliza el componente entre
 		// /quotes/3 y /quotes/4 y el borrador del anterior sobreviviría.
 		//
-		// `Number(...)` no es decorativo: `quotations.discount` es NUMERIC y `pg`
-		// no tiene type parser, así que llega como cadena «150.00». Sin esto,
-		// `borrador.discount + 1` daría «150.001».
+		// Las tasas y los precios pasan por `Number(...)` mas abajo, en `lineas`:
+		// `quotation_items.price` es NUMERIC y `pg` no tiene type parser, asi que
+		// llega como cadena «150.00» y `'150.00' + 1` daria «150.001».
 		void data.quote.id;
-		borrador = {
-			discount: Number(data.quote.discount ?? 0),
-			tax_amount: Number(data.quote.tax_amount ?? 0),
-			notes: data.quote.notes ?? ''
-		};
+		borrador = { notes: data.quote.notes ?? '' };
 		overlay = {};
 	});
 
@@ -78,13 +81,19 @@
 			const editado = overlay[item.id] ?? {};
 			const quantity = Number(editado.quantity ?? item.quantity) || 0;
 			const price = Number(editado.price ?? item.price) || 0;
-			return { ...item, quantity, price, total: calculateQuoteLineTotal({ quantity, price }) };
+			const discount_rate = Number(editado.discount_rate ?? item.discount_rate) || 0;
+			const tax_rate = Number(editado.tax_rate ?? item.tax_rate) || 0;
+			const linea = { ...item, quantity, price, discount_rate, tax_rate };
+			// `total` se sobreescribe con el BRUTO —cantidad x precio— para que
+			// `calculateQuoteLineAmounts` no reutilice el total guardado, que es
+			// el de antes de teclear.
+			return { ...linea, total: calculateQuoteLineTotal(linea), importes: calculateQuoteLineAmounts({ ...linea, total: undefined }) };
 		})
 	);
 
-	const totales = $derived(
-		calculateQuoteTotals(lineas, borrador.discount, borrador.tax_amount)
-	);
+	// Sin parametros: los totales son la SUMA de las lineas, no dos importes
+	// tecleados. Misma funcion que ejecuta `syncTotals` en el servidor.
+	const totales = $derived(calculateQuoteTotals(lineas));
 
 	function editarLinea(id, campo, valor) {
 		overlay[id] = { ...(overlay[id] ?? {}), [campo]: valor };
@@ -199,7 +208,24 @@
 	let errorArticulo = $state(null);
 	let busqueda = $state('');
 	let seleccion = $state(null);
-	let alta = $state({ quantity: 1, price: 0 });
+	let alta = $state({ quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 });
+
+	/**
+	 * Las tasas que se proponen para una linea NUEVA: las de la ultima linea de
+	 * la cotizacion.
+	 *
+	 * No hay tasa por defecto en ningun sitio del sistema —ni en el articulo, ni
+	 * en la empresa—, y una cotizacion de veinte lineas con el mismo ITBIS
+	 * obligaria a teclear «18» veinte veces. Se propone lo ultimo usado y se
+	 * corrige en el propio dialogo si esta linea es distinta.
+	 */
+	const tasasSugeridas = $derived.by(() => {
+		const ultima = lineas[lineas.length - 1];
+		return {
+			discount_rate: Number(ultima?.discount_rate) || 0,
+			tax_rate: Number(ultima?.tax_rate) || 0
+		};
+	});
 
 	const resultados = $derived.by(() => {
 		const t = busqueda.trim().toLowerCase();
@@ -216,16 +242,26 @@
 	function abrirArticulo() {
 		busqueda = '';
 		seleccion = null;
-		alta = { quantity: 1, price: 0 };
+		alta = { quantity: 1, price: 0, ...tasasSugeridas };
 		errorArticulo = null;
 		agregandoArticulo = true;
 	}
 
 	function elegir(articulo) {
 		seleccion = articulo;
-		// El precio queda editable: esto es una cotización, no una tarifa.
-		alta = { quantity: 1, price: articulo.price };
+		// El precio queda editable: esto es una cotización, no una tarifa. Las
+		// tasas ya elegidas se conservan al cambiar de artículo.
+		alta = { ...alta, quantity: 1, price: articulo.price };
 	}
+
+	const importeAlta = $derived(
+		calculateQuoteLineAmounts({
+			quantity: alta.quantity,
+			price: alta.price,
+			discount_rate: alta.discount_rate,
+			tax_rate: alta.tax_rate
+		})
+	);
 
 	const alAgregarArticulo = () => async ({ update, result }) => {
 		// `reset: false` siempre; y aquí SÍ hace falta el `invalidateAll` que trae
@@ -244,12 +280,32 @@
 	let errorPaquete = $state(null);
 	let paqueteElegido = $state('');
 
-	const previa = $derived(data.packageLines[String(paqueteElegido)] ?? []);
-	const totalPrevia = $derived(previa.reduce((s, l) => s + l.quantity * l.price, 0));
+	/**
+	 * Las tasas se eligen UNA vez para todo el paquete.
+	 *
+	 * Ponerlas por artículo dentro del diálogo sería pedirle al usuario que
+	 * rellene una tabla antes de insertar nada; una vez insertadas, cada línea
+	 * se corrige en la tabla como cualquier otra.
+	 */
+	let tasasPaquete = $state({ discount_rate: 0, tax_rate: 0 });
+
+	const previa = $derived(
+		(data.packageLines[String(paqueteElegido)] ?? []).map((l) => ({
+			...l,
+			importes: calculateQuoteLineAmounts({
+				quantity: l.quantity,
+				price: l.price,
+				discount_rate: tasasPaquete.discount_rate,
+				tax_rate: tasasPaquete.tax_rate
+			})
+		}))
+	);
+	const totalPrevia = $derived(previa.reduce((s, l) => s + l.importes.total, 0));
 	const previaConBajas = $derived(previa.some((l) => l.is_active !== 1));
 
 	function abrirPaquete() {
 		paqueteElegido = '';
+		tasasPaquete = { ...tasasSugeridas };
 		errorPaquete = null;
 		agregandoPaquete = true;
 	}
@@ -472,6 +528,8 @@
 							<th>Código</th>
 							<th class="num">Cant.</th>
 							<th class="num">Precio</th>
+							<th class="num">Desc. %</th>
+							<th class="num">Imp. %</th>
 							<th class="num">Importe</th>
 							{#if mayEdit}<th><span class="sr-only">Acciones</span></th>{/if}
 						</tr>
@@ -517,7 +575,55 @@
 										{formatMoney(item.price)}
 									{/if}
 								</td>
-								<td class="num importe">{formatMoney(item.total)}</td>
+								<td class="num">
+									{#if mayEdit}
+										<!--
+											`step="any"` y no `step="0.01"`: con un paso declarado, un
+											valor que no sea multiplo suyo da `stepMismatch` y
+											`requestSubmit()` NO envia, sin error ni aviso. Y las tasas
+											tienen tres decimales de verdad: el traspaso de las
+											cotizaciones viejas reparte el importe de la cabecera entre
+											las lineas y sale «6.818».
+										-->
+										<input
+											class="celda-num celda-tasa"
+											type="number"
+											name="discount_rate"
+											min="0"
+											max="100"
+											step="any"
+											form="linea-{item.id}"
+											value={item.discount_rate}
+											aria-label="Descuento en porcentaje de {item.name}"
+											oninput={(e) => editarLinea(item.id, 'discount_rate', e.currentTarget.value)}
+											onblur={() => programar(formularios[`linea-${item.id}`], true)}
+										/>
+									{:else}
+										{item.discount_rate}
+									{/if}
+								</td>
+								<td class="num">
+									{#if mayEdit}
+										<input
+											class="celda-num celda-tasa"
+											type="number"
+											name="tax_rate"
+											min="0"
+											max="100"
+											step="any"
+											form="linea-{item.id}"
+											value={item.tax_rate}
+											aria-label="Impuesto en porcentaje de {item.name}"
+											oninput={(e) => editarLinea(item.id, 'tax_rate', e.currentTarget.value)}
+											onblur={() => programar(formularios[`linea-${item.id}`], true)}
+										/>
+									{:else}
+										{item.tax_rate}
+									{/if}
+								</td>
+								<!-- El importe de la linea va CON impuesto y ya rebajado: es lo
+								     que se cobra por ella, y su suma es el total de abajo. -->
+								<td class="num importe">{formatMoney(item.importes.total)}</td>
 								{#if mayEdit}
 									<td>
 										<form method="POST" action={accion('removeItem')} use:enhance>
@@ -532,7 +638,7 @@
 								<!-- El <p> va DENTRO de la celda: en la misma capa
 								     `.data-table td` le gana a `.empty-state` y se comería
 								     su padding y su color. -->
-								<td colspan={mayEdit ? 6 : 5}>
+								<td colspan={mayEdit ? 8 : 7}>
 									<p class="empty-state">
 										Sin líneas — agregue artículos o inserte un paquete.
 									</p>
@@ -570,60 +676,56 @@
 	</div>
 
 	<div class="detail-side">
+		<!--
+			El <form> de la cabecera ya no envuelve nada visible: se quedo con las
+			notas, que estan arriba en «Informacion general» y lo referencian con
+			`form="cabecera-cotizacion"`. Va aqui, vacio, porque un <form> tiene que
+			existir en el documento para que ese atributo lo encuentre.
+		-->
+		<form
+			id="cabecera-cotizacion"
+			method="POST"
+			action={accion('updateQuote')}
+			bind:this={formularios.cabecera}
+			use:enhance={alGuardar(formularios.cabecera)}
+		>
+			<button type="submit" class="submit-oculto">Guardar notas</button>
+		</form>
+
 		<section class="card">
 			<div class="card-header"><h2 class="card-title">Totales</h2></div>
 
-			<form
-				id="cabecera-cotizacion"
-				method="POST"
-				action={accion('updateQuote')}
-				bind:this={formularios.cabecera}
-				use:enhance={alGuardar(formularios.cabecera)}
-			>
-				<div class="totals">
-					<div class="total-row">
-						<span>Subtotal</span>
-						<span>{formatMoney(totales.subtotal)}</span>
-					</div>
-					<div class="total-row">
-						<label for="discount">Descuento</label>
-						<input
-							id="discount"
-							name="discount"
-							type="number"
-							min="0"
-							step="0.01"
-							disabled={!mayEdit}
-							bind:value={borrador.discount}
-							oninput={() => programar(formularios.cabecera)}
-							onblur={() => programar(formularios.cabecera, true)}
-						/>
-					</div>
-					<div class="total-row">
-						<label for="tax_amount">Impuesto</label>
-						<input
-							id="tax_amount"
-							name="tax_amount"
-							type="number"
-							min="0"
-							step="0.01"
-							disabled={!mayEdit}
-							bind:value={borrador.tax_amount}
-							oninput={() => programar(formularios.cabecera)}
-							onblur={() => programar(formularios.cabecera, true)}
-						/>
-					</div>
-					<div class="total-row total-row--final">
-						<span>Total</span>
-						<span>{formatMoney(totales.total)}</span>
-					</div>
+			<!--
+				Ni un solo campo: los cuatro numeros son SUMAS de las lineas. El
+				formulario de la cabecera se quedo con las notas, que viven en
+				«Informacion general» y lo referencian con `form=`.
+			-->
+			<div class="totals">
+				<div class="total-row">
+					<span>Subtotal</span>
+					<span>{formatMoney(totales.subtotal)}</span>
 				</div>
-
-				<button type="submit" class="submit-oculto">Guardar totales</button>
-			</form>
+				{#if totales.discount > 0}
+					<div class="total-row">
+						<span>Descuento</span>
+						<span>−{formatMoney(totales.discount)}</span>
+					</div>
+				{/if}
+				{#if totales.tax_amount > 0}
+					<div class="total-row">
+						<span>Impuesto</span>
+						<span>{formatMoney(totales.tax_amount)}</span>
+					</div>
+				{/if}
+				<div class="total-row total-row--final">
+					<span>Total</span>
+					<span>{formatMoney(totales.total)}</span>
+				</div>
+			</div>
 
 			<p class="ayuda">
-				Descuento e impuesto son importes, no porcentajes. Se guardan solos.
+				Descuento e impuesto salen de las columnas «Desc. %» e «Imp. %» de cada
+				ítem. Se guardan solos.
 			</p>
 		</section>
 
@@ -740,8 +842,34 @@
 			/>
 		</div>
 		<div class="form-field">
+			<label for="alta_desc">Descuento %</label>
+			<input
+				id="alta_desc"
+				name="discount_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={alta.discount_rate}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="alta_imp">Impuesto %</label>
+			<input
+				id="alta_imp"
+				name="tax_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={alta.tax_rate}
+			/>
+		</div>
+		<div class="form-field">
 			<span class="form-field-label">Importe</span>
-			<output class="alta-importe">{formatMoney(alta.quantity * alta.price)}</output>
+			<!-- Con impuesto y ya rebajado, igual que la columna de la tabla: si
+			     aquí se enseñara el bruto, el número cambiaría al insertar. -->
+			<output class="alta-importe">{formatMoney(importeAlta.total)}</output>
 		</div>
 	</form>
 
@@ -775,6 +903,30 @@
 				{/each}
 			</select>
 		</div>
+		<div class="form-field">
+			<label for="pkg_desc">Descuento %</label>
+			<input
+				id="pkg_desc"
+				name="discount_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={tasasPaquete.discount_rate}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="pkg_imp">Impuesto %</label>
+			<input
+				id="pkg_imp"
+				name="tax_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={tasasPaquete.tax_rate}
+			/>
+		</div>
 	</form>
 
 	{#if previa.length}
@@ -805,7 +957,9 @@
 							</td>
 							<td class="num">{linea.quantity}</td>
 							<td class="num">{formatMoney(linea.price)}</td>
-							<td class="num">{formatMoney(linea.quantity * linea.price)}</td>
+							<!-- Con las tasas del diálogo ya aplicadas: es lo que va a
+							     añadir al total, no el bruto. -->
+							<td class="num">{formatMoney(linea.importes.total)}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -987,7 +1141,10 @@
 	}
 
 	.celda-num {
-		width: 5.5rem;
+		/* 5rem y no 5.5: con las dos columnas de tasa, la tabla se pasaba dos
+		   pixeles del contenedor y aparecia scroll horizontal dentro de la
+		   tarjeta. */
+		width: 5rem;
 		padding: var(--sp-1) var(--sp-2);
 		border: 1px solid var(--border);
 		border-radius: var(--border-radius-sm);
@@ -1002,6 +1159,13 @@
 	.celda-num:focus {
 		border-color: var(--border-focus);
 		box-shadow: var(--focus-ring);
+	}
+
+	/* Una tasa son dos digitos y una coma, no un importe: con la anchura de
+	   `.celda-num` la tabla se va de ancho y aparece scroll horizontal en una
+	   pantalla de portatil. */
+	.celda-tasa {
+		width: 4rem;
 	}
 
 	.btn-quitar {

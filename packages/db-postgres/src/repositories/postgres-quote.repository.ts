@@ -40,6 +40,11 @@ function mapQuoteItem(row: QuoteItemRow): QuoteItem {
 		// devolvia. Al releer una linea y volver a escribirla —copiar, por
 		// ejemplo— llegaba marcada como paquete y sin el paquete al que apunta.
 		package_id: row.package_id ?? null,
+		// Las tasas de la linea, en PORCENTAJE. Sin ellas la pantalla y
+		// `calculateQuoteTotals` verian 0 en todas partes y el impuesto
+		// desapareceria del documento sin ningun error por el camino.
+		discount_rate: Number(row.discount_rate || 0),
+		tax_rate: Number(row.tax_rate || 0),
 		discount_amount: Number(row.discount_amount || 0),
 		// Sin estas dos, la conversion a orden y la comprobacion de
 		// disponibilidad reciben siempre `undefined`, por mucho que la fila
@@ -122,7 +127,9 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 	async create(ctx: RepositoryContext, data: TenantCreateQuoteInput, client?: pg.PoolClient): Promise<Quote> {
 		const companyId = requireCompanyId(ctx);
 		const db = this.queryClient(client);
-		const totals = calculateQuoteTotals(data.items || [], data.discount ?? 0, data.tax_amount ?? 0);
+		// Sin los dos importes de cabecera: ahora salen de las tasas de cada
+		// linea. `data.discount`/`data.tax_amount` se ignoran a proposito.
+		const totals = calculateQuoteTotals(data.items || []);
 
 		const insertar = async (quoteNumber: string) =>
 			db.query<QuoteRow>(
@@ -251,8 +258,9 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		const lineTotal = calculateQuoteLineTotal({ quantity: data.quantity, price: data.price });
 		const insert = await this.pool.query<QuoteItemRow>(
 			`INSERT INTO quotation_items
-				(company_id, quotation_id, item_id, name, code, quantity, price, total, start_date, end_date)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				(company_id, quotation_id, item_id, name, code, quantity, price, total,
+				 discount_rate, tax_rate, start_date, end_date)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			 RETURNING *`,
 			[
 				companyId,
@@ -263,6 +271,8 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 				data.quantity,
 				data.price,
 				lineTotal,
+				data.discount_rate ?? 0,
+				data.tax_rate ?? 0,
 				data.start_date || null,
 				data.end_date || null
 			]
@@ -288,9 +298,15 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		const quantity = data.quantity ?? Number(row.quantity || 0);
 		const price = data.price ?? Number(row.price || 0);
 		const lineTotal = calculateQuoteLineTotal({ quantity, price });
+		// `??` y no `||`: poner una tasa a 0 —quitar el ITBIS de una linea— es
+		// una operacion legitima, y con `||` se quedaria con la anterior.
+		const discountRate = data.discount_rate ?? Number(row.discount_rate || 0);
+		const taxRate = data.tax_rate ?? Number(row.tax_rate || 0);
 
 		const updated = await this.pool.query<QuoteItemRow>(
-			`UPDATE quotation_items SET quantity = $4, price = $5, total = $6, start_date = $7, end_date = $8
+			`UPDATE quotation_items
+				SET quantity = $4, price = $5, total = $6, discount_rate = $7, tax_rate = $8,
+				    start_date = $9, end_date = $10
 			 WHERE company_id = $1 AND quotation_id = $2 AND id = $3 RETURNING *`,
 			[
 				companyId,
@@ -299,6 +315,8 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 				quantity,
 				price,
 				lineTotal,
+				discountRate,
+				taxRate,
 				data.start_date ?? row.start_date,
 				data.end_date ?? row.end_date
 			]
@@ -319,7 +337,10 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		const quote = await this.findById(ctx, quoteId, client);
 		if (!quote) throw new Error(`Quote ${quoteId} not found.`);
 		const items = await this.listItems(ctx, quoteId, client);
-		const totals = calculateQuoteTotals(items, quote.discount ?? 0, quote.tax_amount ?? 0);
+		// Ya no se releen `quote.discount` ni `quote.tax_amount` para volver a
+		// escribirlos: eran dato de entrada y ahora son RESULTADO. Todo sale de
+		// las tasas de las lineas.
+		const totals = calculateQuoteTotals(items);
 		return this.updateTotals(ctx, quoteId, totals, client);
 	}
 
@@ -372,8 +393,9 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 			await db.query(
 				`INSERT INTO quotation_items
 					(company_id, quotation_id, item_id, package_id, name, code,
-					 quantity, price, total, discount_amount, start_date, end_date)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+					 quantity, price, total, discount_rate, tax_rate, discount_amount,
+					 start_date, end_date)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 				[
 					companyId,
 					quoteId,
@@ -384,6 +406,10 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 					item.quantity,
 					item.price,
 					lineTotal,
+					// Copiar una cotizacion tiene que copiar tambien lo que se
+					// negocio en cada linea; si no, la copia sale sin impuesto.
+					item.discount_rate ?? 0,
+					item.tax_rate ?? 0,
 					item.discount_amount ?? 0,
 					item.start_date || null,
 					item.end_date || null

@@ -69,8 +69,9 @@ export class QuoteCopyService {
 					// La copia es un documento nuevo y su plazo cuenta desde que se
 					// emite.
 					validity_days: original.validity_days ?? 15,
-					discount: Number(original.discount ?? 0),
-					tax_amount: Number(original.tax_amount ?? 0),
+					// `discount` y `tax_amount` NO se copian de la cabecera: dejaron
+					// de ser dato de entrada. `create` los recalcula desde las tasas
+					// de las lineas, que si se copian.
 					notes: original.notes,
 					conditions: original.conditions,
 					// El ciclo de vida NO se hereda.
@@ -87,6 +88,11 @@ export class QuoteCopyService {
 						quantity: linea.quantity,
 						price: linea.price,
 						total: linea.total,
+						// Copiar una cotizacion tiene que copiar tambien lo que se
+						// negocio en cada linea; sin estas dos, la copia sale sin
+						// impuesto y con otro total que el original.
+						discount_rate: linea.discount_rate ?? 0,
+						tax_rate: linea.tax_rate ?? 0,
 						discount_amount: linea.discount_amount ?? 0,
 						start_date: linea.start_date ?? null,
 						end_date: linea.end_date ?? null

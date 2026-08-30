@@ -6,7 +6,30 @@
 // `doc.output('bloburl')` necesita `Blob` y `URL.createObjectURL`.)
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// UNA sola fuente para el desglose de una linea: la misma funcion que usan las
+// dos pantallas y los dos repositorios. Duplicar aqui esas cuatro
+// multiplicaciones seria una tercera copia de la formula, y ninguna prueba la
+// cubriria.
+//
+// Se importa `@esr/core` a secas —que resuelve al TypeScript— y NO el gemelo
+// `.cjs`: el servidor de desarrollo de Vite sirve un `.cjs` de un paquete del
+// workspace tal cual, sin interoperar, y el import de sus exportadas con nombre
+// revienta en desarrollo aunque `vite build` lo resuelva. Por eso la prueba de
+// maquetacion del PDF corre con `tsx` y no con Node pelado.
+import { calculateQuoteLineAmounts } from '@esr/core';
 import { fmt, fmtMoney } from '../formatters/number.js';
+
+/**
+ * Una tasa, sin ceros de relleno: 18 y no «18.00», 6.818 y no «6.82».
+ *
+ * Se imprime vacio cuando es cero. Una columna de «0%» repetida sesenta veces
+ * es ruido, y lo que el lector busca ahi es la excepcion.
+ */
+function pct(valor) {
+  const n = Number(valor) || 0;
+  if (n === 0) return '';
+  return `${Number(n.toFixed(3))}%`;
+}
 import { quoteDocumentFilename, quoteDocumentNumber, quoteItemLabel } from '../formatters/labels.js';
 
 /**
@@ -137,18 +160,29 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
     // celdas por fila embarra una tabla de 60 lineas, y sin declararla en
     // ningun sitio un «$» suelto se lee como dolar, que en el pais no es lo
     // mismo. Se declara una vez y se cuenta una vez.
-    head: [['Descripción', 'Cant.', 'Precio unit. (RD$)', 'Importe (RD$)']],
-    body: (items || []).map((linea) => [
-      // La etiqueta la pone `quoteItemLabel`, no quien llama: el listado de
-      // Desktop escribia «[PAQUETE] X» y su editor «📦 X» para la misma
-      // cotizacion, y el emoji ademas salia como un hueco porque las fuentes
-      // estandar de jsPDF son WinAnsi.
-      quoteItemLabel(linea),
-      // `String(... ?? 0)` y no `.toString()`: una cantidad nula reventaba.
-      String(linea.quantity ?? 0),
-      fmt(linea.price),
-      fmt(linea.total ?? Number(linea.quantity || 0) * Number(linea.price || 0))
-    ]),
+    // «Desc.» e «Imp.» van en porcentaje y por eso llevan su simbolo en la
+    // celda: son las dos unicas columnas que no son dinero, y sin el «%» se
+    // leerian como importes.
+    head: [['Descripción', 'Cant.', 'Precio unit. (RD$)', 'Desc.', 'Imp.', 'Importe (RD$)']],
+    body: (items || []).map((linea) => {
+      const importes = calculateQuoteLineAmounts(linea);
+      return [
+        // La etiqueta la pone `quoteItemLabel`, no quien llama: el listado de
+        // Desktop escribia «[PAQUETE] X» y su editor «📦 X» para la misma
+        // cotizacion, y el emoji ademas salia como un hueco porque las fuentes
+        // estandar de jsPDF son WinAnsi.
+        quoteItemLabel(linea),
+        // `String(... ?? 0)` y no `.toString()`: una cantidad nula reventaba.
+        String(linea.quantity ?? 0),
+        fmt(linea.price),
+        pct(linea.discount_rate),
+        pct(linea.tax_rate),
+        // El importe va CON impuesto y ya rebajado: es lo que se cobra por la
+        // linea, y su suma es el TOTAL de abajo. Enseñar aqui el bruto dejaria
+        // un documento cuyas lineas no suman su propio total.
+        fmt(importes.total)
+      ];
+    }),
     theme: 'striped',
     headStyles: { fillColor: [67, 94, 190] },
     styles: { fontSize: 9 },
@@ -156,9 +190,11 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
     // inferior donde va el pie.
     margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
     columnStyles: {
-      1: { halign: 'center', cellWidth: 20 },
-      2: { halign: 'right', cellWidth: 32 },
-      3: { halign: 'right', cellWidth: 32 }
+      1: { halign: 'center', cellWidth: 14 },
+      2: { halign: 'right', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 16 },
+      4: { halign: 'right', cellWidth: 16 },
+      5: { halign: 'right', cellWidth: 28 }
     }
   });
 

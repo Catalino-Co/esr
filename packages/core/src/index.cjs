@@ -162,37 +162,56 @@ function getIncidentSeverityTone(severity) {
  * que este modulo viene a evitar, asi que hay una prueba que compara las dos
  * implementaciones: `packages/core/test/quote-totals.test.cjs`.
  *
- * Recordatorio de semantica: `discount` y `tax_amount` son IMPORTES ABSOLUTOS,
- * no porcentajes.
+ * Recordatorio de semantica: `discount_rate` y `tax_rate` de cada linea son
+ * PORCENTAJES; el `discount` y el `tax_amount` que salen de
+ * `calculateQuoteTotals` son los IMPORTES que resultan de sumarlas.
  */
-function calculateQuoteLineTotal(line) {
-  return (Number(line.quantity) || 0) * (Number(line.price) || 0);
+function round2(value) {
+  const n = Number(value) || 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-function calculateQuoteTotals(items, discount = 0, taxAmount = 0) {
-  const subtotal = (items || []).reduce((suma, item) => {
-    // `?? calculateQuoteLineTotal(item)` y no `|| ...`: una linea con total 0
-    // es legitima —un articulo de cortesia— y con `||` se recalcularia.
-    const total = item.total === null || item.total === undefined
-      ? calculateQuoteLineTotal(item)
-      : Number(item.total) || 0;
-    return suma + total;
-  }, 0);
+function calculateQuoteLineTotal(line) {
+  return round2((Number(line.quantity) || 0) * (Number(line.price) || 0));
+}
 
-  const normalizedDiscount = Number(discount) || 0;
-  const normalizedTax = Number(taxAmount) || 0;
+function calculateQuoteLineAmounts(line) {
+  // `?? calculateQuoteLineTotal(line)` y no `|| ...`: una linea con bruto 0 es
+  // legitima —un articulo de cortesia— y con `||` se recalcularia.
+  const gross = round2(
+    line.total === null || line.total === undefined ? calculateQuoteLineTotal(line) : line.total
+  );
+  const discount = round2((gross * (Number(line.discount_rate) || 0)) / 100);
+  const taxable = round2(gross - discount);
+  const tax = round2((taxable * (Number(line.tax_rate) || 0)) / 100);
 
-  return {
-    subtotal,
-    discount: normalizedDiscount,
-    tax_amount: normalizedTax,
-    total: subtotal - normalizedDiscount + normalizedTax
-  };
+  return { gross, discount, taxable, tax, total: round2(taxable + tax) };
+}
+
+function calculateQuoteTotals(items) {
+  let subtotal = 0;
+  let discount = 0;
+  let tax_amount = 0;
+
+  for (const item of items || []) {
+    const linea = calculateQuoteLineAmounts(item);
+    subtotal += linea.gross;
+    discount += linea.discount;
+    tax_amount += linea.tax;
+  }
+
+  subtotal = round2(subtotal);
+  discount = round2(discount);
+  tax_amount = round2(tax_amount);
+
+  return { subtotal, discount, tax_amount, total: round2(subtotal - discount + tax_amount) };
 }
 
 module.exports = {
+  calculateQuoteLineAmounts,
   calculateQuoteLineTotal,
   calculateQuoteTotals,
+  round2,
   findInsufficientStock,
   formatInsufficientStockDetail,
   getIncidentSeverityTone,

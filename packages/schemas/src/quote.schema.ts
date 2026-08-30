@@ -36,7 +36,22 @@ export type QuoteItem = {
 	quantity: number;
 	price: number;
 	total?: number;
-	/** Descuento en importe de la linea. Columna `discount_amount` de `quotation_items`. */
+	/**
+	 * Descuento e impuesto de la linea, en PORCENTAJE (18 es el ITBIS), no en
+	 * importe. Columnas `discount_rate`/`tax_rate` de `quotation_items`.
+	 *
+	 * Sustituyen a los dos importes sueltos que habia en la cabecera de la
+	 * cotizacion: alli se tecleaban a mano y no guardaban ninguna relacion con
+	 * lo cotizado. Ahora la cabecera solo guarda la suma de las lineas.
+	 */
+	discount_rate?: number;
+	tax_rate?: number;
+	/**
+	 * Descuento en importe de la linea. Columna `discount_amount` de
+	 * `quotation_items`, que existe desde la migracion 004 y NUNCA la leyo
+	 * nadie: `calculateQuoteTotals` jamas la resto. Se conserva para no perder
+	 * lo que hubiera escrito, pero quien manda es `discount_rate`.
+	 */
 	discount_amount?: number;
 	is_package?: boolean;
 	/**

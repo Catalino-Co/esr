@@ -36,6 +36,7 @@ class SqliteQuoteRepository {
 	async listItems(quoteId) {
 		return await getQuery(
 			`SELECT qi.id, qi.item_id, qi.package_id, qi.quantity, qi.price,
+			        qi.discount_rate, qi.tax_rate,
 			        COALESCE(i.name, p.name) AS name,
 			        i.internal_code AS code,
 			        CASE WHEN qi.package_id IS NOT NULL AND qi.item_id IS NULL THEN 1 ELSE 0 END
@@ -72,9 +73,15 @@ class SqliteQuoteRepository {
 			item_id: linea.item_id ?? null,
 			package_id: linea.package_id ?? null,
 			quantity: Number(linea.quantity) || 0,
-			price: Number(linea.price) || 0
+			price: Number(linea.price) || 0,
+			// Tasas en PORCENTAJE. `Number(...) || 0` y no `?? 0`: del renderer
+			// llegan como cadena cuando el <input> esta vacio.
+			discount_rate: Number(linea.discount_rate) || 0,
+			tax_rate: Number(linea.tax_rate) || 0
 		}));
-		const totales = calculateQuoteTotals(lineas, input.discount, input.tax_amount);
+		// Sin los dos importes de cabecera: `input.discount` e `input.tax_amount`
+		// se ignoran a proposito. Ahora son RESULTADO de las tasas de las lineas.
+		const totales = calculateQuoteTotals(lineas);
 
 		return await withTransaction(async () => {
 			const id = input.id ? await this.txUpdate(input, totales) : await this.txInsert(input, totales);
@@ -132,7 +139,7 @@ class SqliteQuoteRepository {
 	}
 
 	/**
-	 * UNA sola sentencia de insercion, con las cinco columnas y `package_id`
+	 * UNA sola sentencia de insercion, con todas las columnas y `package_id`
 	 * explicito aunque sea NULL.
 	 *
 	 * La version anterior tenia DOS `INSERT` con listas de columnas distintas
@@ -144,9 +151,18 @@ class SqliteQuoteRepository {
 		await runQuery('DELETE FROM quotation_items WHERE quotation_id = ?', [quoteId]);
 		for (const linea of lineas) {
 			await runQuery(
-				`INSERT INTO quotation_items (quotation_id, item_id, package_id, quantity, price)
-				 VALUES (?, ?, ?, ?, ?)`,
-				[quoteId, linea.item_id, linea.package_id, linea.quantity, linea.price]
+				`INSERT INTO quotation_items
+					(quotation_id, item_id, package_id, quantity, price, discount_rate, tax_rate)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				[
+					quoteId,
+					linea.item_id,
+					linea.package_id,
+					linea.quantity,
+					linea.price,
+					linea.discount_rate,
+					linea.tax_rate
+				]
 			);
 		}
 	}

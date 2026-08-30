@@ -67,7 +67,12 @@ export const POST: RequestHandler = async (event) => {
 			package_id: linea.package_id ?? null,
 			quantity: linea.quantity,
 			price: linea.price,
-			total: linea.total
+			total: linea.total,
+			// Las dos tasas, o el PDF sale con las columnas «Desc.» e «Imp.» en
+			// blanco y un importe de linea que no suma su propio total. Es una
+			// proyeccion explicita: lo que no se nombra aqui, no llega.
+			discount_rate: linea.discount_rate ?? 0,
+			tax_rate: linea.tax_rate ?? 0
 		}))
 	});
 };

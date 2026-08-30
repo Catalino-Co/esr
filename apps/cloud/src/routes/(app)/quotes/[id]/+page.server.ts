@@ -88,6 +88,23 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	};
 };
 
+/**
+ * Lee las dos tasas de una linea del formulario.
+ *
+ * Son PORCENTAJES, no importes, y se acotan a [0, 100]: un descuento del 150%
+ * pondria el importe en negativo y una tasa negativa devolveria dinero. El
+ * `<input type="number" min max>` ya lo impide en el navegador, pero una action
+ * es un endpoint publico y ahi no hay navegador que valga.
+ */
+function leerTasas(form: FormData): { discount_rate: number; tax_rate: number } {
+	const acotar = (valor: FormDataEntryValue | null) =>
+		Math.min(100, Math.max(0, Number(valor ?? 0) || 0));
+	return {
+		discount_rate: acotar(form.get('discount_rate')),
+		tax_rate: acotar(form.get('tax_rate'))
+	};
+}
+
 export const actions: Actions = {
 	addItem: async ({ request, locals, params }) => {
 		const { companyId } = requirePermission(locals, 'quotes.update');
@@ -105,7 +122,12 @@ export const actions: Actions = {
 		const validation = validateAddQuoteItemInput({ item_id, quantity, price });
 		if (!validation.valid) return fail(400, { error: 'Artículo, cantidad y precio inválidos.' });
 
-		await getQuoteRepository().addItem(ctx, params.id, { item_id, quantity, price });
+		await getQuoteRepository().addItem(ctx, params.id, {
+			item_id,
+			quantity,
+			price,
+			...leerTasas(form)
+		});
 		return { success: true };
 	},
 	addPackage: async (event) => {
@@ -123,6 +145,12 @@ export const actions: Actions = {
 		const pkg = await getPackageRepository().findById(ctx, packageId);
 		if (!pkg) return fail(404, { error: 'Paquete no encontrado.' });
 
+		// Las tasas se eligen UNA vez para todo el paquete y se aplican a cada
+		// linea que sale de el. Ponerlas por articulo dentro del dialogo seria
+		// pedirle al usuario que rellene una tabla antes de insertar nada; una
+		// vez insertadas se corrigen linea a linea como cualquier otra.
+		const tasas = leerTasas(form);
+
 		const lines = await getPackageRepository().listItems(ctx, packageId);
 		if (!lines.length) {
 			return fail(400, { error: `El paquete «${pkg.name}» está vacío.` });
@@ -136,7 +164,8 @@ export const actions: Actions = {
 			await getQuoteRepository().addItem(ctx, event.params.id, {
 				item_id: line.item_id,
 				quantity: Number(line.quantity) || 1,
-				price: Number(line.rental_price) || 0
+				price: Number(line.rental_price) || 0,
+				...tasas
 			});
 		}
 
@@ -165,7 +194,11 @@ export const actions: Actions = {
 		const price = Number(form.get('price') ?? 0);
 		if (!itemId || quantity <= 0 || price < 0) return fail(400, { error: 'Datos de línea inválidos.' });
 
-		await getQuoteRepository().updateItem(ctx, params.id, itemId, { quantity, price });
+		await getQuoteRepository().updateItem(ctx, params.id, itemId, {
+			quantity,
+			price,
+			...leerTasas(form)
+		});
 		return { success: true };
 	},
 	removeItem: async ({ request, locals, params }) => {
@@ -191,11 +224,13 @@ export const actions: Actions = {
 		if (!editCheck.ok) return fail(400, { error: editCheck.error });
 
 		const form = await request.formData();
-		const discount = Number(form.get('discount') ?? 0);
-		const tax_amount = Number(form.get('tax_amount') ?? 0);
+		// Solo las notas. `discount` y `tax_amount` dejaron de ser dato de
+		// entrada: ahora salen de las tasas de cada linea y los escribe
+		// `syncTotals`. Si esta action siguiera aceptandolos, un POST a mano
+		// podria fijar un impuesto que no sale de ninguna linea.
 		const notes = String(form.get('notes') ?? '').trim();
 
-		await getQuoteRepository().update(ctx, params.id, { notes, discount, tax_amount });
+		await getQuoteRepository().update(ctx, params.id, { notes });
 		await getQuoteRepository().syncTotals(ctx, params.id);
 		return { success: true };
 	},

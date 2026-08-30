@@ -12,6 +12,13 @@ export type AddQuoteItemInput = {
 	item_id: ESRId;
 	quantity: number;
 	price: number;
+	/**
+	 * Descuento e impuesto de la linea, en PORCENTAJE. Opcionales: una linea
+	 * sin tasas es una linea sin descuento y sin impuesto, que es el caso mas
+	 * comun en un alquiler exento.
+	 */
+	discount_rate?: number;
+	tax_rate?: number;
 	start_date?: string;
 	end_date?: string;
 };
