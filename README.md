@@ -425,6 +425,62 @@ paquete, cantidad de linea mayor que cero y estados de serial cerrados. Ademas
 `work_order_item_serials` gana `company_id`, para poder filtrar la asignacion
 sin cruzar con `work_orders` en cada consulta.
 
+## Dashboard
+
+Se rehizo contra `DESIGN_SYSTEM.md`, que ya lo especificaba y al que la pantalla
+anterior incumplia entero.
+
+### Las cifras estaban mal, no solo mal maquetadas
+
+Ninguna de las seis era un `COUNT`: todas eran `.length` sobre una pagina de
+resultados. «Cotizaciones abiertas» y «Ordenes activas» median sobre
+`list(limit: 20)` —o sea que respondian *cuantas de las 20 mas recientes estan
+abiertas*, no el total— y las otras cuatro se quedaban clavadas en 500.
+
+Ahora hay un `PostgresDashboardRepository` con las seis en **una sola consulta**,
+seis subconsultas `COUNT` sobre sus indices. Dos arreglos de datos que venian
+con ello:
+
+- Las incidencias abiertas se buscaban en `['reportado','abierto','open']` y
+  `IncidentStatus` solo admite `reportado | resuelto | anulado`. Dos de los tres
+  valores no existian.
+- El dashboard tenia su propia lista de «orden activa», que incluia `devuelto`.
+  Ahora usa `ACTIVE_INVENTORY_ORDER_STATUSES` de `packages/core`, la misma que
+  gobierna el stock comprometido.
+
+### Flujo y stock no son lo mismo
+
+El selector de periodo (`?dias=7|30|90`) acota lo que es **flujo**: clientes
+nuevos, eventos, cotizaciones, ordenes e incidencias. **No acota el
+inventario**, que es un stock: «articulos de los ultimos 30 dias» no significa
+nada. Esa unica metrica lleva su nota «al dia de hoy» para que no se lea bajo el
+periodo.
+
+Los eventos se acotan por su `date`, no por `created_at`, porque `events` no
+tiene esa columna — y ademas la fecha del evento es la que importa.
+
+### Capa de formato
+
+`packages/core/src/shared/format.ts` y `business-status.ts`, que es lo que pide
+`DESIGN_SYSTEM.md`: `RD$1,500.50`, `20 jun 2026` —relativo por debajo de una
+semana— y `—` para el hueco vacio.
+
+`statusLabel` **nunca deja pasar el enum crudo**: lo que no esta en el mapa lo
+humaniza (`en_recogida` → «En recogida»). Hace falta porque el SQL casi nunca
+tiene `CHECK` y los valores estan repartidos en listas que no coinciden entre
+si: el tipo de `@esr/schemas`, las constantes de `operations/use-cases` y las
+opciones de cada filtro declaran conjuntos distintos.
+
+`@esr/reports/formatters` no se reutiliza: formatea en `en-US` sin simbolo, y su
+`formatDate` es un `slice(0, 10)`. Sirve a los PDF, que no tienen tema ni idioma
+del usuario.
+
+**La moneda es una constante, no un dato de la empresa.** No existe columna
+`currency` en `companies` ni en `company_info`. `LOCALE` y `CURRENCY` viven en un
+solo sitio para que el dia que exista el campo se cambie ahi.
+
+Por ahora **solo lo usa el dashboard**. El resto de la app lo adopta por fases.
+
 ## Paleta
 
 Los tokens viven en `packages/config/src/theme.css` y los consumen las dos

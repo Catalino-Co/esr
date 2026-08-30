@@ -5,6 +5,7 @@ export * from './repositories/postgres-auth.repository';
 export * from './repositories/postgres-catalog.repository';
 export * from './repositories/postgres-category.repository';
 export * from './repositories/postgres-customer.repository';
+export * from './repositories/postgres-dashboard.repository';
 export * from './repositories/postgres-event.repository';
 export * from './repositories/postgres-inventory.repository';
 export * from './repositories/postgres-quote.repository';

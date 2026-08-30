@@ -7,6 +7,7 @@ import {
 	PostgresConduceRepository,
 	PostgresContractRepository,
 	PostgresCustomerRepository,
+	PostgresDashboardRepository,
 	PostgresEventTypeRepository,
 	PostgresEventRepository,
 	PostgresIncidentRepository,
@@ -26,6 +27,7 @@ import {
 } from '@esr/db-postgres';
 
 let customerRepository: PostgresCustomerRepository | null = null;
+let dashboardRepository: PostgresDashboardRepository | null = null;
 let inventoryRepository: PostgresInventoryRepository | null = null;
 let eventRepository: PostgresEventRepository | null = null;
 let categoryRepository: PostgresCategoryRepository | null = null;
@@ -52,6 +54,11 @@ let serialRepository: PostgresSerialRepository | null = null;
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
 	return customerRepository;
+}
+
+export function getDashboardRepository(): PostgresDashboardRepository {
+	if (!dashboardRepository) dashboardRepository = new PostgresDashboardRepository();
+	return dashboardRepository;
 }
 
 export function getInventoryRepository(): PostgresInventoryRepository {
