@@ -338,6 +338,38 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Codigo muerto retirado de core
+
+`packages/core/src/conduces/` entero (`use-cases.ts` y `repositories.ts`) y casi
+todo `inventory/stock.ts`: `calculateCommittedStock`, `calculateAvailableStock`,
+`findInsufficientStock`, `formatInsufficientStockDetail` y sus tres tipos. Con
+la disponibilidad calculada en SQL ya no habia nada que pudieran hacer: sumar
+compromisos en memoria exige traerse antes todas las filas que la consulta ya
+agrega.
+
+De `stock.ts` sobrevive `shouldDeductStockForConduce` con sus dos constantes:
+las importan dos pantallas de conduces de ESR Pro Desktop.
+
+Tambien desaparece una duplicacion tonta: `STOCK_DEDUCTING_CONDUCE_STATUSES` y
+`CONDUCE_STOCK_DEDUCTING_STATUSES` eran la misma lista con el nombre al reves,
+en dos archivos.
+
+#### Cuidado al buscar usos en `@esr/core`
+
+El paquete tiene **exports condicionales**:
+
+```json
+"exports": { ".": { "import": "./src/index.ts", "require": "./src/index.cjs" } }
+```
+
+`import` resuelve al TypeScript —Cloud, y los `.svelte` de Desktop— y `require`
+a `index.cjs`, que es una implementacion CommonJS **aparte**, escrita a mano,
+con sus propias copias de estas mismas funciones. Las de `index.cjs` siguen
+vivas: las usan `packages/db-sqlite` y los tests de `packages/core/test`.
+
+Un `grep --include=*.ts` no ve ese mundo y da por muerto lo que no lo esta. Aqui
+paso: la primera busqueda dijo que estas funciones no tenian ningun uso.
+
 ### Una sola cuenta de disponibilidad
 
 Sobre el mismo articulo convivian TRES numeros y no coincidian. En la base de
