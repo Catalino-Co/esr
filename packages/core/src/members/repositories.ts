@@ -36,4 +36,21 @@ export interface TenantCompanyMemberRepository {
 		status: MemberStatus
 	): Promise<CompanyMemberView>;
 	countActiveByRole(ctx: RepositoryContext, roles: CompanyRole[]): Promise<number>;
+	/**
+	 * Escribe el nombre y el email en `users`, la identidad GLOBAL.
+	 *
+	 * Lo que se cambia aqui no pertenece a la empresa: el email es la
+	 * credencial de acceso y el nombre se ve en todas las empresas donde esa
+	 * persona sea miembro. Por eso la implementacion debe comprobar antes que
+	 * el miembro pertenece a la empresa activa, o seria una via para editar
+	 * cuentas ajenas.
+	 *
+	 * Devuelve `{ emailEnUso: true }` si el email ya es de otra cuenta, en vez
+	 * de dejar que salte el UNIQUE de PostgreSQL.
+	 */
+	updateAccount(
+		ctx: RepositoryContext,
+		memberId: string,
+		data: { name: string; email: string }
+	): Promise<{ member: CompanyMemberView } | { emailEnUso: true }>;
 }

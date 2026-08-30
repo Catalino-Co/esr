@@ -34,6 +34,7 @@ export const ICONS = {
 	suppliers: '🚚',
 	collaborators: '👷',
 	members: '🪪',
+	roles: '🛡️',
 
 	// Marca
 	brand: '🏢',

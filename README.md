@@ -726,16 +726,33 @@ Rutas de configuracion:
 ```text
 /settings
 /settings/company    -> company_info por empresa (encabeza los documentos imprimibles)
-/settings/members    -> company_members + users (invitar, cambiar rol, activar/desactivar)
+/settings/users      -> company_members + users (agregar, editar, activar/desactivar)
+/settings/roles      -> matriz de permisos, SOLO LECTURA
 ```
 
-Reglas de `/settings/members`:
+Reglas de `/settings/users`:
 
-- Solo se agregan cuentas que ya existen en `users`. Agregar un miembro no crea
+- Solo se agregan cuentas que ya existen en `users`. Agregar un usuario no crea
   identidades ni contrasenas.
 - El `owner` no puede modificarse desde la UI.
-- La empresa debe conservar al menos un `owner` o `admin` activo.
-- Toda alta, cambio de rol y cambio de estado queda en `audit_logs`.
+- La empresa debe conservar al menos un `owner` o `admin` activo, y se comprueba
+  contra el estado FINAL: degradar el rol y desactivar son dos formas de
+  quedarse sin ninguno.
+- Toda alta, edicion y cambio de estado queda en `audit_logs`.
+
+**El nombre y el email no son de la empresa.** Viven en `users`, que es la
+identidad global; `company_members` solo guarda `role` y `status`. Editarlos
+desde aqui cambia **con que email inicia sesion** esa persona y su nombre en
+**todas** las empresas donde sea usuario. El dialogo lo avisa junto a los dos
+campos, y el choque con el UNIQUE de `users.email` se devuelve como error de
+campo en vez de dejar que salte PostgreSQL.
+
+`/settings/roles` es una referencia: exporta `load` y ninguna action. Su matriz
+se arma desde `ROLE_PERMISSIONS`, la misma constante que autoriza de verdad, asi
+que no puede desviarse de lo que hace la aplicacion. Las etiquetas en espanol de
+los permisos y su agrupacion por modulo viven en `PERMISSION_LABELS` y
+`PERMISSION_GROUPS`, pegadas a la matriz para que un permiso nuevo sin etiqueta
+lo detecte TypeScript.
 
 `settings.view` lo tienen **todos los roles**: solo habilita abrir la seccion
 Configuracion, cuyo contenido base es Apariencia, que es una preferencia

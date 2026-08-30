@@ -81,6 +81,31 @@ export function validateCloudMemberInput(data: {
 	return errors;
 }
 
+/**
+ * Edicion de la cuenta de un usuario. Se separa de `validateCloudMemberInput`
+ * porque el alta solo pide email y rol, mientras que la edicion escribe ademas
+ * el nombre en `users`, que es la identidad GLOBAL.
+ */
+export function validateCloudUserInput(data: {
+	name?: string;
+	email?: string;
+	role?: string;
+}): ValidationError[] {
+	const errors: ValidationError[] = [];
+	if (!data.name?.trim()) {
+		errors.push({ field: 'name', message: 'El nombre es obligatorio.' });
+	}
+	if (!data.email?.trim()) {
+		errors.push({ field: 'email', message: 'El email es obligatorio.' });
+	} else if (!EMAIL_PATTERN.test(data.email.trim())) {
+		errors.push({ field: 'email', message: 'El email no es válido.' });
+	}
+	if (!data.role || !ASSIGNABLE_ROLES.includes(data.role as CompanyRole)) {
+		errors.push({ field: 'role', message: 'Seleccione un rol válido.' });
+	}
+	return errors;
+}
+
 export function formErrorsToObject(errors: ValidationError[]): Record<string, string> {
 	return Object.fromEntries(errors.map((error) => [error.field, error.message]));
 }

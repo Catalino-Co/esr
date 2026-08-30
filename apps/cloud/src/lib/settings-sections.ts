@@ -65,10 +65,17 @@ export const settingsSections: SettingsSection[] = [
 		permission: 'settings.catalogs.manage'
 	},
 	{
-		href: '/settings/members',
-		title: 'Miembros y roles',
+		href: '/settings/users',
+		title: 'Usuarios',
 		icon: ICONS.members,
-		description: 'Invita usuarios existentes a la empresa y define qué puede hacer cada uno.',
+		description: 'Quién tiene acceso a la empresa, con qué rol, y en qué estado está cada cuenta.',
+		permission: 'settings.members.manage'
+	},
+	{
+		href: '/settings/roles',
+		title: 'Roles y permisos',
+		icon: ICONS.roles,
+		description: 'Qué puede hacer cada rol, permiso a permiso. Es una referencia: no se edita.',
 		permission: 'settings.members.manage'
 	}
 ];

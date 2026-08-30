@@ -142,7 +142,8 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 		title: 'Datos de la empresa',
 		subtitle: 'Información que aparece en los documentos'
 	},
-	{ prefix: '/settings/members', title: 'Miembros', subtitle: 'Usuarios y roles de la empresa' },
+	{ prefix: '/settings/users', title: 'Usuarios', subtitle: 'Quien entra a la empresa y con que rol' },
+	{ prefix: '/settings/roles', title: 'Roles y permisos', subtitle: 'Que puede hacer cada rol. Solo lectura' },
 	{ prefix: '/settings/categories', title: 'Categorías', subtitle: 'Organizan el inventario. Cada categoría puede tener subcategorías.' },
 	{ prefix: '/settings/event-types', title: 'Tipos de evento', subtitle: 'Clasifican los eventos de la empresa y aparecen en los reportes.' },
 	{ prefix: '/settings/suppliers', title: 'Proveedores', subtitle: 'Empresas y personas a las que se subcontrata equipo o servicios.' },

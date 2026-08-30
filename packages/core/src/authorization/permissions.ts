@@ -87,6 +87,160 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
+ * Nombre legible de cada permiso. La matriz solo guarda el string tecnico
+ * (`quotes.approve`), que no se puede enseñar a un usuario. El diccionario vive
+ * aqui, pegado a la lista, para que un permiso nuevo sin etiqueta se note.
+ */
+export const PERMISSION_LABELS: Record<Permission, string> = {
+	'customers.view': 'Ver clientes',
+	'customers.create': 'Crear clientes',
+	'customers.update': 'Editar clientes',
+	'customers.archive': 'Archivar clientes',
+
+	'inventory.view': 'Ver inventario',
+	'inventory.create': 'Crear articulos',
+	'inventory.update': 'Editar articulos y seriales',
+	'inventory.archive': 'Archivar articulos',
+
+	'packages.view': 'Ver paquetes',
+	'packages.create': 'Crear paquetes',
+	'packages.update': 'Editar paquetes',
+	'packages.archive': 'Archivar paquetes',
+
+	'events.view': 'Ver eventos',
+	'events.create': 'Crear eventos',
+	'events.update': 'Editar eventos',
+	'events.cancel': 'Cancelar eventos',
+	'events.archive': 'Archivar eventos',
+
+	'quotes.view': 'Ver cotizaciones',
+	'quotes.create': 'Crear cotizaciones',
+	'quotes.update': 'Editar cotizaciones',
+	'quotes.approve': 'Aprobar cotizaciones',
+	'quotes.cancel': 'Cancelar cotizaciones',
+	'quotes.convert': 'Convertir en orden de trabajo',
+	'quotes.archive': 'Archivar cotizaciones',
+
+	'work_orders.view': 'Ver ordenes',
+	'work_orders.prepare': 'Preparar ordenes',
+	'work_orders.cancel': 'Cancelar ordenes',
+	'work_orders.close': 'Cerrar ordenes',
+	'work_orders.archive': 'Archivar ordenes',
+
+	'operations.deliver': 'Registrar entregas',
+	'operations.return': 'Registrar devoluciones',
+	'checklists.save': 'Guardar checklists',
+	'conduces.view': 'Ver conduces',
+	'conduces.archive': 'Archivar conduces',
+
+	'contracts.view': 'Ver contratos',
+	'contracts.create': 'Crear contratos',
+	'contracts.update': 'Editar contratos',
+	'contracts.sign': 'Firmar contratos',
+	'contracts.cancel': 'Cancelar contratos',
+	'contracts.archive': 'Archivar contratos',
+
+	'payments.view': 'Ver pagos',
+	'payments.register': 'Registrar pagos',
+	'payments.void': 'Anular pagos',
+
+	'incidents.view': 'Ver incidencias',
+	'incidents.create': 'Crear incidencias',
+	'incidents.resolve': 'Resolver incidencias',
+
+	'reports.view': 'Ver reportes',
+	'audit.view': 'Ver auditoria',
+
+	'settings.view': 'Abrir Configuracion',
+	'settings.company.update': 'Editar datos de la empresa',
+	'settings.catalogs.manage': 'Gestionar catalogos',
+	'settings.members.manage': 'Gestionar usuarios'
+};
+
+/** Los permisos agrupados por modulo, en el orden en que se muestran. */
+export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[] }> = [
+	{
+		label: 'Clientes',
+		permissions: ['customers.view', 'customers.create', 'customers.update', 'customers.archive']
+	},
+	{
+		label: 'Inventario',
+		permissions: [
+			'inventory.view',
+			'inventory.create',
+			'inventory.update',
+			'inventory.archive',
+			'packages.view',
+			'packages.create',
+			'packages.update',
+			'packages.archive'
+		]
+	},
+	{
+		label: 'Eventos',
+		permissions: ['events.view', 'events.create', 'events.update', 'events.cancel', 'events.archive']
+	},
+	{
+		label: 'Cotizaciones',
+		permissions: [
+			'quotes.view',
+			'quotes.create',
+			'quotes.update',
+			'quotes.approve',
+			'quotes.cancel',
+			'quotes.convert',
+			'quotes.archive'
+		]
+	},
+	{
+		label: 'Ordenes y operacion',
+		permissions: [
+			'work_orders.view',
+			'work_orders.prepare',
+			'work_orders.cancel',
+			'work_orders.close',
+			'work_orders.archive',
+			'operations.deliver',
+			'operations.return',
+			'checklists.save',
+			'conduces.view',
+			'conduces.archive'
+		]
+	},
+	{
+		label: 'Contratos y pagos',
+		permissions: [
+			'contracts.view',
+			'contracts.create',
+			'contracts.update',
+			'contracts.sign',
+			'contracts.cancel',
+			'contracts.archive',
+			'payments.view',
+			'payments.register',
+			'payments.void'
+		]
+	},
+	{
+		label: 'Incidencias',
+		permissions: ['incidents.view', 'incidents.create', 'incidents.resolve']
+	},
+	{
+		label: 'Analisis',
+		permissions: ['reports.view', 'audit.view']
+	},
+	{
+		label: 'Configuracion',
+		permissions: [
+			'settings.view',
+			'settings.company.update',
+			'settings.catalogs.manage',
+			'settings.members.manage'
+		]
+	}
+];
+
+/**
  * Etiquetas en espanol de los roles almacenados en `company_members.role`.
  * Los valores tecnicos no se traducen porque viven en el CHECK de PostgreSQL.
  */

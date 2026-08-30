@@ -133,6 +133,35 @@ export class PostgresMemberRepository implements TenantCompanyMemberRepository {
 		return Number(result.rows[0]?.total ?? 0);
 	}
 
+	async updateAccount(
+		ctx: RepositoryContext,
+		memberId: string,
+		data: { name: string; email: string }
+	): Promise<{ member: CompanyMemberView } | { emailEnUso: true }> {
+		// El miembro tiene que ser de la empresa activa: sin esta comprobacion
+		// un admin podria editar la cuenta de cualquiera pasando otro id.
+		const member = await this.findById(ctx, memberId);
+		if (!member) throw new Error('Miembro no encontrado.');
+
+		const email = data.email.trim();
+		const enUso = await this.pool.query<{ id: string }>(
+			`SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2`,
+			[email, member.user_id]
+		);
+		if (enUso.rows[0]) return { emailEnUso: true };
+
+		await this.pool.query(
+			`UPDATE users
+			 SET name = $2, email = $3, updated_at = CURRENT_TIMESTAMP
+			 WHERE id = $1`,
+			[member.user_id, data.name.trim(), email]
+		);
+
+		const actualizado = await this.findById(ctx, memberId);
+		if (!actualizado) throw new Error('Miembro no encontrado.');
+		return { member: actualizado };
+	}
+
 	/**
 	 * `users` es global: la busqueda por email es el unico puente para invitar a
 	 * alguien que ya tiene cuenta. No expone usuarios de otras empresas porque
