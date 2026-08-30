@@ -5,7 +5,6 @@ import {
 	PostgresChecklistRepository,
 	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
-	PostgresContractRepository,
 	PostgresCustomerRepository,
 	PostgresDashboardRepository,
 	PostgresEventTypeRepository,
@@ -46,7 +45,6 @@ let memberRepository: PostgresMemberRepository | null = null;
 let eventTypeRepository: PostgresEventTypeRepository | null = null;
 let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
-let contractRepository: PostgresContractRepository | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
 let packageRepository: PostgresPackageRepository | null = null;
 let serialRepository: PostgresSerialRepository | null = null;
@@ -149,11 +147,6 @@ export function getSupplierRepository(): PostgresSupplierRepository {
 export function getCollaboratorRepository(): PostgresCollaboratorRepository {
 	if (!collaboratorRepository) collaboratorRepository = new PostgresCollaboratorRepository();
 	return collaboratorRepository;
-}
-
-export function getContractRepository(): PostgresContractRepository {
-	if (!contractRepository) contractRepository = new PostgresContractRepository();
-	return contractRepository;
 }
 
 export function getPaymentRepository(): PostgresPaymentRepository {

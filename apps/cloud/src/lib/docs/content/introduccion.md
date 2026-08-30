@@ -1,7 +1,7 @@
 ## Qué es ESR Cloud
 
 ESR Cloud es la versión web y multiusuario de ESR, el sistema para operar
-inventario, eventos, alquileres, cotizaciones, conduces y contratos del flujo
+inventario, eventos, alquileres, cotizaciones, ordenes y conduces del flujo
 **Events Stock & Rentals**.
 
 Comparte núcleo con **ESR Pro**, la aplicación de escritorio: las mismas reglas

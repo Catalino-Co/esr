@@ -1,14 +1,12 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
-import { SELECTABLE_STATES, summarizePayments, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
+import { SELECTABLE_STATES, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
 import {
-	getContractRepository,
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
 	getPackageRepository,
-	getPaymentRepository,
 	getQuoteConversionService,
 	getQuoteRepository,
 	getRentalRepository
@@ -24,17 +22,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
-	const [items, event, customer, inventory, linkedOrder, linkedContract, payments, packages] =
-		await Promise.all([
-			getQuoteRepository().listItems(ctx, params.id),
-			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
-			getCustomerRepository().findById(ctx, quote.client_id),
-			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
-			getRentalRepository().findByQuotationId(ctx, params.id),
-			getContractRepository().findByQuotationId(ctx, params.id),
-			getPaymentRepository().listForQuotation(ctx, params.id),
-			getPackageRepository().list(ctx)
-		]);
+	const [items, event, customer, inventory, linkedOrder, packages] = await Promise.all([
+		getQuoteRepository().listItems(ctx, params.id),
+		quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
+		getCustomerRepository().findById(ctx, quote.client_id),
+		getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
+		getRentalRepository().findByQuotationId(ctx, params.id),
+		getPackageRepository().list(ctx)
+	]);
 
 	return {
 		quote,
@@ -43,11 +38,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		customer,
 		inventory,
 		linkedOrder,
-		linkedContract,
 		packages,
-		// El estado de cuenta se muestra tambien aqui: el dinero vive en la
-		// cotizacion, exista o no un contrato.
-		summary: summarizePayments(quote.total, payments),
+		// El estado de cuenta ya no vive aqui: el dinero esta en el conduce, que
+		// es el documento que se cobra.
 		canEdit: quote.status !== 'convertida' && quote.status !== 'cancelada'
 	};
 };

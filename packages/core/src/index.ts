@@ -23,7 +23,6 @@ export * from './rentals/use-cases';
 export * from './quotes/repositories';
 export * from './quotes/use-cases';
 
-export * from './contracts/repositories';
 
 export * from './payments/repositories';
 export * from './payments/use-cases';

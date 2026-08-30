@@ -3,9 +3,8 @@ import type { Payment, PaymentStatus } from '@esr/schemas';
 /**
  * Reglas de dinero de ESR. Puras: no saben de PostgreSQL ni de SvelteKit.
  *
- * El monto a cobrar vive en la COTIZACION (`quotations.total`); ni las ordenes
- * de trabajo ni los contratos guardan su propio total. El contrato formaliza
- * ese acuerdo y los pagos lo van reduciendo.
+ * El monto a cobrar vive en el CONDUCE (`conduces.total`), que es el documento
+ * que se entrega al cliente y el que se cobra. Los pagos lo van reduciendo.
  */
 
 /** Solo un pago en estado `pagado` reduce el saldo. */
@@ -14,7 +13,7 @@ export const PENDING_STATUS: PaymentStatus = 'pendiente';
 export const VOID_STATUS: PaymentStatus = 'anulado';
 
 export type PaymentSummary = {
-	/** Total acordado, tomado de la cotizacion. */
+	/** Total del conduce. */
 	total: number;
 	/** Suma de los pagos confirmados. */
 	paid: number;

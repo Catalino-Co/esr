@@ -1,7 +1,7 @@
 ## Qué es ESR Pro
 
 ESR Pro es la aplicación de escritorio de ESR, el sistema para operar
-inventario, eventos, alquileres, cotizaciones, conduces y contratos del flujo
+inventario, eventos, alquileres, cotizaciones, ordenes y conduces del flujo
 **Events Stock & Rentals**.
 
 Funciona sin conexión: los datos viven en una base SQLite en el propio equipo.

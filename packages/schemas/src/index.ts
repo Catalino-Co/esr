@@ -8,7 +8,6 @@ export * from './conduce.schema';
 export * from './checklist.schema';
 export * from './incident.schema';
 export * from './audit.schema';
-export * from './contract.schema';
 export * from './payment.schema';
 export * from './user.schema';
 export * from './company.schema';

@@ -1,6 +1,6 @@
 # ESR
 
-ESR es un monorepo para operar inventario, eventos, alquileres, cotizaciones, conduces, contratos y reportes del flujo Events Stock & Rentals.
+ESR es un monorepo para operar inventario, eventos, alquileres, cotizaciones, conduces y reportes del flujo Events Stock & Rentals.
 
 El objetivo es mantener un nucleo compartido y dos superficies de producto:
 
@@ -334,57 +334,33 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
-### Fase 8c - Contratos y pagos
+### Fase 9 - Fuera los contratos, el conduce cobra
 
-```text
-/contracts              listado con estado y saldo por contrato
-/contracts/new?quoteId= alta desde una cotizacion aprobada
-/contracts/[id]         detalle, estado de cuenta y pagos
-/contracts/[id]/print   contrato imprimible con pie de firmas
-```
+El flujo son tres documentos: **cotizacion -> orden -> conduce**. El contrato
+desaparecio; el conduce es el documento de dinero —lo que sera la facturacion—
+y ahi viven los pagos y las cuentas por cobrar.
 
-**El dinero vive en la cotizacion.** Ni `work_orders` ni `contracts` guardan un
-total propio: el monto acordado es `quotations.total`. El contrato formaliza ese
-acuerdo y los pagos lo van reduciendo. Las reglas son puras y viven en
-`packages/core/src/payments/use-cases.ts`.
+**Un pago cuelga de UN conduce.** Antes tenia doble ancla, contrato o
+cotizacion, que es lo que hacia que el saldo se mirase en un sitio y se cobrase
+en otro. `payments` pierde `contract_id` y `quotation_id`, y gana
+`conduce_id NOT NULL`.
 
-Reglas de negocio:
+La migracion **011** borra `contracts` y **descarta los pagos existentes**: un
+pago colgaba de un contrato o de una cotizacion, y una cotizacion puede tener
+varios conduces —uno por cada entrega parcial y cada devolucion—, asi que no
+hay forma de decidir a cual pertenece. No hay backfill posible.
 
-- **El contrato es opcional.** Se genera desde una cotizacion aprobada o ya
-  convertida, cuando se quiera. Convertir una cotizacion en orden no lo exige.
-- **Un pago cuelga del contrato si existe y, si no, de la cotizacion.** Asi se
-  puede cobrar un anticipo antes de firmar sin perder la trazabilidad. El estado
-  de cuenta suma siempre los dos origenes sobre el total de la cotizacion.
-- **Solo un pago en estado `pagado` reduce el saldo.** Los `pendiente` se
-  muestran aparte y los `anulado` no cuentan.
-- **Los pagos no se borran: se anulan.** La fila permanece —tachada en pantalla,
-  fuera del documento imprimible— para dejar rastro de que existio. Un pago
-  anulado no se reactiva: si el cobro se rehace, se registra uno nuevo.
-- **Un sobrepago no deja el saldo en negativo.** Se reporta aparte con un aviso.
-- Cancelar un contrato con dinero ya cobrado no se bloquea, pero avisa del
-  importe por si procede una devolucion.
+Sobre el orden de las migraciones: `contracts` nacia en la **002**, no en la
+008 —la 008 solo le anadio indices y CHECKs—, y la **010** la menciona en su
+array de tablas con `is_active`. Eso no rompe una base nueva porque la 010 corre
+antes que la 011, cuando la tabla todavia existe. Las migraciones aplicadas no
+se editan: el runner valida su checksum y aborta si cambian.
 
-Permisos:
+`conduces.status` gana por fin un CHECK (`emitido`, `completado`, `anulado`):
+hasta ahora no tenia ninguno y la base aceptaba cualquier cadena.
 
-| Accion | operador | gerente |
-| --- | --- | --- |
-| Ver contratos e imprimir | si | si |
-| Crear y editar contrato | si | si |
-| Registrar pago | si | si |
-| Firmar o cancelar contrato | no | si |
-| Anular pago | no | si |
-
-Registrar un cobro es operacion diaria; anularlo mueve dinero ya registrado y se
-reserva a gerencia.
-
-#### Migracion 008
-
-Las tablas `contracts` y `payments` existian desde la migracion 002 pero nunca
-se usaron: no tenian indices ni restricciones. La 008 anade el numero de
-contrato unico por empresa (`CTR-000001`), un unico contrato vigente por
-cotizacion —los cancelados no cuentan, para poder rehacer uno anulado por
-error—, los indices de lectura, y dos CHECK que la aplicacion ya validaba pero
-la base no: importe de pago mayor que cero y estados cerrados.
+**Cuidado con `packages/reports/src/contracts/`:** no es el contrato legal,
+exporta `generateConducePDF`. Borrarlo rompe los PDF de conduce.
 
 ### Fase 8d - Paquetes y seriales
 
@@ -611,7 +587,7 @@ JavaScript.
 color y chevron propio: conserva teclado, lector de pantalla y el desplegable
 del sistema, que en movil supera a cualquier imitacion.
 
-Donde ya habia estado de negocio (cotizaciones, ordenes, contratos, conduces) la
+Donde ya habia estado de negocio (cotizaciones, ordenes, conduces) la
 barra lleva **dos selects**. Inventario gano el de categoria, que el repositorio
 ya soportaba pero la pantalla no ofrecia; conduces gano busqueda y tipo, que
 exigieron ampliar `ConduceListFilters`.

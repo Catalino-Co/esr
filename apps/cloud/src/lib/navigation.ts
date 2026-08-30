@@ -34,13 +34,6 @@ export const navItems: NavItemConfig[] = [
 		permission: 'quotes.view'
 	},
 	{
-		href: '/contracts',
-		label: 'Contratos',
-		icon: ICONS.contracts,
-		matchPrefix: '/contracts',
-		permission: 'contracts.view'
-	},
-	{
 		href: '/work-orders',
 		label: 'Órdenes',
 		icon: ICONS.workOrders,
@@ -126,7 +119,6 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/inventory', title: 'Inventario', subtitle: 'Artículos y disponibilidad' },
 	{ prefix: '/events', title: 'Eventos', subtitle: 'Calendario y reservas' },
 	{ prefix: '/quotes', title: 'Cotizaciones', subtitle: 'Propuestas comerciales' },
-	{ prefix: '/contracts', title: 'Contratos', subtitle: 'Acuerdos firmados y estado de cuenta' },
 	{ prefix: '/work-orders', title: 'Órdenes', subtitle: 'Operación y entregas' },
 	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Entregas y devoluciones' },
 	{ prefix: '/incidents', title: 'Incidencias', subtitle: 'Seguimiento operativo' },

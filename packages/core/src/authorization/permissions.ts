@@ -55,16 +55,7 @@ export const PERMISSIONS = [
 	'conduces.view',
 	'conduces.archive',
 
-	// Contratos
-	'contracts.view',
-	'contracts.create',
-	'contracts.update',
-	'contracts.sign',
-	'contracts.cancel',
-	'contracts.archive',
-
-	// Pagos
-	'payments.view',
+	// Cobros del conduce, que es el documento de dinero
 	'payments.register',
 	'payments.void',
 
@@ -133,16 +124,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'conduces.view': 'Ver conduces',
 	'conduces.archive': 'Archivar conduces',
 
-	'contracts.view': 'Ver contratos',
-	'contracts.create': 'Crear contratos',
-	'contracts.update': 'Editar contratos',
-	'contracts.sign': 'Firmar contratos',
-	'contracts.cancel': 'Cancelar contratos',
-	'contracts.archive': 'Archivar contratos',
-
-	'payments.view': 'Ver pagos',
-	'payments.register': 'Registrar pagos',
-	'payments.void': 'Anular pagos',
+	'payments.register': 'Registrar cobros',
+	'payments.void': 'Anular cobros',
 
 	'incidents.view': 'Ver incidencias',
 	'incidents.create': 'Crear incidencias',
@@ -204,19 +187,7 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 			'operations.return',
 			'checklists.save',
 			'conduces.view',
-			'conduces.archive'
-		]
-	},
-	{
-		label: 'Contratos y pagos',
-		permissions: [
-			'contracts.view',
-			'contracts.create',
-			'contracts.update',
-			'contracts.sign',
-			'contracts.cancel',
-			'contracts.archive',
-			'payments.view',
+			'conduces.archive',
 			'payments.register',
 			'payments.void'
 		]
@@ -277,8 +248,6 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	'quotes.view',
 	'work_orders.view',
 	'conduces.view',
-	'contracts.view',
-	'payments.view',
 	'incidents.view',
 	'reports.view'
 ];
@@ -300,8 +269,6 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'operations.deliver',
 	'operations.return',
 	'checklists.save',
-	'contracts.create',
-	'contracts.update',
 	// Registrar un cobro es operacion diaria; anularlo no.
 	'payments.register',
 	'incidents.create'
@@ -317,7 +284,6 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'events.archive',
 	'quotes.archive',
 	'work_orders.archive',
-	'contracts.archive',
 	'conduces.archive',
 	'quotes.approve',
 	'quotes.cancel',
@@ -325,8 +291,6 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'work_orders.cancel',
 	'work_orders.close',
 	'incidents.resolve',
-	'contracts.sign',
-	'contracts.cancel',
 	// Anular un pago mueve dinero ya registrado: se reserva a gerencia.
 	'payments.void',
 	'audit.view',

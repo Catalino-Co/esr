@@ -45,8 +45,7 @@ const STATUS: Record<string, StatusInfo> = {
 	retornado: { label: 'Retornado', tone: 'success' },
 	cerrado: { label: 'Cerrado', tone: 'neutral' },
 
-	// Contratos y pagos
-	firmado: { label: 'Firmado', tone: 'success' },
+	// Cobros
 	pagado: { label: 'Pagado', tone: 'success' },
 	anulado: { label: 'Anulado', tone: 'danger' },
 
