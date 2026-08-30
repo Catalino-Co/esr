@@ -106,6 +106,56 @@ tema se rompe al pasar a oscuro.
    `--text-secondary`. Un color no es accesible por sí solo: lo es sobre algo.
 8. **Borde hairline 1px `--border`.** La sombra se reserva a lo que flota sobre el resto: modales y toasts.
 
+## Dos formas de fallar en silencio
+
+Ninguna de las dos da error. El CSS simplemente no pinta, y se pierde media
+tarde buscando el motivo. Son las dos causas mas frecuentes de «he escrito la
+regla y no aplica».
+
+### 1. Las capas de cascada
+
+`theme.css` va **dentro** de `@layer`. Los `app.css` de cada app y los `<style>`
+de los componentes van **sin capa**. Y lo no-capado gana siempre sobre lo
+capado, **sin importar la especificidad ni el orden**:
+
+```
+<style> de componente   (sin capa)   <- gana
+app.css de cada app     (sin capa)
+theme.css               (en capa)    <- pierde
+```
+
+Consecuencia practica: **para que una regla compartida tenga efecto hay que
+BORRAR la equivalente del `app.css`.** No basta con el orden de import, y una
+utilidad del tema no puede pisar una regla de la app.
+
+Nada de `!important`: invierte el orden de capas y deja el problema peor de lo
+que estaba.
+
+Ejemplo real: `a { color: inherit }` en el `app.css` gana sobre las variantes de
+boton de `theme.css`, asi que todo `<a class="btn-primary">` salia con el color
+de letra del body encima del acento, a 2.8:1. Se arreglo devolviendoles el color
+en el `app.css`, que es donde manda.
+
+### 2. El ciclo de alias
+
+El vocabulario historico (`--brand-primary`, `--bg-surface`, `--primary`…) vive
+como **alias** que apuntan a los nombres cortos. Un alias **nunca** lleva un
+literal, y sobre todo nunca apunta de vuelta:
+
+```css
+/* theme.css */   --brand-danger: var(--danger);
+/* app.css   */   --danger: var(--brand-danger);   /* ← ciclo */
+```
+
+La propiedad queda **invalida en silencio**: sin error en consola, sin aviso del
+build, simplemente no pinta. Le paso a ESR Pro con `--success`, `--warning`,
+`--danger` y `--radius-lg` a la vez, y no se detecto hasta medir los tokens uno
+a uno en el navegador.
+
+La comprobacion es de diez segundos: abrir la consola y mirar que
+`getComputedStyle(document.documentElement).getPropertyValue('--x')` devuelve
+algo. Si vuelve vacio, hay un ciclo.
+
 ## Capa de formato
 
 Ningún template renderiza valores de base de datos directamente.

@@ -218,8 +218,6 @@
 		background: var(--surface);
 	}
 
-	/* Sentence case y sin letter-spacing: la `.stat-label` compartida lleva
-	   `text-transform: uppercase`, que el sistema de diseño prohíbe. */
 	.metrica-label {
 		font-size: var(--font-xs);
 		color: var(--text-muted);
