@@ -8,12 +8,6 @@
 </script>
 
 <section class="panel">
-	{#if can('customers.create')}
-		<div class="page-header">
-			<a class="btn-primary" href="/customers/new">Nuevo cliente</a>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{
 			name: 'search',
@@ -21,7 +15,13 @@
 			value: data.search
 		}}
 		selects={[stateSelect(data.state)]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('customers.create')}
+				<a class="btn-primary btn-new" href="/customers/new">Nuevo cliente</a>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.customers.length === 0}
 		<p class="empty-state">No hay clientes con este filtro.</p>

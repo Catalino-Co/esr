@@ -6,12 +6,6 @@
 </script>
 
 <section class="panel">
-	{#if can('inventory.create')}
-		<div class="page-header">
-			<a class="btn-primary" href="/inventory/new">Nuevo artículo</a>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}
 		selects={[
@@ -31,7 +25,13 @@
 			], '12rem'),
 			stateSelect(data.state)
 		]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('inventory.create')}
+				<a class="btn-primary btn-new" href="/inventory/new">Nuevo artículo</a>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.items.length === 0}
 		<p class="empty-state">No hay artículos para mostrar.</p>

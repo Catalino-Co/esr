@@ -75,7 +75,7 @@
 
 <section class="panel">
 	<div class="page-header">
-		<button type="button" class="btn-primary" onclick={abrirInvitar}>Agregar usuario</button>
+		<button type="button" class="btn-primary btn-new" onclick={abrirInvitar}>Agregar usuario</button>
 	</div>
 
 	<p class="panel-hint">

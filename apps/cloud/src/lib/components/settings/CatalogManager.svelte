@@ -72,7 +72,7 @@
 
 <section class="panel">
 	<div class="page-header">
-		<button type="button" class="btn-primary" onclick={abrirAlta}>Nueva entrada</button>
+		<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva entrada</button>
 	</div>
 
 	{#if hint}

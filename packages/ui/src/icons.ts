@@ -30,6 +30,7 @@ export const ICONS = {
 	appearance: '🎨',
 	company: '🏢',
 	categories: '🗂️',
+	subcategories: '🏷️',
 	eventTypes: '📅',
 	suppliers: '🚚',
 	collaborators: '👷',

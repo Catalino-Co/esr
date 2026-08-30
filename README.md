@@ -563,6 +563,33 @@ exigieron ampliar `ConduceListFilters`.
 **No hay vista «Todos»**: la lista siempre muestra un estado concreto y la
 busqueda respeta el seleccionado.
 
+### La accion primaria va DENTRO de la barra
+
+El boton de alta se renderiza en el snippet `actions` de `<FilterBar>`, al final
+de la misma fila: buscador a la izquierda, selects en medio, boton a la derecha.
+Antes colgaba de un `.page-header` propio encima, que gastaba una fila entera
+para un solo boton.
+
+Los botones que **abren** un alta llevan `.btn-new`, que les pone un `+` con
+`::before`. Va en CSS y no en el marcado porque es decorativo —el texto ya dice
+que se crea algo— y asi no llega a los lectores de pantalla. Los `submit` de
+dentro de un formulario NO lo llevan: esos confirman, no crean.
+
+### Categorias y subcategorias
+
+Son **dos pantallas**, no una: `/settings/categories` y
+`/settings/subcategories`. Compartian pantalla y un solo objeto `form`, lo que
+obligaba a discriminar cual de los dos formularios habia fallado. Separadas,
+cada una tiene su tabla, su barra de filtros y su dialogo.
+
+Subcategorias filtra ademas por categoria padre, y hereda la categoria filtrada
+al abrir el alta. Su nombre solo tiene que ser unico **dentro** de su categoria,
+que es la razon por la que nunca uso el helper generico de catalogos.
+
+Ninguna de las dos tiene pantalla de detalle, asi que **el estado se cambia
+desde su dialogo**: es el unico sitio donde se puede archivar una. La fila
+conserva el Desactivar/Reactivar como accion rapida.
+
 ## Sistema de Diseno
 
 Las tres apps de CCO comparten el mismo lenguaje visual, portado desde CCO

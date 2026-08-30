@@ -218,6 +218,16 @@ p {
    estiraba el boton a lo ancho de la linea entera. Aqui el eje principal es
    horizontal, con lo que el boton vuelve a medir lo que su texto.
    Misma forma que `.modal-footer` de theme.css y que los pies de ESR Pro. */
+/* Boton que ABRE un alta: lleva un `+` delante. Va en `::before` y no en el
+   marcado porque es decorativo —el texto ya dice que se crea algo— y asi no
+   llega a los lectores de pantalla ni hay que importarlo en ocho archivos.
+   El `gap` de `.btn-*` en theme.css ya lo separa del texto. */
+.btn-new::before {
+	content: '+';
+	font-size: 1.15em;
+	line-height: 1;
+}
+
 .form-actions {
 	grid-column: 1 / -1;
 	display: flex;

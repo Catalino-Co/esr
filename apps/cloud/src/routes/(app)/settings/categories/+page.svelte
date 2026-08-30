@@ -1,124 +1,75 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import { stateFormOptions, stateSelect } from '$lib/list-filters';
 
 	let { data, form } = $props();
 
-	// Dos dialogos independientes: categoria y subcategoria.
-	let openCat = $state(false);
-	let openSub = $state(false);
-	let editingCategory = $state(null);
-	let categoryDraft = $state({});
-	let editingSub = $state(null);
-	let subDraft = $state({});
-
+	let open = $state(false);
+	let editando = $state(null);
+	let borrador = $state({});
 	/**
-	 * Errores en estado propio, uno por dialogo. `form` es unico por pagina y
-	 * lo escriben tambien los cuatro `?/toggle*` del arbol, asi que leerlo aqui
-	 * haria que desactivar una rama pintase su mensaje dentro del dialogo.
+	 * Error propio, NO leido de `form`: el `?/toggleCategory` de cada fila
+	 * escribe en el mismo objeto y acabaria pintandose dentro del dialogo.
 	 */
-	let errorCat = $state(null);
-	let errorSub = $state(null);
+	let errorGuardar = $state(null);
 
-	const catValues = $derived(categoryDraft);
-	const subValues = $derived(subDraft);
+	const editando_ = $derived(editando !== null);
 
-	// Las subcategorías se agrupan bajo su categoría para que la pantalla lea
-	// como el árbol que realmente es.
-	const tree = $derived(
-		data.categories.map((category) => ({
-			...category,
-			children: data.subcategories.filter(
-				(sub) => String(sub.category_id) === String(category.id)
-			)
-		}))
+	// Cuantas subcategorias cuelgan de cada una, para que la tabla lo diga.
+	const cuentaHijas = $derived(
+		data.subcategories.reduce((acc, sub) => {
+			const k = String(sub.category_id);
+			acc[k] = (acc[k] ?? 0) + 1;
+			return acc;
+		}, {})
 	);
 
-	// Solo se puede colgar una subcategoría de una categoría activa.
-	const activeCategories = $derived(data.categories.filter((c) => c.is_active === 1));
-
-	function newCategory() {
-		editingCategory = null;
-		categoryDraft = {};
-		errorCat = null;
-		openCat = true;
+	function abrirAlta() {
+		editando = null;
+		borrador = { is_active: 1 };
+		errorGuardar = null;
+		open = true;
 	}
 
-	function editCategory(category) {
-		editingCategory = String(category.id);
-		categoryDraft = { ...category };
-		errorCat = null;
-		openCat = true;
+	function abrirEdicion(category) {
+		editando = String(category.id);
+		borrador = { ...category };
+		errorGuardar = null;
+		open = true;
 	}
 
-	function cancelCategory() {
-		openCat = false;
-		editingCategory = null;
-		categoryDraft = {};
-		errorCat = null;
+	function cerrar() {
+		open = false;
+		editando = null;
+		borrador = {};
+		errorGuardar = null;
 	}
 
-	function newSub() {
-		editingSub = null;
-		subDraft = {};
-		errorSub = null;
-		openSub = true;
-	}
-
-	function editSub(sub) {
-		editingSub = String(sub.id);
-		subDraft = { ...sub };
-		errorSub = null;
-		openSub = true;
-	}
-
-	function cancelSub() {
-		openSub = false;
-		editingSub = null;
-		subDraft = {};
-		errorSub = null;
-	}
-
-	/**
-	 * `cerrar` en exito; en error el dialogo se queda abierto con lo tecleado.
-	 * Los valores se copian al draft desde la respuesta, no se leen de `form`:
-	 * asi el dialogo arranca limpio la proxima vez que se abra.
-	 *
-	 * Ojo con los TRES niveles de funcion: `use:enhance` recibe la funcion de
-	 * ENVIO, que se llama con `{ form, data, cancel }` y devuelve el callback
-	 * que recibe `{ result, update }`. Con un nivel menos —como estaba antes de
-	 * los dialogos— el callback se pasaba como funcion de envio, `update` y
-	 * `result` llegaban `undefined` y el `await update(...)` reventaba en
-	 * silencio: por eso el reset y el cierre nunca llegaban a ejecutarse.
-	 */
-	const afterSave = (cerrar, setError, setDraft) => () => async ({ update, result }) => {
+	const alGuardar = () => async ({ update, result }) => {
 		await update({ reset: result.type === 'success' });
 		if (result.type === 'success') {
 			cerrar();
 			return;
 		}
-		if (result.data?.values) setDraft(result.data.values);
-		setError(result.data?.error ?? 'No se pudo guardar.');
+		if (result.data?.values) borrador = { ...borrador, ...result.data.values };
+		errorGuardar = result.data?.error ?? 'No se pudo guardar.';
 	};
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<div class="cat-header-actions">
-			<button type="button" class="btn-secondary" onclick={newSub} disabled={activeCategories.length === 0}>
-				Nueva subcategoría
-			</button>
-			<button type="button" class="btn-primary" onclick={newCategory}>Nueva categoría</button>
-		</div>
-	</div>
+	<FilterBar
+		search={{ name: 'search', placeholder: 'Nombre de la categoría', value: data.search }}
+		selects={[stateSelect(data.state)]}
+	>
+		{#snippet actions()}
+			<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva categoría</button>
+		{/snippet}
+	</FilterBar>
 
-	<p class="panel-hint">
-		Organizan el inventario. Cada categoría puede tener subcategorías; los artículos se clasifican
-		con ambas.
-	</p>
-
-	<!-- Los mensajes se callan con cualquier dialogo abierto: su error va dentro. -->
-	{#if !openCat && !openSub}
+	{#if !open}
 		{#if form?.error}
 			<div class="alert-error" role="alert">{form.error}</div>
 		{/if}
@@ -127,77 +78,54 @@
 		{/if}
 	{/if}
 
-	<h2 class="cat-subtitle">Árbol de categorías ({data.categories.length})</h2>
-
-	{#if tree.length === 0}
-		<p class="empty-state">Todavía no hay categorías. Agrega la primera con «Nueva categoría».</p>
+	{#if data.categories.length === 0}
+		<p class="empty-state">No hay categorías con este filtro.</p>
 	{:else}
-		<ul class="cat-tree">
-			{#each tree as category (category.id)}
-				{@const active = category.is_active === 1}
-				<li class="cat-node" class:node-inactive={!active}>
-					<div class="cat-row">
-						<span class="color-chip" style={`background:${category.color || '#6366f1'}`}></span>
-						<strong>{category.name}</strong>
-						<span class="badge" class:badge-active={active} class:badge-inactive={!active}>
-							{active ? 'Activa' : 'Inactiva'}
-						</span>
-						<span class="cat-count">{category.children.length} subcategoría(s)</span>
-						<span class="cat-row-actions">
-							<button type="button" class="btn-link" onclick={() => editCategory(category)}>
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Descripción</th>
+					<th>Subcategorías</th>
+					<th>Estado</th>
+					<th>Acciones</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.categories as category (category.id)}
+					{@const activa = category.is_active === 1}
+					<tr>
+						<td class="celda-nombre">
+							<span class="color-chip" style={`background:${category.color || '#6366f1'}`}></span>
+							{category.name}
+						</td>
+						<td>{cuentaHijas[String(category.id)] ?? 0}</td>
+						<td>
+							<span class="badge {recordStateBadgeClass(category.is_active)}">
+								{recordStateLabel(category.is_active)}
+							</span>
+						</td>
+						<td class="row-actions">
+							<button type="button" class="btn-link" onclick={() => abrirEdicion(category)}>
 								Editar
 							</button>
 							<form method="POST" action="?/toggleCategory" use:enhance>
 								<input type="hidden" name="id" value={category.id} />
-								<input type="hidden" name="is_active" value={active ? '2' : '1'} />
-								<button type="submit" class={active ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
-									{active ? 'Desactivar' : 'Reactivar'}
+								<input type="hidden" name="is_active" value={activa ? '2' : '1'} />
+								<button type="submit" class={activa ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
+									{activa ? 'Desactivar' : 'Reactivar'}
 								</button>
 							</form>
-						</span>
-					</div>
-
-					{#if category.children.length > 0}
-						<ul class="sub-list">
-							{#each category.children as sub (sub.id)}
-								{@const subActive = sub.is_active === 1}
-								<li class="sub-row" class:node-inactive={!subActive}>
-									<span class="sub-name">{sub.name}</span>
-									<span
-										class="badge"
-										class:badge-active={subActive}
-										class:badge-inactive={!subActive}
-									>
-										{subActive ? 'Activa' : 'Inactiva'}
-									</span>
-									<span class="cat-row-actions">
-										<button type="button" class="btn-link" onclick={() => editSub(sub)}>
-											Editar
-										</button>
-										<form method="POST" action="?/toggleSubcategory" use:enhance>
-											<input type="hidden" name="id" value={sub.id} />
-											<input type="hidden" name="is_active" value={subActive ? '2' : '1'} />
-											<button
-												type="submit"
-												class={subActive ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
-											>
-												{subActive ? 'Desactivar' : 'Reactivar'}
-											</button>
-										</form>
-									</span>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
 	{/if}
 </section>
 
-<Modal bind:open={openCat} size="sm" title={editingCategory ? 'Editar categoría' : 'Nueva categoría'} onclose={cancelCategory}>
-	{#if errorCat}
-		<div class="alert-error" role="alert">{errorCat}</div>
+<Modal bind:open size="sm" title={editando_ ? 'Editar categoría' : 'Nueva categoría'} onclose={cerrar}>
+	{#if errorGuardar}
+		<div class="alert-error" role="alert">{errorGuardar}</div>
 	{/if}
 
 	<form
@@ -205,14 +133,14 @@
 		method="POST"
 		action="?/saveCategory"
 		class="form-grid"
-		use:enhance={afterSave(cancelCategory, (m) => (errorCat = m), (v) => (categoryDraft = v))}
+		use:enhance={alGuardar}
 	>
-		{#if editingCategory}
-			<input type="hidden" name="id" value={editingCategory} />
+		{#if editando_}
+			<input type="hidden" name="id" value={editando} />
 		{/if}
 		<div class="form-field full">
 			<label for="cat-name">Nombre *</label>
-			<input id="cat-name" name="name" required value={catValues.name ?? ''} />
+			<input id="cat-name" name="name" required value={borrador.name ?? ''} />
 		</div>
 		<div class="form-field full">
 			<label for="cat-color">Color</label>
@@ -221,63 +149,42 @@
 				name="color"
 				type="color"
 				class="color-input"
-				value={catValues.color ?? '#6366f1'}
+				value={borrador.color ?? '#6366f1'}
 			/>
 		</div>
-	</form>
-
-	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cancelCategory}>Cancelar</button>
-		<button type="submit" form="cat-form" class="btn-primary">
-			{editingCategory ? 'Guardar cambios' : 'Agregar categoría'}
-		</button>
-	{/snippet}
-</Modal>
-
-<Modal bind:open={openSub} size="sm" title={editingSub ? 'Editar subcategoría' : 'Nueva subcategoría'} onclose={cancelSub}>
-	{#if errorSub}
-		<div class="alert-error" role="alert">{errorSub}</div>
-	{/if}
-
-	<form
-		id="sub-form"
-		method="POST"
-		action="?/saveSubcategory"
-		class="form-grid"
-		use:enhance={afterSave(cancelSub, (m) => (errorSub = m), (v) => (subDraft = v))}
-	>
-		{#if editingSub}
-			<input type="hidden" name="id" value={editingSub} />
-		{/if}
 		<div class="form-field full">
-			<label for="sub-category">Categoría *</label>
-			<select id="sub-category" name="category_id" required>
-				{#each activeCategories as category (category.id)}
-					<option value={category.id} selected={String(subValues.category_id) === String(category.id)}>
-						{category.name}
+			<label for="cat-state">Estado</label>
+			<select id="cat-state" name="is_active">
+				{#each stateFormOptions() as opcion (opcion.value)}
+					<option value={opcion.value} selected={String(borrador.is_active ?? 1) === String(opcion.value)}>
+						{opcion.label}
 					</option>
 				{/each}
 			</select>
 		</div>
-		<div class="form-field full">
-			<label for="sub-name">Nombre *</label>
-			<input id="sub-name" name="name" required value={subValues.name ?? ''} />
-		</div>
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cancelSub}>Cancelar</button>
-		<button type="submit" form="sub-form" class="btn-primary">
-			{editingSub ? 'Guardar cambios' : 'Agregar subcategoría'}
+		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
+		<button type="submit" form="cat-form" class="btn-primary">
+			{editando_ ? 'Guardar cambios' : 'Agregar categoría'}
 		</button>
 	{/snippet}
 </Modal>
 
 <style>
-	.cat-subtitle {
-		margin: 0 0 var(--sp-4);
-		font-size: var(--font-md);
-		font-weight: 600;
+	.celda-nombre {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.color-chip {
+		display: inline-block;
+		width: 22px;
+		height: 22px;
+		border-radius: 6px;
+		flex-shrink: 0;
 	}
 
 	.color-input {
@@ -286,73 +193,10 @@
 		cursor: pointer;
 	}
 
-	.color-chip {
-		display: inline-block;
-		width: 14px;
-		height: 14px;
-		border-radius: 4px;
-		flex-shrink: 0;
-		border: 1px solid var(--border);
-	}
-
-	.cat-tree {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-3);
-	}
-
-	.cat-node {
-		border: 1px solid var(--border);
-		border-radius: var(--border-radius);
-		padding: var(--sp-3) var(--sp-4);
-	}
-
-	.cat-row {
+	.row-actions {
 		display: flex;
 		align-items: center;
 		gap: var(--sp-3);
-		flex-wrap: wrap;
-	}
-
-	.cat-count {
-		font-size: var(--font-xs);
-		color: var(--text-muted);
-	}
-
-	.cat-row-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-3);
-		margin-left: auto;
-	}
-
-	.sub-list {
-		list-style: none;
-		margin: var(--sp-3) 0 0;
-		padding: var(--sp-3) 0 0 var(--sp-5);
-		border-top: 1px solid var(--border);
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-2);
-	}
-
-	.sub-row {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-3);
-	}
-
-	.sub-name {
-		font-size: var(--font-sm);
-	}
-
-	/* Lo inactivo se atenua pero sigue legible: hay que poder leerlo para
-	   decidir si reactivarlo. */
-	.node-inactive {
-		opacity: 0.6;
 	}
 
 	.btn-sm {

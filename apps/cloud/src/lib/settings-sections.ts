@@ -40,7 +40,14 @@ export const settingsSections: SettingsSection[] = [
 		href: '/settings/categories',
 		title: 'Categorías',
 		icon: ICONS.categories,
-		description: 'Organizan el inventario. Cada categoría puede tener subcategorías.',
+		description: 'Primer nivel de clasificación del inventario.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/subcategories',
+		title: 'Subcategorías',
+		icon: ICONS.subcategories,
+		description: 'Cuelgan de una categoría y afinan la clasificación de los artículos.',
 		permission: 'settings.catalogs.manage'
 	},
 	{

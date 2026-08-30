@@ -24,6 +24,12 @@
 		selects = [],
 		/** Campos de fecha: { name, label, value } */
 		dates = [],
+		/**
+		 * Accion primaria de la pantalla, al final de la MISMA fila. Antes
+		 * colgaba de un `.page-header` propio encima, que gastaba una fila
+		 * entera para un solo boton.
+		 */
+		actions = null,
 		delay = 300
 	} = $props();
 
@@ -103,6 +109,10 @@
 
 	<!-- Sin JavaScript esto es lo único que envía el formulario. -->
 	<button type="submit" class="filters-submit">Filtrar</button>
+
+	{#if actions}
+		<div class="filters-actions">{@render actions()}</div>
+	{/if}
 </form>
 
 <style>
@@ -111,6 +121,15 @@
 		align-items: center;
 		gap: var(--sp-2);
 		margin-bottom: var(--sp-4);
+	}
+
+	/* Empuja la accion al borde derecho aunque el buscador no llene la fila. */
+	.filters-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		margin-left: auto;
+		flex-shrink: 0;
 	}
 
 	/* El buscador es el único que crece. */

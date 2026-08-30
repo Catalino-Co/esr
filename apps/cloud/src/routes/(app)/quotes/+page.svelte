@@ -6,12 +6,6 @@
 </script>
 
 <section class="panel">
-	{#if can('quotes.create')}
-		<div class="page-header">
-			<a class="btn-primary" href="/quotes/new">Nueva cotización</a>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número, cliente o evento', value: data.search }}
 		selects={[
@@ -23,7 +17,13 @@
 			]),
 			stateSelect(data.state)
 		]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('quotes.create')}
+				<a class="btn-primary btn-new" href="/quotes/new">Nueva cotización</a>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.quotes.length === 0}
 		<p class="empty-state">No hay cotizaciones.</p>

@@ -6,12 +6,6 @@
 </script>
 
 <section class="panel">
-	{#if can('events.create')}
-		<div class="page-header">
-			<a class="btn-primary" href="/events/new">Nuevo evento</a>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Título o lugar', value: data.search }}
 		selects={[
@@ -23,7 +17,13 @@
 			]),
 			stateSelect(data.state)
 		]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('events.create')}
+				<a class="btn-primary btn-new" href="/events/new">Nuevo evento</a>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.events.length === 0}
 		<p class="empty-state">No hay eventos para mostrar.</p>

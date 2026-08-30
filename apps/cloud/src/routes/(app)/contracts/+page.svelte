@@ -13,12 +13,6 @@
 </script>
 
 <section class="panel">
-	{#if can('contracts.create')}
-		<div class="page-header">
-			<a class="btn-primary" href="/quotes?status=aprobada">Generar desde cotización</a>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número o cliente', value: data.search }}
 		selects={[
@@ -29,7 +23,13 @@
 			]),
 			stateSelect(data.state)
 		]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('contracts.create')}
+				<a class="btn-primary btn-new" href="/quotes?status=aprobada">Generar desde cotización</a>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.contracts.length === 0}
 		<p class="empty-state">

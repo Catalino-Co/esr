@@ -1,6 +1,7 @@
 import {
 	RECORD_STATE,
 	RECORD_STATE_FILTER_LABELS,
+	RECORD_STATE_LABELS,
 	RECORD_STATES,
 	type RecordState
 } from '@esr/core';
@@ -18,6 +19,15 @@ export function stateOptions() {
 		tone:
 			state === RECORD_STATE.ACTIVE ? 'ok' : state === RECORD_STATE.INACTIVE ? 'warn' : 'off'
 	}));
+}
+
+/**
+ * Las mismas opciones para un FORMULARIO, en singular: el filtro dice
+ * «Activos» porque habla de la lista, pero el campo dice «Activo» porque habla
+ * de un registro.
+ */
+export function stateFormOptions() {
+	return RECORD_STATES.map((state) => ({ value: state, label: RECORD_STATE_LABELS[state] }));
 }
 
 /** Select de estado listo para `<FilterBar>`. */

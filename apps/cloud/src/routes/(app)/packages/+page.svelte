@@ -45,16 +45,16 @@
 </script>
 
 <section class="panel">
-	{#if can('packages.create')}
-		<div class="page-header">
-			<button type="button" class="btn-primary" onclick={abrirAlta}>Nuevo paquete</button>
-		</div>
-	{/if}
-
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Nombre del paquete', value: data.search }}
 		selects={[stateSelect(data.state)]}
-	/>
+	>
+		{#snippet actions()}
+			{#if can('packages.create')}
+				<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nuevo paquete</button>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	<p class="panel-hint">
 		Agrupan artículos que se alquilan juntos. Desde una cotización se insertan de una vez y se
