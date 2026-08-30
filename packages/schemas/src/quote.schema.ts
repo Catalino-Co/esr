@@ -36,6 +36,8 @@ export type QuoteItem = {
 	quantity: number;
 	price: number;
 	total?: number;
+	/** Descuento en importe de la linea. Columna `discount_amount` de `quotation_items`. */
+	discount_amount?: number;
 	is_package?: boolean;
 	/**
 	 * Ventana de alquiler de esta linea, cuando difiere de la del evento.

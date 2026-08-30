@@ -8,6 +8,7 @@ import {
 	getInventoryRepository,
 	getPackageRepository,
 	getQuoteConversionService,
+	getQuoteCopyService,
 	getQuoteRepository,
 	getRentalRepository
 } from '$lib/server/repositories';
@@ -22,14 +23,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
-	const [items, event, customer, inventory, linkedOrder, packages] = await Promise.all([
-		getQuoteRepository().listItems(ctx, params.id),
-		quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
-		getCustomerRepository().findById(ctx, quote.client_id),
-		getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
-		getRentalRepository().findByQuotationId(ctx, params.id),
-		getPackageRepository().list(ctx)
-	]);
+	// `customers` y `events` alimentan el diálogo de copiar: el destino puede
+	// ser otro cliente, así que hace falta el directorio entero, no solo el
+	// cliente de esta cotización.
+	const [items, event, customer, inventory, linkedOrder, packages, customers, events] =
+		await Promise.all([
+			getQuoteRepository().listItems(ctx, params.id),
+			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
+			getCustomerRepository().findById(ctx, quote.client_id),
+			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
+			getRentalRepository().findByQuotationId(ctx, params.id),
+			getPackageRepository().list(ctx),
+			getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
+			getEventRepository().list(ctx, { limit: 200, offset: 0 })
+		]);
 
 	return {
 		quote,
@@ -39,6 +46,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		inventory,
 		linkedOrder,
 		packages,
+		customers,
+		events,
 		// El estado de cuenta ya no vive aqui: el dinero esta en el conduce, que
 		// es el documento que se cobra.
 		canEdit: quote.status !== 'convertida' && quote.status !== 'cancelada'
@@ -233,5 +242,43 @@ export const actions: Actions = {
 
 			const message = conversionError instanceof Error ? conversionError.message : 'No se pudo convertir la cotización.';
 			return fail(400, { error: message });}
+	},
+
+	/**
+	 * Copiar la cotizacion, al mismo cliente o a otro.
+	 *
+	 * Se copia lo comercial —lineas con sus fechas, descuento, impuesto, notas y
+	 * condiciones—; el ciclo de vida no: la copia nace en borrador y con numero
+	 * nuevo. Por eso el permiso es `quotes.create` y no `quotes.update`: lo que
+	 * sale de aqui es una cotizacion nueva, no una modificacion de esta.
+	 */
+	copy: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'quotes.create');
+		const ctx = toTenantContext(companyId);
+		const form = await event.request.formData();
+
+		const client_id = String(form.get('client_id') ?? '').trim();
+		const event_id = String(form.get('event_id') ?? '').trim();
+		if (!client_id) return fail(400, { error: 'Elija el cliente de destino.' });
+
+		let copia;
+		try {
+			copia = await getQuoteCopyService().copy(ctx, event.params.id, {
+				client_id,
+				event_id: event_id || null
+			});
+		} catch (err) {
+			return fail(400, { error: (err as Error).message });
+		}
+
+		await recordAuditLog(event, {
+			action: 'quote.copied',
+			entity_type: 'quote',
+			entity_id: String(copia.id),
+			description: `Cotización ${copia.quote_number} copiada desde ${event.params.id}`,
+			metadata: { origen: event.params.id, client_id, event_id: event_id || null }
+		});
+
+		redirect(303, `/quotes/${copia.id}`);
 	}
 };

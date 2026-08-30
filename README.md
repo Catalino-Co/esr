@@ -338,6 +338,55 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Fase 5 - Copiar una cotizacion
+
+Boton **Copiar** en la ficha de la cotizacion. El dialogo pide cliente y evento,
+con los eventos acotados al cliente elegido: el destino puede ser OTRO cliente,
+y entonces el evento del original no sirve porque es de otro.
+
+Se copia lo COMERCIAL —lineas con sus fechas, descuento de linea, descuento e
+impuesto de cabecera, notas y condiciones—. El ciclo de vida no se hereda
+nunca: la copia nace en `borrador`, activa, con numero nuevo, fecha de hoy y sin
+`confirmed_at` ni `cancelled_at`. Copiar una cotizacion ya convertida no debe
+producir otra que se cree convertida. Por eso el permiso es `quotes.create` y no
+`quotes.update`: lo que sale es un documento nuevo.
+
+`valid_until` no se hereda a proposito: arrastrarlo dejaria la copia con una
+validez ya vencida.
+
+#### Tres defectos que solo se veian al copiar
+
+Copiar es el unico camino que LEE lineas existentes y las vuelve a escribir, asi
+que destapo lo que `replaceItems` hacia mal:
+
+- **No propagaba `start_date` ni `end_date`.** La ventana de alquiler es con la
+  que se comprueba disponibilidad y se reserva stock al convertir en orden, de
+  modo que la copia salia sin ella y reservaba para siempre. Es el fallo mas
+  caro de los tres.
+- **Descartaba las lineas de paquete** (`if (item.is_package) continue`), y
+  ademas `mapQuoteItem` no devolvia `package_id`, asi que ni siquiera dejando de
+  descartarlas se habrian escrito bien. Ningun camino de la UI crea esas lineas
+  hoy —`addPackage` explota el paquete en lineas sueltas— pero la columna existe
+  y una fila asi se perdia en silencio.
+- **`item.item_id || item.id`** caia al id de la FILA cuando no habia articulo,
+  escribiendo como `item_id` algo que no es un articulo.
+
+El INSERT pasa de nueve columnas a doce: entran `discount_amount`, `start_date`
+y `end_date`.
+
+#### El numero deja de poder repetirse
+
+`nextQuoteNumber` lee el maximo y suma uno, que es una carrera, y
+`quotations_company_quote_number_idx` era un indice NORMAL: dos cotizaciones con
+el mismo COT- se guardaban en silencio. Copiar multiplica la exposicion porque
+invita al doble clic sobre el mismo registro.
+
+La migracion **014** lo cambia por un indice UNICO y `create` reintenta sobre un
+`SAVEPOINT` al recibir un 23505, igual que la factura desde la 012. Si ya
+hubiera numeros repetidos, la migracion **para y los nombra** en vez de elegir
+un ganador a ciegas: un numero de cotizacion es un documento que el cliente ya
+vio, y renumerarlo lo decide quien opera.
+
 ### Fase 3 - Orden sin cotizacion
 
 `/work-orders/new` crea una orden sin documento comercial detras. El esquema

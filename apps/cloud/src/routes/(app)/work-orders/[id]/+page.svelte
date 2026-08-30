@@ -4,10 +4,20 @@
 	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
 
 	let { data, form } = $props();
-	const { order, items } = data;
+	/**
+	 * `$derived`, NO una desestructuración suelta.
+	 *
+	 * `const { x } = data` se evalúa UNA vez al montar. Al navegar entre dos
+	 * registros de la misma ruta, SvelteKit reutiliza el componente y solo
+	 * cambia `data`: la pantalla se quedaba enseñando el registro anterior con
+	 * la URL del nuevo.
+	 */
+	const order = $derived(data.order);
+	const items = $derived(data.items);
 
-	const status = order.status;
-	const isReadOnly = status === 'cancelado' || status === 'cerrado';
+	// Derivados tambien: cuelgan de `order`, que ahora cambia al navegar.
+	const status = $derived(order.status);
+	const isReadOnly = $derived(status === 'cancelado' || status === 'cerrado');
 </script>
 
 <section class="panel">

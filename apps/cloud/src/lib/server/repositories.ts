@@ -23,6 +23,7 @@ import {
 	PostgresSubcategoryRepository,
 	InvoiceService,
 	QuoteConversionService,
+	QuoteCopyService,
 	WorkOrderCreationService,
 	getCompanyDocumentInfo,
 	WorkOrderOperationsService
@@ -37,6 +38,7 @@ let subcategoryRepository: PostgresSubcategoryRepository | null = null;
 let quoteRepository: PostgresQuoteRepository | null = null;
 let rentalRepository: PostgresRentalRepository | null = null;
 let quoteConversionService: QuoteConversionService | null = null;
+let quoteCopyService: QuoteCopyService | null = null;
 let conduceRepository: PostgresConduceRepository | null = null;
 let checklistRepository: PostgresChecklistRepository | null = null;
 let incidentRepository: PostgresIncidentRepository | null = null;
@@ -98,6 +100,11 @@ export function getRentalRepository(): PostgresRentalRepository {
 export function getQuoteConversionService(): QuoteConversionService {
 	if (!quoteConversionService) quoteConversionService = new QuoteConversionService();
 	return quoteConversionService;
+}
+
+export function getQuoteCopyService(): QuoteCopyService {
+	if (!quoteCopyService) quoteCopyService = new QuoteCopyService();
+	return quoteCopyService;
 }
 
 export function getConduceRepository(): PostgresConduceRepository {

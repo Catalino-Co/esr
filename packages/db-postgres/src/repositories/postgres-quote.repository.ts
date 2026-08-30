@@ -25,6 +25,12 @@ const ACTIVE_RESERVATION_STATUSES = [
 	'cargado'
 ];
 
+/** Codigo de PostgreSQL para violacion de indice unico. */
+const UNIQUE_VIOLATION = '23505';
+
+/** Reintentos al chocar dos emisiones por el mismo numero. */
+const QUOTE_NUMBER_RETRIES = 5;
+
 type QuoteRow = Quote & { id: number };
 type QuoteItemRow = QuoteItem & { id: number; quotation_id: number; item_id: number | null };
 
@@ -40,6 +46,11 @@ function mapQuoteItem(row: QuoteItemRow): QuoteItem {
 		price: Number(row.price || 0),
 		total: Number(row.total || 0),
 		is_package: Boolean(row.package_id),
+		// `is_package` sale de `package_id`, pero el propio `package_id` no se
+		// devolvia. Al releer una linea y volver a escribirla —copiar, por
+		// ejemplo— llegaba marcada como paquete y sin el paquete al que apunta.
+		package_id: row.package_id ?? null,
+		discount_amount: Number(row.discount_amount || 0),
 		// Sin estas dos, la conversion a orden y la comprobacion de
 		// disponibilidad reciben siempre `undefined`, por mucho que la fila
 		// las traiga: el INSERT las escribe y el mapeo las tiraba.
@@ -97,6 +108,14 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		return this.list(ctx, { event_id: eventId, limit: 100, offset: 0 });
 	}
 
+	/**
+	 * Siguiente numero libre.
+	 *
+	 * Lee el maximo y suma uno, que es una carrera. Desde la migracion 014 el
+	 * indice unico `quotations_company_quote_number_unique` la convierte en un
+	 * error (23505) en vez de en dos cotizaciones con el mismo numero; quien
+	 * llama reintenta. Antes se persistian las dos en silencio.
+	 */
 	async nextQuoteNumber(ctx: RepositoryContext, client?: pg.PoolClient): Promise<string> {
 		const companyId = requireCompanyId(ctx);
 		const result = await this.queryClient(client).query<{ quote_number: string | null }>(
@@ -113,33 +132,61 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 	async create(ctx: RepositoryContext, data: TenantCreateQuoteInput, client?: pg.PoolClient): Promise<Quote> {
 		const companyId = requireCompanyId(ctx);
 		const db = this.queryClient(client);
-		const quoteNumber = await this.nextQuoteNumber(ctx, client);
 		const totals = calculateQuoteTotals(data.items || [], data.discount ?? 0, data.tax_amount ?? 0);
-		const result = await db.query<QuoteRow>(
-			`INSERT INTO quotations
-				(company_id, client_id, event_id, quote_number, date, validity_days, valid_until,
-				 subtotal, discount, tax_amount, total, status, notes, conditions, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-			 RETURNING *`,
-			[
-				companyId,
-				data.client_id,
-				data.event_id || null,
-				quoteNumber,
-				data.date || todayISO(),
-				data.validity_days ?? 15,
-				data.valid_until || null,
-				totals.subtotal,
-				totals.discount,
-				totals.tax_amount,
-				totals.total,
-				data.status || 'borrador',
-				data.notes || null,
-				data.conditions || null,
-				data.is_active ?? 1
-			]
-		);
-		const quote = result.rows[0];
+
+		const insertar = async (quoteNumber: string) =>
+			db.query<QuoteRow>(
+				`INSERT INTO quotations
+					(company_id, client_id, event_id, quote_number, date, validity_days, valid_until,
+					 subtotal, discount, tax_amount, total, status, notes, conditions, is_active)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				 RETURNING *`,
+				[
+					companyId,
+					data.client_id,
+					data.event_id || null,
+					quoteNumber,
+					data.date || todayISO(),
+					data.validity_days ?? 15,
+					data.valid_until || null,
+					totals.subtotal,
+					totals.discount,
+					totals.tax_amount,
+					totals.total,
+					data.status || 'borrador',
+					data.notes || null,
+					data.conditions || null,
+					data.is_active ?? 1
+				]
+			);
+
+		let quote: QuoteRow | undefined;
+		for (let intento = 0; intento < QUOTE_NUMBER_RETRIES; intento += 1) {
+			const quoteNumber = await this.nextQuoteNumber(ctx, client);
+			if (!client) {
+				// Fuera de transaccion no hay nada que salvar: se reintenta a secas.
+				try {
+					quote = (await insertar(quoteNumber)).rows[0];
+					break;
+				} catch (error) {
+					if ((error as { code?: string }).code !== UNIQUE_VIOLATION) throw error;
+					continue;
+				}
+			}
+			// Dentro de una transaccion el 23505 la aborta entera, y el reintento
+			// fallaria con «current transaction is aborted». El SAVEPOINT lo acota.
+			try {
+				await client.query('SAVEPOINT crear_cotizacion');
+				quote = (await insertar(quoteNumber)).rows[0];
+				await client.query('RELEASE SAVEPOINT crear_cotizacion');
+				break;
+			} catch (error) {
+				await client.query('ROLLBACK TO SAVEPOINT crear_cotizacion');
+				if ((error as { code?: string }).code !== UNIQUE_VIOLATION) throw error;
+			}
+		}
+		if (!quote) throw new Error('No se pudo asignar un número de cotización libre. Vuelva a intentarlo.');
+
 		if (data.items?.length) await this.replaceItems(ctx, quote.id!, data.items, client);
 		return quote;
 	}
@@ -311,27 +358,45 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		return result.rows[0];
 	}
 
+	/**
+	 * Reescribe las lineas de una cotizacion.
+	 *
+	 * Tres cosas que hacia mal y que solo se notaban al COPIAR, porque es el
+	 * unico camino que lee lineas existentes y las vuelve a escribir:
+	 *
+	 *   * No propagaba `start_date` ni `end_date`. La ventana de alquiler es con
+	 *     la que se comprueba disponibilidad y se reserva stock al convertir en
+	 *     orden, asi que la copia salia sin ella y reservaba para siempre.
+	 *   * Descartaba las lineas de paquete (`if (item.is_package) continue`), asi
+	 *     que la copia perdia articulos sin decirlo.
+	 *   * `item.item_id || item.id` caia al id de la FILA cuando no habia
+	 *     articulo —una linea de paquete—, escribiendo como `item_id` algo que
+	 *     no es un articulo.
+	 */
 	async replaceItems(ctx: RepositoryContext, quoteId: ESRId, items: QuoteItem[], client?: pg.PoolClient): Promise<void> {
 		const companyId = requireCompanyId(ctx);
 		const db = this.queryClient(client);
 		await db.query('DELETE FROM quotation_items WHERE company_id = $1 AND quotation_id = $2', [companyId, quoteId]);
 		for (const item of items) {
-			if (item.is_package) continue;
 			const lineTotal = item.total ?? calculateQuoteLineTotal(item);
 			await db.query(
 				`INSERT INTO quotation_items
-					(company_id, quotation_id, item_id, package_id, name, code, quantity, price, total)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+					(company_id, quotation_id, item_id, package_id, name, code,
+					 quantity, price, total, discount_amount, start_date, end_date)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 				[
 					companyId,
 					quoteId,
-					item.item_id || item.id,
-					item.package_id || null,
+					item.item_id ?? null,
+					item.package_id ?? null,
 					item.name || null,
 					item.code || null,
 					item.quantity,
 					item.price,
-					lineTotal
+					lineTotal,
+					item.discount_amount ?? 0,
+					item.start_date || null,
+					item.end_date || null
 				]
 			);
 		}

@@ -21,5 +21,6 @@ export * from './repositories/postgres-member.repository';
 export * from './services/invoice.service';
 export * from './services/work-order-creation.service';
 export * from './services/quote-conversion.service';
+export * from './services/quote-copy.service';
 export * from './services/work-order-operations.service';
 
