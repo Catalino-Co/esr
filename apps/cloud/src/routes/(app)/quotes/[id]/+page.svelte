@@ -1,10 +1,20 @@
 <script>
 	import { applyAction, enhance } from '$app/forms';
-	import { formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
+	import { beforeNavigate } from '$app/navigation';
+	import { page } from '$app/state';
+	import {
+		calculateQuoteLineTotal,
+		calculateQuoteTotals,
+		formatMoney,
+		statusBadgeClass,
+		statusLabel
+	} from '@esr/core';
+	import { PdfPreviewModal } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
 
 	let { data, form } = $props();
+
 	/**
 	 * `$derived`, NO una desestructuración suelta.
 	 *
@@ -14,12 +24,246 @@
 	 * la URL del nuevo.
 	 */
 	const quote = $derived(data.quote);
-	const items = $derived(data.items);
 	const canEdit = $derived(data.canEdit);
 
 	// `canEdit` es la regla de negocio (estado de la cotización);
 	// `can(...)` es la regla de rol. Ambas deben cumplirse.
 	const mayEdit = $derived(canEdit && can('quotes.update'));
+
+	/**
+	 * El nombre de la action va el ÚLTIMO: `?/updateItem` a secas BORRA el resto
+	 * de la query string. Hoy esta ficha no lleva ninguna, pero el patrón es
+	 * gratis y evita que el día que se añada un `?tab=` alguien pierda la tarde.
+	 */
+	const accion = (nombre) => {
+		const qs = page.url.search.replace(/^\?/, '');
+		return qs ? `?${qs}&/${nombre}` : `?/${nombre}`;
+	};
+
+	/* ── Recálculo natural ──────────────────────────────────────────────────
+	 *
+	 * Hay DOS verdades y son la misma función: `calculateQuoteTotals` es lo que
+	 * ejecuta `syncTotals` en el servidor y lo que ejecuta esta pantalla. No hay
+	 * dos algoritmos que puedan divergir.
+	 *
+	 * El servidor sigue siendo la fuente de verdad de lo PERSISTIDO; el cliente
+	 * lo es de lo que se está VIENDO. Por eso el total cambia con la tecla y no
+	 * con el viaje de red, y por eso desapareció el botón «Recalcular».
+	 */
+
+	/** Borrador de la cabecera. Se re-siembra solo cuando cambia el registro. */
+	let borrador = $state({ discount: 0, tax_amount: 0, notes: '' });
+
+	/** Superposición de líneas: solo las que el usuario ha tocado. */
+	let overlay = $state({});
+
+	$effect(() => {
+		// Dependencia explícita del id: SvelteKit reutiliza el componente entre
+		// /quotes/3 y /quotes/4 y el borrador del anterior sobreviviría.
+		//
+		// `Number(...)` no es decorativo: `quotations.discount` es NUMERIC y `pg`
+		// no tiene type parser, así que llega como cadena «150.00». Sin esto,
+		// `borrador.discount + 1` daría «150.001».
+		void data.quote.id;
+		borrador = {
+			discount: Number(data.quote.discount ?? 0),
+			tax_amount: Number(data.quote.tax_amount ?? 0),
+			notes: data.quote.notes ?? ''
+		};
+		overlay = {};
+	});
+
+	const lineas = $derived(
+		data.items.map((item) => {
+			const editado = overlay[item.id] ?? {};
+			const quantity = Number(editado.quantity ?? item.quantity) || 0;
+			const price = Number(editado.price ?? item.price) || 0;
+			return { ...item, quantity, price, total: calculateQuoteLineTotal({ quantity, price }) };
+		})
+	);
+
+	const totales = $derived(
+		calculateQuoteTotals(lineas, borrador.discount, borrador.tax_amount)
+	);
+
+	function editarLinea(id, campo, valor) {
+		overlay[id] = { ...(overlay[id] ?? {}), [campo]: valor };
+	}
+
+	/* ── Persistencia: debounce, blur y salida ─────────────────────────────── */
+
+	let guardando = $state(false);
+	let guardadoOk = $state(false);
+	let errorGuardado = $state(null);
+
+	/** Un guardado por formulario, sin solapes. */
+	const pendientes = new Map();
+	const formularios = $state({});
+
+	function programar(formEl, inmediato = false) {
+		if (!formEl) return;
+		const p = pendientes.get(formEl) ?? { timer: null, enVuelo: false, repetir: false };
+		pendientes.set(formEl, p);
+		clearTimeout(p.timer);
+
+		const lanzar = () => {
+			p.timer = null;
+			// SvelteKit no serializa dos POST a la misma action. Dos `updateQuote`
+			// solapados son un read-modify-write entrelazado sobre la misma fila.
+			if (p.enVuelo) {
+				p.repetir = true;
+				return;
+			}
+			formEl.requestSubmit();
+		};
+
+		if (inmediato) lanzar();
+		// 700 y no los 300 del buscador de los listados: allí el debounce protege
+		// una LECTURA; aquí una ESCRITURA que son cuatro consultas. Teclear «1250»
+		// produce un guardado, no tres.
+		else p.timer = setTimeout(lanzar, 700);
+	}
+
+	const alGuardar = (formEl) => () => {
+		const p = pendientes.get(formEl) ?? { timer: null, enVuelo: false, repetir: false };
+		pendientes.set(formEl, p);
+		p.enVuelo = true;
+		guardando = true;
+
+		return async ({ result }) => {
+			p.enVuelo = false;
+			guardando = false;
+
+			if (result.type === 'failure') {
+				// Un guardado que aterriza después de que otro usuario convierta la
+				// cotización devuelve `fail(400)`. Como abajo NO se llama a
+				// `update()`, la pantalla no se enteraría y seguiría aceptando
+				// teclas sobre un documento bloqueado.
+				errorGuardado = result.data?.error ?? 'No se pudo guardar.';
+				guardadoOk = false;
+				const { invalidateAll } = await import('$app/navigation');
+				await invalidateAll();
+				return;
+			}
+
+			errorGuardado = null;
+			guardadoOk = true;
+			if (p.repetir) {
+				p.repetir = false;
+				programar(formEl, true);
+			}
+
+			/* NO se llama a `update()` ni a `applyAction()`, y es deliberado:
+			 *
+			 *  1. `update()` resetea el <form>, y el reset devuelve cada input a su
+			 *     `defaultValue` —el atributo HTML—, que Svelte nunca escribe porque
+			 *     asigna `value` como PROPIEDAD. Los campos se vaciaban al guardar.
+			 *  2. Su `invalidateAll` repintaría la tabla de líneas mientras se
+			 *     escribe dentro de ella.
+			 *  3. El indicador diría «Guardado» parpadeando cada 700 ms.
+			 *
+			 * Nada de esta pantalla lee `quote.total` después de esto: los totales
+			 * salen del cálculo local, y el PDF se los pide al servidor.
+			 */
+		};
+	};
+
+	beforeNavigate(({ type }) => {
+		const sucios = [...pendientes.entries()].filter(([, p]) => p.timer || p.enVuelo);
+		if (!sucios.length) return;
+
+		for (const [formEl, p] of sucios) {
+			if (p.enVuelo) continue;
+			if (type === 'leave') {
+				// La pestaña se va: un `fetch` normal muere a medio vuelo. `sendBeacon`
+				// es lo único que sobrevive al `unload`, y una action de SvelteKit
+				// acepta exactamente ese POST multipart.
+				navigator.sendBeacon?.(
+					`${page.url.pathname}${accion('updateQuote').replace(/^\?/, '?')}`,
+					new FormData(formEl)
+				);
+			} else {
+				// Navegación interna: la página NO se recarga, así que el `fetch` que
+				// lanza `use:enhance` sigue vivo después de cambiar de ruta. Basta con
+				// dispararlo ya, sin cancelar la navegación.
+				clearTimeout(p.timer);
+				p.timer = null;
+				formEl.requestSubmit();
+			}
+		}
+	});
+
+	/* ── Diálogo: agregar artículo ─────────────────────────────────────────── */
+
+	let agregandoArticulo = $state(false);
+	let errorArticulo = $state(null);
+	let busqueda = $state('');
+	let seleccion = $state(null);
+	let alta = $state({ quantity: 1, price: 0 });
+
+	const resultados = $derived.by(() => {
+		const t = busqueda.trim().toLowerCase();
+		const lista = t
+			? data.inventory.filter(
+					(a) =>
+						a.name.toLowerCase().includes(t) || (a.code ?? '').toLowerCase().includes(t)
+				)
+			: data.inventory;
+		// Sin tope, el {#each} montaría 500 nodos dentro de una caja de 15rem.
+		return lista.slice(0, 60);
+	});
+
+	function abrirArticulo() {
+		busqueda = '';
+		seleccion = null;
+		alta = { quantity: 1, price: 0 };
+		errorArticulo = null;
+		agregandoArticulo = true;
+	}
+
+	function elegir(articulo) {
+		seleccion = articulo;
+		// El precio queda editable: esto es una cotización, no una tarifa.
+		alta = { quantity: 1, price: articulo.price };
+	}
+
+	const alAgregarArticulo = () => async ({ update, result }) => {
+		// `reset: false` siempre; y aquí SÍ hace falta el `invalidateAll` que trae
+		// `update()`, porque la fila nueva tiene que aparecer en la tabla.
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			errorArticulo = result.data?.error ?? 'No se pudo agregar el artículo.';
+			return;
+		}
+		agregandoArticulo = false;
+	};
+
+	/* ── Diálogo: agregar paquete ──────────────────────────────────────────── */
+
+	let agregandoPaquete = $state(false);
+	let errorPaquete = $state(null);
+	let paqueteElegido = $state('');
+
+	const previa = $derived(data.packageLines[String(paqueteElegido)] ?? []);
+	const totalPrevia = $derived(previa.reduce((s, l) => s + l.quantity * l.price, 0));
+	const previaConBajas = $derived(previa.some((l) => l.is_active !== 1));
+
+	function abrirPaquete() {
+		paqueteElegido = '';
+		errorPaquete = null;
+		agregandoPaquete = true;
+	}
+
+	const alAgregarPaquete = () => async ({ update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			errorPaquete = result.data?.error ?? 'No se pudo insertar el paquete.';
+			return;
+		}
+		agregandoPaquete = false;
+	};
+
+	/* ── Copiar ────────────────────────────────────────────────────────────── */
 
 	/**
 	 * Copiar es distinto de editar: sale una cotización NUEVA, en borrador y con
@@ -29,7 +273,7 @@
 	 */
 	let copiando = $state(false);
 	let errorCopia = $state(null);
-	let destino = $state({ client_id: String(quote.client_id ?? ''), event_id: '' });
+	let destino = $state({ client_id: '', event_id: '' });
 
 	function abrirCopia() {
 		destino = {
@@ -38,11 +282,6 @@
 		};
 		errorCopia = null;
 		copiando = true;
-	}
-
-	function cerrarCopia() {
-		copiando = false;
-		errorCopia = null;
 	}
 
 	const alCopiar = () => async ({ update, result }) => {
@@ -54,11 +293,10 @@
 			errorCopia = result.data?.error ?? 'No se pudo copiar la cotización.';
 			return;
 		}
-		// `applyAction`, no `update()`. La copia responde con un redirect a la
-		// cotización nueva; `update()` reaplica los datos de ESTA página encima,
-		// así que la URL cambiaba a /quotes/4 y la pantalla seguía enseñando la
-		// COT-000002 de la que se copió.
-		cerrarCopia();
+		// `applyAction`, no `update()`: `update()` reaplica los datos de ESTA
+		// página encima, así que la URL cambiaba a /quotes/4 y la pantalla seguía
+		// enseñando la de la que se copió.
+		copiando = false;
 		await applyAction(result);
 	};
 
@@ -67,165 +305,559 @@
 		data.events.filter((evento) => String(evento.client_id) === String(destino.client_id))
 	);
 
-	// Al cambiar de cliente, el evento heredado deja de valer.
 	$effect(() => {
-		if (destino.event_id && !eventosDelDestino.some((e) => String(e.id) === String(destino.event_id))) {
+		// Al cambiar de cliente, el evento heredado deja de valer.
+		if (
+			destino.event_id &&
+			!eventosDelDestino.some((e) => String(e.id) === String(destino.event_id))
+		) {
 			destino.event_id = '';
 		}
 	});
 
 	const otroCliente = $derived(String(destino.client_id) !== String(quote.client_id ?? ''));
+
+	/* ── PDF ───────────────────────────────────────────────────────────────── */
+
+	let verPdf = $state(false);
+	let pdfUrl = $state('');
+	let pdfNombre = $state('cotizacion.pdf');
+	let generandoPdf = $state(false);
+
+	async function abrirPdf() {
+		if (generandoPdf) return;
+		generandoPdf = true;
+		pdfUrl = '';
+		verPdf = true;
+		try {
+			// El servidor manda los datos Y registra `document.printed`: la
+			// auditoría no puede depender de que el cliente se acuerde.
+			const res = await fetch(`${page.url.pathname}/document`, { method: 'POST' });
+			if (!res.ok) throw new Error('El servidor rechazó la petición.');
+			const { company, quotation, items } = await res.json();
+
+			/* Import DINÁMICO, nunca estático. Dos motivos:
+			 *  - jsPDF pesa ~400 KB y no tiene por qué estar en el bundle inicial.
+			 *  - Cloud es SSR: un import de nivel superior se evalúa también en el
+			 *    render del servidor, y `doc.output('bloburl')` necesita `Blob` y
+			 *    `URL.createObjectURL`, que allí no existen. */
+			const { generateQuotationPDF } = await import('@esr/reports/quotes');
+			const { url, filename } = generateQuotationPDF(quotation, items, 'preview', company);
+			pdfUrl = url;
+			pdfNombre = filename;
+		} catch (e) {
+			verPdf = false;
+			errorGuardado = `No se pudo generar el documento. ${e?.message ?? ''}`.trim();
+		} finally {
+			generandoPdf = false;
+		}
+	}
 </script>
 
-<section class="panel">
-	<div class="page-header">
-		<h1>Cotización {quote.quote_number || `#${quote.id}`}</h1>
-		<div class="page-header-actions">
-			{#if can('quotes.create')}
-				<button type="button" class="btn-secondary" onclick={abrirCopia}>Copiar</button>
+<div class="record-header">
+	<div class="record-titulo">
+		<a class="btn-secondary btn-sm" href="/quotes">← Cotizaciones</a>
+		<h1>{quote.quote_number || `#${quote.id}`}</h1>
+		<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
+		<!-- Sin botón de guardar, el usuario necesita saber que se guardó. -->
+		<span class="estado-guardado" aria-live="polite">
+			{#if errorGuardado}
+				<span class="form-error">{errorGuardado}</span>
+			{:else if guardando}
+				Guardando…
+			{:else if guardadoOk}
+				Guardado
 			{/if}
-			<a class="btn-secondary" href="/quotes/{quote.id}/print" target="_blank" rel="noopener">Imprimir</a>
-			<a class="btn-secondary" href="/quotes">Volver</a>
-		</div>
+		</span>
 	</div>
 
-	{#if !copiando}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
+	<div class="page-actions">
+		{#if can('quotes.create')}
+			<button type="button" class="btn-secondary" onclick={abrirCopia}>Copiar</button>
 		{/if}
-		{#if form?.success}
-			<p class="badge badge-active">Actualizado.</p>
-		{/if}
-	{/if}
-
-	<div class="grid" style="margin-bottom: 16px">
-		<div class="metric"><strong>{data.customer?.name ?? '—'}</strong><span>Cliente</span></div>
-		<div class="metric"><strong>{data.event?.name ?? '—'}</strong><span>Evento</span></div>
-		<div class="metric">
-			<strong>
-				<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
-			</strong>
-			<span>Estado</span>
-		</div>
-		<div class="metric"><strong>{formatMoney(quote.total)}</strong><span>Total</span></div>
+		<button type="button" class="btn-secondary" onclick={abrirPdf} disabled={generandoPdf}>
+			{generandoPdf ? 'Generando…' : 'Imprimir'}
+		</button>
 	</div>
+</div>
 
-	{#if data.linkedOrder}
-		<p>Orden generada: <a href="/work-orders/{data.linkedOrder.id}">{data.linkedOrder.order_number || `#${data.linkedOrder.id}`}</a></p>
-	{/if}
+<!-- El resultado de las acciones de PAGINA —aprobar, cancelar, convertir,
+     quitar linea—, que usan el `use:enhance` por defecto y por tanto escriben
+     en `form`. Sin esto la respuesta era invisible: aprobar una cotizacion sin
+     disponibilidad devolvia un 400 con su motivo y la pantalla no se movia.
 
-	<h2>Artículos</h2>
-	{#if items.length === 0}
-		<p class="empty-state">Sin artículos todavía.</p>
-	{:else}
-		<table class="data-table">
-			<thead>
-				<tr><th>Artículo</th><th>Código</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr>
-			</thead>
-			<tbody>
-				{#each items as item (item.id)}
-					<tr>
-						<td>{item.name}</td>
-						<td>{item.code || '—'}</td>
-						<td>{item.quantity}</td>
-						<td>{Number(item.price).toFixed(2)}</td>
-						<td>{Number(item.total || 0).toFixed(2)}</td>
-						<td>
-							{#if mayEdit}
-								<form method="POST" action="?/removeItem" use:enhance style="display:inline">
-									<input type="hidden" name="itemId" value={item.id} />
-									<button type="submit" class="btn-link">Quitar</button>
-								</form>
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	{/if}
+     Los dialogos NO leen de aqui: `form` es unico por pagina y el error de una
+     fila apareceria dentro del dialogo de otra cosa. Cada uno tiene su estado. -->
+{#if form?.error}
+	<p class="alert-error aviso-accion" role="alert">{form.error}</p>
+{/if}
 
-	{#if mayEdit}
-		{#if data.packages.length > 0}
-			<h3 style="margin-top: 24px">Agregar paquete</h3>
-			<form method="POST" action="?/addPackage" class="form-grid" use:enhance>
-				<div class="form-field">
-					<label for="package_id">Paquete</label>
-					<select id="package_id" name="package_id" required>
-						{#each data.packages as pkg (pkg.id)}
-							<option value={pkg.id}>{pkg.name} ({pkg.item_count} artículo(s))</option>
+{#if !canEdit}
+	<p class="panel-hint">
+		Esta cotización está {statusLabel(quote.status).toLowerCase()}: ya no se puede editar.
+		Para partir de ella, use «Copiar».
+	</p>
+{/if}
+
+<div class="detail-layout">
+	<div class="detail-main">
+		<section class="card">
+			<div class="card-header"><h2 class="card-title">Información general</h2></div>
+
+			<div class="info-rows">
+				<div class="info-row">
+					<span class="info-label">Cliente</span>
+					<span class="info-value">{data.customer?.name ?? '—'}</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Teléfono</span>
+					<span class="info-value">{data.customer?.phone || '—'}</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Evento</span>
+					<span class="info-value">{data.event?.name ?? '—'}</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Fecha</span>
+					<span class="info-value">{quote.date || '—'}</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Válida hasta</span>
+					<span class="info-value">{quote.valid_until || '—'}</span>
+				</div>
+				<div class="info-row">
+					<label class="info-label" for="notes">Notas</label>
+					<span class="info-value">
+						<!-- `.form-control` explicita: en theme.css el estilo de los
+						     controles cuelga de `.form-grid input/select/textarea`, y
+						     este <textarea> vive en un `.info-row`. Sin la clase se
+						     queda con el fondo blanco del navegador, que en el tema
+						     oscuro canta. -->
+						<textarea
+							id="notes"
+							name="notes"
+							class="form-control"
+							form="cabecera-cotizacion"
+							rows="2"
+							disabled={!mayEdit}
+							bind:value={borrador.notes}
+							oninput={() => programar(formularios.cabecera)}
+							onblur={() => programar(formularios.cabecera, true)}
+						></textarea>
+					</span>
+				</div>
+			</div>
+		</section>
+
+		<section class="card card--flush">
+			<div class="card-header card-header--acolchada">
+				<h2 class="card-title">Ítems cotizados</h2>
+				{#if mayEdit}
+					<div class="acciones-tarjeta">
+						<button type="button" class="btn-primary btn-sm btn-new" onclick={abrirArticulo}>
+							Agregar artículo
+						</button>
+						<button type="button" class="btn-secondary btn-sm btn-new" onclick={abrirPaquete}>
+							Agregar paquete
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<div class="table-container">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Artículo</th>
+							<th>Código</th>
+							<th class="num">Cant.</th>
+							<th class="num">Precio</th>
+							<th class="num">Importe</th>
+							{#if mayEdit}<th><span class="sr-only">Acciones</span></th>{/if}
+						</tr>
+					</thead>
+					<tbody>
+						{#each lineas as item (item.id)}
+							<tr>
+								<td>{item.name}</td>
+								<td>{item.code || '—'}</td>
+								<td class="num">
+									{#if mayEdit}
+										<input
+											class="celda-num"
+											type="number"
+											name="quantity"
+											min="1"
+											step="1"
+											form="linea-{item.id}"
+											value={item.quantity}
+											aria-label="Cantidad de {item.name}"
+											oninput={(e) => editarLinea(item.id, 'quantity', e.currentTarget.value)}
+											onblur={() => programar(formularios[`linea-${item.id}`], true)}
+										/>
+									{:else}
+										{item.quantity}
+									{/if}
+								</td>
+								<td class="num">
+									{#if mayEdit}
+										<input
+											class="celda-num"
+											type="number"
+											name="price"
+											min="0"
+											step="0.01"
+											form="linea-{item.id}"
+											value={item.price}
+											aria-label="Precio de {item.name}"
+											oninput={(e) => editarLinea(item.id, 'price', e.currentTarget.value)}
+											onblur={() => programar(formularios[`linea-${item.id}`], true)}
+										/>
+									{:else}
+										{formatMoney(item.price)}
+									{/if}
+								</td>
+								<td class="num importe">{formatMoney(item.total)}</td>
+								{#if mayEdit}
+									<td>
+										<form method="POST" action={accion('removeItem')} use:enhance>
+											<input type="hidden" name="itemId" value={item.id} />
+											<button type="submit" class="btn-quitar">Quitar</button>
+										</form>
+									</td>
+								{/if}
+							</tr>
+						{:else}
+							<tr>
+								<!-- El <p> va DENTRO de la celda: en la misma capa
+								     `.data-table td` le gana a `.empty-state` y se comería
+								     su padding y su color. -->
+								<td colspan={mayEdit ? 6 : 5}>
+									<p class="empty-state">
+										Sin líneas — agregue artículos o inserte un paquete.
+									</p>
+								</td>
+							</tr>
 						{/each}
-					</select>
-				</div>
-				<div class="form-field form-field--action">
-					<button type="submit" class="btn-secondary">Insertar paquete</button>
-				</div>
-				<p class="panel-hint" style="grid-column: 1 / -1">
-					Se añade como líneas sueltas, con el precio vigente de cada artículo. Después se editan
-					como cualquier otra línea.
-				</p>
-			</form>
-		{/if}
+					</tbody>
+				</table>
+			</div>
 
-		<h3 style="margin-top: 24px">Agregar artículo</h3>
-		<form method="POST" action="?/addItem" class="form-grid" use:enhance>
-			<div class="form-field">
-				<label for="item_id">Artículo</label>
-				<select id="item_id" name="item_id" required>
-					{#each data.inventory as inv (inv.id)}
-						<option value={inv.id}>{inv.name} ({inv.internal_code || 'sin código'})</option>
+			<!--
+				Los <form> de cada línea van AQUÍ, fuera de la tabla, y cada input los
+				referencia con `form="linea-N"`. Un <form> no puede envolver <td>s
+				hermanos, y meter los dos inputs en una sola celda desalinearía las
+				columnas.
+			-->
+			{#if mayEdit}
+				<div class="formularios-ocultos">
+					{#each lineas as item (item.id)}
+						<form
+							id="linea-{item.id}"
+							method="POST"
+							action={accion('updateItem')}
+							bind:this={formularios[`linea-${item.id}`]}
+							use:enhance={alGuardar(formularios[`linea-${item.id}`])}
+						>
+							<input type="hidden" name="itemId" value={item.id} />
+							<!-- Red de seguridad sin JavaScript, como `.filters-submit`. -->
+							<button type="submit" class="submit-oculto">Guardar línea</button>
+						</form>
 					{/each}
-				</select>
-			</div>
-			<div class="form-field">
-				<label for="quantity">Cantidad</label>
-				<input id="quantity" name="quantity" type="number" min="1" value="1" required />
-			</div>
-			<div class="form-field">
-				<label for="price">Precio unitario</label>
-				<input id="price" name="price" type="number" min="0" step="0.01" value="0" required />
-			</div>
-			<div class="form-field form-field--action">
-				<button type="submit" class="btn-primary">Agregar</button>
-			</div>
-		</form>
+				</div>
+			{/if}
+		</section>
+	</div>
 
-		<h3 style="margin-top: 24px">Totales y notas</h3>
-		<form method="POST" action="?/updateQuote" class="form-grid" use:enhance>
-			<div class="form-field"><span class="form-field-label">Subtotal</span><input value={Number(quote.subtotal || 0).toFixed(2)} readonly /></div>
-			<div class="form-field"><label for="discount">Descuento</label><input id="discount" name="discount" type="number" min="0" step="0.01" value={quote.discount ?? 0} /></div>
-			<div class="form-field"><label for="tax_amount">Impuesto</label><input id="tax_amount" name="tax_amount" type="number" min="0" step="0.01" value={quote.tax_amount ?? 0} /></div>
-			<div class="form-field full"><label for="notes">Notas</label><textarea id="notes" name="notes" rows="2">{quote.notes ?? ''}</textarea></div>
-			<div class="form-field form-field--action"><button type="submit" class="btn-secondary">Recalcular / guardar</button></div>
-		</form>
+	<div class="detail-side">
+		<section class="card">
+			<div class="card-header"><h2 class="card-title">Totales</h2></div>
+
+			<form
+				id="cabecera-cotizacion"
+				method="POST"
+				action={accion('updateQuote')}
+				bind:this={formularios.cabecera}
+				use:enhance={alGuardar(formularios.cabecera)}
+			>
+				<div class="totals">
+					<div class="total-row">
+						<span>Subtotal</span>
+						<span>{formatMoney(totales.subtotal)}</span>
+					</div>
+					<div class="total-row">
+						<label for="discount">Descuento</label>
+						<input
+							id="discount"
+							name="discount"
+							type="number"
+							min="0"
+							step="0.01"
+							disabled={!mayEdit}
+							bind:value={borrador.discount}
+							oninput={() => programar(formularios.cabecera)}
+							onblur={() => programar(formularios.cabecera, true)}
+						/>
+					</div>
+					<div class="total-row">
+						<label for="tax_amount">Impuesto</label>
+						<input
+							id="tax_amount"
+							name="tax_amount"
+							type="number"
+							min="0"
+							step="0.01"
+							disabled={!mayEdit}
+							bind:value={borrador.tax_amount}
+							oninput={() => programar(formularios.cabecera)}
+							onblur={() => programar(formularios.cabecera, true)}
+						/>
+					</div>
+					<div class="total-row total-row--final">
+						<span>Total</span>
+						<span>{formatMoney(totales.total)}</span>
+					</div>
+				</div>
+
+				<button type="submit" class="submit-oculto">Guardar totales</button>
+			</form>
+
+			<p class="ayuda">
+				Descuento e impuesto son importes, no porcentajes. Se guardan solos.
+			</p>
+		</section>
+
+		<section class="card">
+			<div class="card-header"><h2 class="card-title">Estado</h2></div>
+			<p class="estado-actual">
+				<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
+			</p>
+
+			{#if canEdit}
+				<div class="acciones-columna">
+					{#if quote.status !== 'aprobada' && can('quotes.approve')}
+						<form method="POST" action={accion('approve')} use:enhance>
+							<button type="submit" class="btn-primary w-full">Aprobar cotización</button>
+						</form>
+					{/if}
+					{#if quote.status === 'aprobada' && can('quotes.convert')}
+						<form method="POST" action={accion('convert')} use:enhance>
+							<button type="submit" class="btn-success w-full">Convertir a orden</button>
+						</form>
+					{/if}
+					{#if can('quotes.cancel')}
+						<form method="POST" action={accion('cancel')} use:enhance>
+							<button type="submit" class="btn-danger w-full">Cancelar cotización</button>
+						</form>
+					{/if}
+				</div>
+			{/if}
+		</section>
+
+		<section class="card">
+			<div class="card-header"><h2 class="card-title">Acciones</h2></div>
+			<div class="acciones-columna">
+				{#if data.linkedOrder}
+					<a class="btn-view w-full" href="/work-orders/{data.linkedOrder.id}">Ver la orden</a>
+				{/if}
+				<a class="btn-secondary w-full" href="/quotes">← Volver a la lista</a>
+			</div>
+		</section>
+	</div>
+</div>
+
+<!-- ── Agregar artículo ────────────────────────────────────────────────── -->
+<Modal bind:open={agregandoArticulo} size="md" title="Agregar artículo">
+	{#if errorArticulo}<div class="alert-error" role="alert">{errorArticulo}</div>{/if}
+
+	<div class="buscador">
+		<input
+			type="search"
+			bind:value={busqueda}
+			placeholder="Buscar por nombre o código"
+			aria-label="Buscar en el inventario"
+		/>
+	</div>
+
+	<ul class="catalog-list">
+		{#each resultados as articulo (articulo.id)}
+			<li>
+				<button
+					type="button"
+					class="catalog-item"
+					class:catalog-item--added={seleccion?.id === articulo.id}
+					onclick={() => elegir(articulo)}
+				>
+					<span class="catalog-item-nombre">
+						{articulo.name}
+						<span class="codigo">{articulo.code || 'sin código'}</span>
+					</span>
+					<span class="catalog-item-meta">
+						<span>Disp. {articulo.available}</span>
+						<span>{formatMoney(articulo.price)}</span>
+					</span>
+				</button>
+			</li>
+		{:else}
+			<li><p class="empty-state">Sin resultados para «{busqueda}».</p></li>
+		{/each}
+	</ul>
+
+	{#if data.inventoryTruncado}
+		<p class="ayuda">Se muestran los primeros artículos del catálogo: afine la búsqueda.</p>
 	{/if}
 
-	{#if canEdit}
-		<div class="page-actions" style="margin-top: 20px">
-			{#if quote.status !== 'aprobada' && quote.status !== 'convertida' && can('quotes.approve')}
-				<form method="POST" action="?/approve" use:enhance><button type="submit" class="btn-primary">Aprobar cotización</button></form>
-			{/if}
-			{#if quote.status === 'aprobada' && can('quotes.convert')}
-				<form method="POST" action="?/convert" use:enhance><button type="submit" class="btn-primary">Convertir a orden</button></form>
-			{/if}
-			{#if can('quotes.cancel')}
-				<form method="POST" action="?/cancel" use:enhance><button type="submit" class="btn-danger">Cancelar cotización</button></form>
-			{/if}
+	<form
+		id="alta-articulo"
+		method="POST"
+		action={accion('addItem')}
+		class="form-grid"
+		use:enhance={alAgregarArticulo}
+	>
+		<input type="hidden" name="item_id" value={seleccion?.id ?? ''} />
+		<div class="form-field">
+			<label for="alta_qty">Cantidad</label>
+			<input
+				id="alta_qty"
+				name="quantity"
+				type="number"
+				min="1"
+				step="1"
+				required
+				bind:value={alta.quantity}
+			/>
 		</div>
-	{/if}
-</section>
+		<div class="form-field">
+			<label for="alta_price">Precio unitario</label>
+			<input
+				id="alta_price"
+				name="price"
+				type="number"
+				min="0"
+				step="0.01"
+				required
+				bind:value={alta.price}
+			/>
+		</div>
+		<div class="form-field">
+			<span class="form-field-label">Importe</span>
+			<output class="alta-importe">{formatMoney(alta.quantity * alta.price)}</output>
+		</div>
+	</form>
 
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={() => (agregandoArticulo = false)}>
+			Cancelar
+		</button>
+		<button type="submit" form="alta-articulo" class="btn-primary" disabled={!seleccion}>
+			Agregar
+		</button>
+	{/snippet}
+</Modal>
 
-<Modal bind:open={copiando} size="sm" title="Copiar cotización" onclose={cerrarCopia}>
-	{#if errorCopia}
-		<div class="alert-error" role="alert">{errorCopia}</div>
+<!-- ── Agregar paquete ─────────────────────────────────────────────────── -->
+<Modal bind:open={agregandoPaquete} size="md" title="Agregar paquete">
+	{#if errorPaquete}<div class="alert-error" role="alert">{errorPaquete}</div>{/if}
+
+	<form
+		id="alta-paquete"
+		method="POST"
+		action={accion('addPackage')}
+		class="form-grid"
+		use:enhance={alAgregarPaquete}
+	>
+		<div class="form-field full">
+			<label for="pkg">Paquete</label>
+			<select id="pkg" name="package_id" required bind:value={paqueteElegido}>
+				<option value="">Elija el paquete</option>
+				{#each data.packages as pkg (pkg.id)}
+					<option value={pkg.id}>{pkg.name} ({pkg.item_count} artículo(s))</option>
+				{/each}
+			</select>
+		</div>
+	</form>
+
+	{#if previa.length}
+		<p class="panel-hint">
+			Se insertarán {previa.length} línea(s) sueltas con el precio vigente de cada artículo.
+			Después se editan como cualquier otra.
+		</p>
+
+		<div class="table-container previa">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Artículo</th>
+						<th class="num">Cant.</th>
+						<th class="num">Precio</th>
+						<th class="num">Importe</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each previa as linea (linea.item_id)}
+						<tr>
+							<td>
+								{linea.name}
+								<span class="codigo">{linea.code || '—'}</span>
+								{#if linea.is_active !== 1}
+									<span class="badge badge-danger">Dado de baja</span>
+								{/if}
+							</td>
+							<td class="num">{linea.quantity}</td>
+							<td class="num">{formatMoney(linea.price)}</td>
+							<td class="num">{formatMoney(linea.quantity * linea.price)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="total-row total-row--final">
+			<span>Añade al subtotal</span>
+			<span>{formatMoney(totalPrevia)}</span>
+		</div>
+
+		{#if previaConBajas}
+			<p class="alert-error" role="alert">
+				Este paquete tiene artículos dados de baja. Insertarlo fallaría a mitad y dejaría
+				la cotización con las líneas anteriores ya metidas: revise el paquete primero.
+			</p>
+		{/if}
+	{:else if paqueteElegido}
+		<p class="empty-state">Ese paquete está vacío: no hay nada que insertar.</p>
 	{/if}
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={() => (agregandoPaquete = false)}>
+			Cancelar
+		</button>
+		<button
+			type="submit"
+			form="alta-paquete"
+			class="btn-primary"
+			disabled={!previa.length || previaConBajas}
+		>
+			Insertar {previa.length || ''} línea(s)
+		</button>
+	{/snippet}
+</Modal>
+
+<!-- ── Copiar ──────────────────────────────────────────────────────────── -->
+<Modal bind:open={copiando} size="sm" title="Copiar cotización">
+	{#if errorCopia}<div class="alert-error" role="alert">{errorCopia}</div>{/if}
 
 	<p class="panel-hint">
 		Se copian los artículos con sus fechas, el descuento, el impuesto, las notas y las
 		condiciones. La copia nace en <strong>borrador</strong>, con número nuevo y fecha de hoy.
 	</p>
 
-	<form id="copiar-cotizacion" method="POST" action="?/copy" class="form-grid" use:enhance={alCopiar}>
+	<form
+		id="copiar-cotizacion"
+		method="POST"
+		action={accion('copy')}
+		class="form-grid"
+		use:enhance={alCopiar}
+	>
 		<div class="form-field full">
 			<label for="copia_client">Cliente *</label>
 			<select id="copia_client" name="client_id" required bind:value={destino.client_id}>
@@ -257,22 +889,228 @@
 	{/if}
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarCopia}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={() => (copiando = false)}>
+			Cancelar
+		</button>
 		<button type="submit" form="copiar-cotizacion" class="btn-primary">Copiar</button>
 	{/snippet}
 </Modal>
 
+<PdfPreviewModal
+	bind:show={verPdf}
+	{pdfUrl}
+	filename={pdfNombre}
+	title="Vista previa de cotización"
+/>
+
 <style>
+	/* `.alert-error` de theme.css no trae separacion vertical —es un componente
+	   que se usa dentro de formularios, donde el `gap` del contenedor la pone—.
+	   Aqui va suelto entre la cabecera y la ficha. */
+	.aviso-accion {
+		margin: 0 0 var(--sp-4);
+	}
+	/* Cabecera propia y no `.page-header`: esa clase lleva un
+	   `> :first-child:last-child { margin-left: auto }` para los listados. */
+	.record-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-4);
+	}
+
+	.record-titulo {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-3);
+		min-width: 0;
+	}
+
+	.record-titulo h1 {
+		margin: 0;
+		font-size: 1.6rem;
+	}
+
+	.estado-guardado {
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+		min-width: 6rem;
+	}
+
+	.btn-sm {
+		padding: var(--sp-1) var(--sp-3);
+		font-size: var(--font-xs);
+	}
+
+	/* La tarjeta de líneas deja que la tabla llegue a los bordes; el padding
+	   vuelve a su cabecera. */
+	.card--flush {
+		padding: 0;
+	}
+
+	.card-header--acolchada {
+		padding: var(--sp-4) var(--sp-5);
+		margin-bottom: 0;
+	}
+
+	.acciones-tarjeta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+	}
+
+	.acciones-columna {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+
+	.w-full {
+		width: 100%;
+		text-align: center;
+	}
+
+	.estado-actual {
+		margin: 0 0 var(--sp-3);
+	}
+
+	.num {
+		text-align: right;
+	}
+
+	.importe {
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.celda-num {
+		width: 5.5rem;
+		padding: var(--sp-1) var(--sp-2);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--font-sm);
+		text-align: right;
+		outline: none;
+	}
+
+	.celda-num:focus {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.btn-quitar {
+		background: none;
+		border: none;
+		color: var(--danger-text);
+		font: inherit;
+		font-size: var(--font-sm);
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.btn-quitar:hover {
+		text-decoration: underline;
+	}
+
+	.formularios-ocultos {
+		padding: 0 var(--sp-5) var(--sp-4);
+	}
+
+	/* Visible solo para quien navega sin JavaScript o con teclado, igual que
+	   `.filters-submit`: con JavaScript el usuario nunca lo ve, y sin él la
+	   pantalla sigue siendo usable. */
+	.submit-oculto {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.submit-oculto:focus-visible {
+		position: static;
+		width: auto;
+		height: auto;
+		margin: 0;
+		clip-path: none;
+		padding: var(--sp-2) var(--sp-4);
+		border: 1px solid var(--border-focus);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+	}
+
+	.buscador {
+		margin-bottom: var(--sp-3);
+	}
+
+	.buscador input {
+		width: 100%;
+		padding: var(--sp-2) var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: var(--font-sm);
+		outline: none;
+	}
+
+	.buscador input:focus {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.catalog-item-nombre {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.codigo {
+		margin-left: var(--sp-2);
+		font-size: var(--font-xs);
+		/* --text-secondary y no --text-muted: sobre el fondo hundido de la lista
+		   el muted cae por debajo de AA. */
+		color: var(--text-secondary);
+	}
+
+	.alta-importe {
+		display: block;
+		padding: var(--sp-2) 0;
+		font-weight: 600;
+	}
+
+	.previa {
+		max-height: 14rem;
+		overflow-y: auto;
+		margin-bottom: var(--sp-3);
+	}
+
 	.ayuda {
-		margin: var(--sp-1) 0 0;
+		margin: var(--sp-2) 0 0;
 		font-size: var(--font-xs);
 		color: var(--text-secondary);
 	}
 
-	.btn-link {
-		background: none;
-		border: none;
-		color: var(--danger);
-		cursor: pointer;
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
 	}
 </style>

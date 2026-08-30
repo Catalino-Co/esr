@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('api', {
     createAutomaticIncident: (input) =>
       ipcRenderer.invoke('checklists:createAutomaticIncident', input)
   },
+  quotes: {
+    findById: (id) => ipcRenderer.invoke('quotes:findById', id),
+    listItems: (id) => ipcRenderer.invoke('quotes:listItems', id),
+    findForEdit: (id) => ipcRenderer.invoke('quotes:findForEdit', id),
+    save: (input) => ipcRenderer.invoke('quotes:save', input)
+  },
   invoices: {
     list: (filters) => ipcRenderer.invoke('invoices:list', filters),
     findById: (id) => ipcRenderer.invoke('invoices:findById', id),

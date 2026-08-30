@@ -111,6 +111,14 @@ button.btn-view {
 	line-height: 1.4;
 }
 
+/* `.catalog-item` tambien es un <button>: sin esto, las filas del catalogo de
+   los dialogos de alta salen a 16px con la fuente del sistema en vez de a
+   `--font-sm` con Inter. */
+button.catalog-item {
+	font-family: inherit;
+	font-size: var(--font-sm);
+}
+
 /* Contra `h1 { font-size: 2rem }`: los titulos de las 19 rutas con <h1>
    dentro de `.page-header` saltarian de 1.6rem a 2rem, y el de la cabecera de
    20px a 32px. Medido: los dos. */

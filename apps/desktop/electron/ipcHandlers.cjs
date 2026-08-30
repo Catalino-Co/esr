@@ -11,6 +11,7 @@ const {
 } = require('./checklists.cjs');
 const { getCompanySettings, updateCompanySettings } = require('./settings.cjs');
 const facturacion = require('./invoices.cjs');
+const cotizaciones = require('./quotes.cjs');
 
 function setupIpcHandlers() {
   ipcMain.handle('db:run', async (event, sql, params) => {
@@ -74,6 +75,18 @@ function setupIpcHandlers() {
   ipcMain.handle('checklists:createAutomaticIncident', async (event, input) => {
     return await createAutomaticIncident(input);
   });
+
+  // ── Cotizaciones ──────────────────────────────────────────────────────
+  //
+  // Mismo contrato `{ok, data|error}` que facturas: ver `quotes.cjs`.
+  //
+  // Solo la ESCRITURA y las lecturas de la ficha pasan por aqui. Los catalogos
+  // que alimentan los dialogos siguen yendo por `db:get`: son lecturas sueltas
+  // y no necesitan transaccion.
+  ipcMain.handle('quotes:findById', (event, id) => cotizaciones.findQuote(id));
+  ipcMain.handle('quotes:listItems', (event, id) => cotizaciones.listQuoteItems(id));
+  ipcMain.handle('quotes:findForEdit', (event, id) => cotizaciones.findQuoteForEdit(id));
+  ipcMain.handle('quotes:save', (event, input) => cotizaciones.saveQuote(input));
 
   // ── Facturas y cobros ─────────────────────────────────────────────────
   //

@@ -26,26 +26,60 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// `customers` y `events` alimentan el diálogo de copiar: el destino puede
 	// ser otro cliente, así que hace falta el directorio entero, no solo el
 	// cliente de esta cotización.
-	const [items, event, customer, inventory, linkedOrder, packages, customers, events] =
+	const TOPE_INVENTARIO = 500;
+
+	const [items, event, customer, inventory, linkedOrder, packages, packageLines, customers, events] =
 		await Promise.all([
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
 			getCustomerRepository().findById(ctx, quote.client_id),
-			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
+			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: TOPE_INVENTARIO, offset: 0 }),
 			getRentalRepository().findByQuotationId(ctx, params.id),
 			getPackageRepository().list(ctx),
+			getPackageRepository().listAllItems(ctx),
 			getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
 			getEventRepository().list(ctx, { limit: 200, offset: 0 })
 		]);
+
+	// Las lineas de todos los paquetes, agrupadas por paquete. Se agrupa aqui y
+	// no en el cliente para no mandar una lista plana que el navegador tenga
+	// que recorrer en cada cambio del desplegable.
+	const lineasPorPaquete: Record<string, unknown[]> = {};
+	for (const linea of packageLines) {
+		const clave = String(linea.package_id);
+		(lineasPorPaquete[clave] ??= []).push({
+			item_id: linea.item_id,
+			name: linea.name,
+			code: linea.internal_code,
+			quantity: Number(linea.quantity) || 0,
+			// `NUMERIC` llega como cadena; se normaliza en el servidor para que
+			// el cliente no tenga que acordarse.
+			price: Number(linea.rental_price) || 0,
+			is_active: Number(linea.is_active)
+		});
+	}
 
 	return {
 		quote,
 		items,
 		event,
 		customer,
-		inventory,
+		// Proyeccion, no la fila entera: `list()` devuelve `i.*` mas las
+		// columnas de disponibilidad, y el dialogo usa cinco campos. Mandar 500
+		// filas completas era la mitad del peso de la pagina.
+		inventory: inventory.map((articulo) => ({
+			id: articulo.id,
+			name: articulo.name,
+			code: articulo.internal_code ?? null,
+			price: Number(articulo.rental_price ?? 0),
+			available: Number(articulo.available_quantity ?? 0)
+		})),
+		// Si el catalogo llega al tope, el dialogo lo dice: sin esto, un
+		// articulo que no aparece parece un fallo de busqueda.
+		inventoryTruncado: inventory.length >= TOPE_INVENTARIO,
 		linkedOrder,
 		packages,
+		packageLines: lineasPorPaquete,
 		customers,
 		events,
 		// El estado de cuenta ya no vive aqui: el dinero esta en el conduce, que
@@ -176,7 +210,12 @@ export const actions: Actions = {
 
 		for (const item of items) {
 			if (!item.item_id) continue;
-			const check = await getQuoteRepository().checkAvailability(
+			// `getInventoryRepository`, NO `getQuoteRepository`: `checkAvailability`
+			// vive en el repositorio de inventario y nunca ha existido en el de
+			// cotizaciones. Aprobar cualquier cotizacion con una linea de articulo
+			// lanzaba `TypeError` y devolvia un 500; solo se salvaba si todas las
+			// lineas eran de paquete, porque el `continue` de arriba las salta.
+			const check = await getInventoryRepository().checkAvailability(
 				ctx,
 				item.item_id,
 				Number(item.quantity || 0),

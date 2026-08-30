@@ -4,13 +4,15 @@ const operationalExtensions = require('./versioned/0002_operational_extensions.c
 const invoicesAndPayments = require('./versioned/0003_invoices_and_payments.cjs');
 const reservationsPerConduce = require('./versioned/0004_reservations_per_conduce.cjs');
 const clientDirectory = require('./versioned/0005_client_directory.cjs');
+const quoteTax = require('./versioned/0006_quote_tax.cjs');
 
 const MIGRATIONS = [
   baseline,
   operationalExtensions,
   invoicesAndPayments,
   reservationsPerConduce,
-  clientDirectory
+  clientDirectory,
+  quoteTax
 ];
 
 async function initDatabase() {

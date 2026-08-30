@@ -1,5 +1,6 @@
 import './load-env.js';
 import assert from 'node:assert/strict';
+import { validateQuoteCanApprove } from '@esr/core';
 import type { RepositoryContext } from '@esr/core';
 import { closePostgresPool, getPostgresPool } from './connection';
 import { ESR_CLOUD_SCHEMA } from './schema';
@@ -95,6 +96,62 @@ async function runIntegrationTest(): Promise<void> {
 		items: []
 	});
 	await quotes.addItem(ctxA, quoteA.id!, { item_id: itemA.id!, quantity: 1, price: 100 });
+
+	// ── Aprobacion de una cotizacion CON lineas de articulo ─────────────────
+	//
+	// Esta prueba llamaba directo a `changeStatus`, que es lo que dejo pasar el
+	// fallo: la accion `?/approve` de Cloud comprobaba la disponibilidad con
+	// `getQuoteRepository().checkAvailability(...)`, metodo que vive en el
+	// repositorio de INVENTARIO. Aprobar cualquier cotizacion con una linea de
+	// articulo lanzaba `TypeError` y devolvia un 500; solo se salvaba si todas
+	// las lineas eran de paquete, porque el bucle las salta.
+	//
+	// Aqui se recorre la MISMA secuencia que la accion, para que moverla de
+	// sitio vuelva a romper la prueba y no la produccion.
+	assert.equal(
+		typeof (quotes as unknown as Record<string, unknown>).checkAvailability,
+		'undefined',
+		'checkAvailability no debe volver al repositorio de cotizaciones: es una regla de inventario.'
+	);
+
+	const lineasA = await quotes.listItems(ctxA, quoteA.id!);
+	const aprobacion = validateQuoteCanApprove(quoteA, lineasA);
+	assert.ok(aprobacion.ok, 'Un borrador con lineas debe poder aprobarse.');
+
+	for (const linea of lineasA) {
+		if (!linea.item_id) continue;
+		const libre = await inventory.checkAvailability(
+			ctxA,
+			linea.item_id,
+			0,
+			linea.start_date || quoteA.date || undefined,
+			linea.end_date || undefined
+		);
+		assert.equal(typeof libre.available, 'number', 'checkAvailability devuelve un numero.');
+
+		// Relativo a lo que HAY y no a una cifra fija: el seed se comparte entre
+		// corridas y una constante convertiria esta prueba en intermitente. Lo
+		// que se verifica es la regla, que es `available >= quantity`.
+		const justo = await inventory.checkAvailability(
+			ctxA,
+			linea.item_id,
+			libre.available,
+			linea.start_date || quoteA.date || undefined,
+			linea.end_date || undefined
+		);
+		assert.equal(justo.ok, true, 'Pedir exactamente lo disponible debe aprobarse.');
+
+		const pasado = await inventory.checkAvailability(
+			ctxA,
+			linea.item_id,
+			libre.available + 1,
+			linea.start_date || quoteA.date || undefined,
+			linea.end_date || undefined
+		);
+		assert.equal(pasado.ok, false, 'Pedir mas de lo disponible debe rechazarse.');
+	}
+	console.log('[ok] la aprobacion comprueba disponibilidad sin reventar');
+
 	await quotes.changeStatus(ctxA, quoteA.id!, 'aprobada');
 	const { order: orderA } = await conversion.convertToWorkOrder(ctxA, quoteA.id!);
 

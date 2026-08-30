@@ -1318,6 +1318,208 @@
 		pointer-events: none;
 	}
 
+	/* ─── Ficha de registro ───────────────────────────────────────
+	   El esqueleto de una pantalla de DETALLE: el cuerpo a la izquierda y
+	   una columna estrecha a la derecha con totales, estado y acciones.
+	   Viene de CCO Workshop y lo usan las dos apps.
+
+	   OJO con el sticky: solo se activa si el ancestro con scroll scrollea
+	   de verdad. En Desktop `.content-area` lo hace. En Cloud NO:
+	   `.app-content` computa `overflow-y: auto` —arrastrado por su
+	   `overflow-x`— pero nunca desborda, porque quien scrollea es el
+	   `body`. Alli esta regla no hace nada, y no rompe nada: se comporta
+	   como `static`. */
+	.detail-layout {
+		display: grid;
+		/* `minmax(0, 1fr)` y no `1fr` pelado: el minimo de `1fr` es `auto`
+		   y una tabla ancha reventaria la columna. */
+		grid-template-columns: minmax(0, 1fr) 280px;
+		gap: var(--sp-4);
+		align-items: start;
+	}
+
+	.detail-main,
+	.detail-side {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
+		min-width: 0;
+	}
+
+	/* `top` distinto de 0: el area de contenido tiene su propio padding y
+	   con `top: 0` la tarjeta se pegaria literalmente al borde. */
+	.detail-side {
+		position: sticky;
+		top: var(--sp-4);
+	}
+
+	@media (max-width: 1100px) {
+		.detail-layout {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.detail-side {
+			position: static;
+		}
+	}
+
+	/* Pares etiqueta/valor de una ficha.
+
+	   SIN `text-transform: uppercase` ni `letter-spacing`, al contrario que
+	   el original de Workshop: es la regla 5 del sistema. Lo que distingue
+	   a la etiqueta del valor es el tamaño y el color, no las mayusculas. */
+	.info-rows {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.info-row {
+		display: grid;
+		grid-template-columns: 9.5rem minmax(0, 1fr);
+		align-items: center;
+		gap: var(--sp-3);
+		padding: var(--sp-2) 0;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.info-row:last-child {
+		border-bottom: none;
+	}
+
+	.info-label {
+		font-size: var(--font-sm);
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
+
+	.info-value {
+		min-width: 0;
+		color: var(--text-primary);
+	}
+
+	@media (max-width: 640px) {
+		.info-row {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 2px;
+		}
+	}
+
+	/* ─── Bloque de totales ───────────────────────────────────────
+	   El TOTAL va en `--text-primary` con peso 700, NO en el acento:
+	   `--brand-primary` como color de letra da 3.08:1 sobre `--surface` en
+	   el tema oscuro y no llega a AA. El enfasis lo hacen el peso y el
+	   filete de arriba. */
+	.totals {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-1);
+	}
+
+	.total-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-2);
+		padding: var(--sp-1) 0;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		border-bottom: 1px solid var(--border);
+	}
+
+	.total-row:last-child {
+		border-bottom: none;
+	}
+
+	.total-row input {
+		width: 7rem;
+		padding: var(--sp-1) var(--sp-2);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: var(--font-sm);
+		text-align: right;
+		outline: none;
+	}
+
+	.total-row input:focus {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.total-row--final {
+		padding-top: var(--sp-2);
+		border-top: 2px solid var(--border);
+		border-bottom: none;
+		font-size: var(--font-md);
+		font-weight: 700;
+		color: var(--text-primary);
+	}
+
+	/* ─── Lista de catalogo ───────────────────────────────────────
+	   Filas clicables con altura acotada, para los dialogos de alta de
+	   linea. El `gap: 1px` sobre fondo `--border` dibuja los separadores
+	   sin necesidad de un borde por fila. */
+	.catalog-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		max-height: 15rem;
+		overflow-y: auto;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		background: var(--border);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+	}
+
+	.catalog-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		width: 100%;
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--bg-surface);
+		border: none;
+		text-align: left;
+		/* `font-family` explicito: un <button> no hereda la fuente del
+		   documento. En Cloud da igual —su app.css tiene `button { font:
+		   inherit }`, que ademas gana a esta regla por ir sin capa— pero
+		   Desktop no tiene ese reset. */
+		font-family: inherit;
+		font-size: var(--font-sm);
+		color: var(--text-primary);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+
+	.catalog-item:hover {
+		background: var(--bg-hover);
+	}
+
+	.catalog-item:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+	}
+
+	/* Sin `!important`, al contrario que el original de Workshop: invierte
+	   el orden de capas y deja el problema peor de lo que estaba. */
+	.catalog-item--added {
+		background: var(--accent-subtle);
+	}
+
+	.catalog-item-meta {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		flex-shrink: 0;
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+	}
+
 	/* ─── Cabecera de la aplicacion ───────────────────────────────
 	   La barra superior con el titulo de la pantalla. Vive aqui, y no
 	   en cada app, por el mismo motivo que la barra lateral: las dos

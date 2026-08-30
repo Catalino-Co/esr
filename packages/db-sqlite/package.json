@@ -10,7 +10,8 @@
 	},
 	"scripts": {
 		"lint": "echo \"db-sqlite lint pending\"",
-		"check": "echo \"db-sqlite check pending\""
+		"check": "echo \"db-sqlite check pending\"",
+		"test": "node --test --test-isolation=none test/*.test.cjs"
 	},
 	"dependencies": {
 		"@esr/core": "workspace:*",

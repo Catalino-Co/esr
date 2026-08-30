@@ -58,11 +58,17 @@
       LEFT JOIN packages p ON qi.package_id = p.id
       WHERE qi.quotation_id = ?`, [quote.id]);
 
+    // El nombre va PELADO y la etiqueta la pone `quoteItemLabel` dentro del
+    // generador. Antes esta pantalla escribia «[PAQUETE] X» y el editor
+    // «📦 X» para la misma cotizacion — y el emoji ademas salia como un hueco
+    // en el PDF, porque las fuentes estandar de jsPDF son WinAnsi.
     const items = rows.map(r => ({
-      name:     r.package_id != null ? `[PAQUETE] ${r.package_name}` : r.item_name,
-      quantity: r.quantity,
-      price:    r.price,
-      total:    r.quantity * r.price
+      name:       r.package_id != null ? r.package_name : r.item_name,
+      item_id:    r.item_id,
+      package_id: r.package_id,
+      quantity:   r.quantity,
+      price:      r.price,
+      total:      r.quantity * r.price
     }));
 
     const c = await window.api.db.getOne("SELECT document_id, phone FROM clients WHERE id=?", [quote.client_id]);
@@ -158,7 +164,7 @@
 </div>
 
 <PdfPreviewModal bind:show={showPdfPreview} pdfUrl={pdfPreviewUrl}
-  filename={pdfPreviewFilename} title="Vista Previa de Cotización" />
+  filename={pdfPreviewFilename} title="Vista previa de cotización" />
 
 <style>
   .btn-icon { background:none; border:none; cursor:pointer; padding:4px 5px; opacity:0.6; transition:0.2s; }

@@ -112,8 +112,8 @@
     pdfPreviewUrl   = url;
     pdfPreviewFile  = filename;
     pdfPreviewTitle = activeTab === 'salida'
-      ? `Checklist de Salida — WO-${String(woId).padStart(5,'0')}`
-      : `Checklist de Retorno — WO-${String(woId).padStart(5,'0')}`;
+      ? `Checklist de salida — WO-${String(woId).padStart(5,'0')}`
+      : `Checklist de retorno — WO-${String(woId).padStart(5,'0')}`;
     showPdfPreview  = true;
   }
 

@@ -150,7 +150,49 @@ function getIncidentSeverityTone(severity) {
   return 'info';
 }
 
+/**
+ * Gemelo de `calculateQuoteLineTotal` y `calculateQuoteTotals` de
+ * `src/quotes/use-cases.ts`.
+ *
+ * Lo necesita `sqlite-quote.repository.cjs`, que corre en el proceso principal
+ * de Electron y por tanto no puede importar el TypeScript.
+ *
+ * SI CAMBIA LA FORMULA, CAMBIA EN LOS DOS. Que el total que ve el usuario y el
+ * que se escribe en disco salgan de formulas distintas es exactamente el fallo
+ * que este modulo viene a evitar, asi que hay una prueba que compara las dos
+ * implementaciones: `packages/core/test/quote-totals.test.cjs`.
+ *
+ * Recordatorio de semantica: `discount` y `tax_amount` son IMPORTES ABSOLUTOS,
+ * no porcentajes.
+ */
+function calculateQuoteLineTotal(line) {
+  return (Number(line.quantity) || 0) * (Number(line.price) || 0);
+}
+
+function calculateQuoteTotals(items, discount = 0, taxAmount = 0) {
+  const subtotal = (items || []).reduce((suma, item) => {
+    // `?? calculateQuoteLineTotal(item)` y no `|| ...`: una linea con total 0
+    // es legitima —un articulo de cortesia— y con `||` se recalcularia.
+    const total = item.total === null || item.total === undefined
+      ? calculateQuoteLineTotal(item)
+      : Number(item.total) || 0;
+    return suma + total;
+  }, 0);
+
+  const normalizedDiscount = Number(discount) || 0;
+  const normalizedTax = Number(taxAmount) || 0;
+
+  return {
+    subtotal,
+    discount: normalizedDiscount,
+    tax_amount: normalizedTax,
+    total: subtotal - normalizedDiscount + normalizedTax
+  };
+}
+
 module.exports = {
+  calculateQuoteLineTotal,
+  calculateQuoteTotals,
   findInsufficientStock,
   formatInsufficientStockDetail,
   getIncidentSeverityTone,

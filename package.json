@@ -14,7 +14,7 @@
 		"db:postgres:test": "pnpm --config.verify-deps-before-run=false --filter @esr/db-postgres test:integration",
 		"lint": "pnpm --config.verify-deps-before-run=false -r lint",
 		"check": "pnpm --config.verify-deps-before-run=false -r check",
-		"test": "pnpm --config.verify-deps-before-run=false --filter @esr/core test",
+		"test": "pnpm --config.verify-deps-before-run=false --filter @esr/core test && pnpm --config.verify-deps-before-run=false --filter @esr/db-sqlite test",
 		"dev": "pnpm --config.verify-deps-before-run=false --filter desktop dev",
 		"build": "pnpm --config.verify-deps-before-run=false --filter desktop build",
 		"build:electron": "pnpm --config.verify-deps-before-run=false --filter desktop build:electron",

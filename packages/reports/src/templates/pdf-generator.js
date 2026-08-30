@@ -1,6 +1,62 @@
-import jsPDF from 'jspdf';
+// Import CON NOMBRE, no por defecto. `jspdf` declara una condicion `node` que
+// resuelve a otra compilacion, y en ella el export por defecto es un OBJETO, no
+// el constructor: `new jsPDF()` lanza «jsPDF is not a constructor». Los dos
+// builds exportan `jsPDF` con nombre, asi que esta forma funciona igual en Node
+// y en el navegador. (Aun asi este modulo NO debe ejecutarse en SSR:
+// `doc.output('bloburl')` necesita `Blob` y `URL.createObjectURL`.)
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { fmt } from '../formatters/number.js';
+import { fmt, fmtMoney } from '../formatters/number.js';
+import { quoteDocumentFilename, quoteDocumentNumber, quoteItemLabel } from '../formatters/labels.js';
+
+/**
+ * Geometria de pagina, en milimetros. Antes eran numeros sueltos —`14`, `140`,
+ * `180`, `280`— repetidos por los cuatro generadores.
+ */
+const MARGEN_X = 14;
+const MARGEN_SUPERIOR = 20;
+/** Banda inferior reservada. Ni la tabla ni el texto entran aqui. */
+const MARGEN_INFERIOR = 30;
+const COL_ETIQUETA = 140;
+const COL_VALOR = 182;
+
+const altoPagina = (doc) => doc.internal.pageSize.getHeight();
+const anchoPagina = (doc) => doc.internal.pageSize.getWidth();
+
+/**
+ * Devuelve una `y` donde CABEN `alto` milimetros. Si no caben en la pagina
+ * actual, abre otra y devuelve el margen superior.
+ *
+ * Es la pieza que faltaba. El generador de cotizaciones escribia la firma en
+ * `y = 280` pasara lo que pasara, y empezaba las notas en `finalY + 10`, que es
+ * exactamente la `y` de la fila «Subtotal»: con una tabla larga la firma caia
+ * encima de la tabla, y con una nota larga el texto entraba en la columna de
+ * los totales. No habia ni un `addPage()` en todo el archivo.
+ */
+function hueco(doc, y, alto) {
+  if (y + alto <= altoPagina(doc) - MARGEN_INFERIOR) return y;
+  doc.addPage();
+  return MARGEN_SUPERIOR;
+}
+
+/**
+ * Numera las paginas AL FINAL, no durante el dibujo: mientras se dibuja aun no
+ * se sabe cuantas van a ser. Un documento de una sola pagina no lleva «1 de 1»,
+ * que es ruido.
+ */
+function paginar(doc) {
+  const total = doc.getNumberOfPages();
+  if (total < 2) return;
+  for (let n = 1; n <= total; n += 1) {
+    doc.setPage(n);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(130);
+    doc.text(`Página ${n} de ${total}`, anchoPagina(doc) - MARGEN_X, altoPagina(doc) - 10, {
+      align: 'right'
+    });
+  }
+}
 
 function createPdfResult(doc, filename, action) {
   if (action === 'preview') {
@@ -51,90 +107,138 @@ function renderCompanyHeader(doc, companyInfo) {
 
 export function generateQuotationPDF(quotation, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
-  
+
   renderCompanyHeader(doc, companyInfo);
-  
-  // Doc Title
+
   doc.setFontSize(18);
   doc.setTextColor(0);
-  doc.text("COTIZACIÓN", 140, 20);
-  
-  doc.setFontSize(10);
-  doc.text(`Nº: ${String(quotation.id).padStart(5, '0')}`, 140, 26);
-  doc.text(`Fecha: ${quotation.date}`, 140, 31);
-  doc.text(`Válida por: ${quotation.validity_days} días`, 140, 36);
+  doc.text('COTIZACIÓN', COL_ETIQUETA, 20);
 
-  // Client Info
+  doc.setFontSize(10);
+  // Una sola funcion para el numero de la cabecera y el del fichero: antes eran
+  // dos `padStart(5)` escritos a mano que coincidian por casualidad.
+  doc.text(`Nº: ${quoteDocumentNumber(quotation)}`, COL_ETIQUETA, 26);
+  doc.text(`Fecha: ${quotation.date || '—'}`, COL_ETIQUETA, 31);
+  if (quotation.validity_days) {
+    doc.text(`Válida por: ${quotation.validity_days} días`, COL_ETIQUETA, 36);
+  }
+
   doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Cliente:", 14, 55);
-  doc.setFont("helvetica", "normal");
-  doc.text(quotation.client_name || "N/A", 14, 61);
-  if (quotation.client_document) doc.text(`ID/RNC: ${quotation.client_document}`, 14, 66);
-  if (quotation.client_phone) doc.text(`Tel: ${quotation.client_phone}`, 14, 71);
-  
-  // Items Table
-  const tableData = items.map(i => [
-    i.name,
-    i.quantity.toString(),
-    `$${fmt(i.price)}`,
-    `$${fmt(i.total)}`
-  ]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cliente:', MARGEN_X, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.text(quotation.client_name || 'N/A', MARGEN_X, 61);
+  if (quotation.client_document) doc.text(`ID/RNC: ${quotation.client_document}`, MARGEN_X, 66);
+  if (quotation.client_phone) doc.text(`Tel: ${quotation.client_phone}`, MARGEN_X, 71);
 
   autoTable(doc, {
     startY: 80,
-    head: [['Descripción', 'Cant.', 'Precio Unit.', 'Subtotal']],
-    body: tableData,
+    // La moneda va en la CABECERA y no en cada celda: repetir «RD$» en cuatro
+    // celdas por fila embarra una tabla de 60 lineas, y sin declararla en
+    // ningun sitio un «$» suelto se lee como dolar, que en el pais no es lo
+    // mismo. Se declara una vez y se cuenta una vez.
+    head: [['Descripción', 'Cant.', 'Precio unit. (RD$)', 'Importe (RD$)']],
+    body: (items || []).map((linea) => [
+      // La etiqueta la pone `quoteItemLabel`, no quien llama: el listado de
+      // Desktop escribia «[PAQUETE] X» y su editor «📦 X» para la misma
+      // cotizacion, y el emoji ademas salia como un hueco porque las fuentes
+      // estandar de jsPDF son WinAnsi.
+      quoteItemLabel(linea),
+      // `String(... ?? 0)` y no `.toString()`: una cantidad nula reventaba.
+      String(linea.quantity ?? 0),
+      fmt(linea.price),
+      fmt(linea.total ?? Number(linea.quantity || 0) * Number(linea.price || 0))
+    ]),
     theme: 'striped',
     headStyles: { fillColor: [67, 94, 190] },
     styles: { fontSize: 9 },
+    // Lo que hace que los saltos de pagina de la propia tabla respeten la banda
+    // inferior donde va el pie.
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
     columnStyles: {
       1: { halign: 'center', cellWidth: 20 },
-      2: { halign: 'right', cellWidth: 30 },
-      3: { halign: 'right', cellWidth: 30 }
+      2: { halign: 'right', cellWidth: 32 },
+      3: { halign: 'right', cellWidth: 32 }
     }
   });
 
-  // Totals
-  const finalY = doc.lastAutoTable.finalY || 80;
-  
+  // ── Totales ─────────────────────────────────────────────────────────────
+  //
+  // Cursor acumulado y no `finalY + N`: las filas de descuento e impuesto son
+  // condicionales, asi que la altura del bloque es variable POR DISEÑO.
+  let y = (doc.lastAutoTable && doc.lastAutoTable.finalY) || 80;
+
+  const filas = [['Subtotal:', fmtMoney(quotation.subtotal)]];
+  // Solo lo que vale algo: antes se imprimia «Descuento: -$0.00» en todas las
+  // cotizaciones, que es ruido en la inmensa mayoria.
+  if (Number(quotation.discount) > 0) {
+    filas.push(['Descuento:', `-${fmtMoney(quotation.discount)}`]);
+  }
+  // El impuesto no se imprimia NUNCA. En Desktop daba igual porque sus
+  // cotizaciones no tenian la columna; en Cloud, `total = subtotal - discount +
+  // tax_amount`, asi que el PDF enseñaba un total que no cuadraba con sus
+  // propias cifras.
+  if (Number(quotation.tax_amount) > 0) {
+    filas.push(['Impuesto:', fmtMoney(quotation.tax_amount)]);
+  }
+
+  y = hueco(doc, y + 10, filas.length * 6 + 14);
   doc.setFontSize(10);
-  doc.text(`Subtotal:`, 140, finalY + 10);
-  doc.text(`$${fmt(quotation.subtotal)}`, 180, finalY + 10, { align: "right" });
-  
-  doc.text(`Descuento:`, 140, finalY + 16);
-  doc.text(`-$${fmt(quotation.discount)}`, 180, finalY + 16, { align: "right" });
-  
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0);
+  for (const [etiqueta, valor] of filas) {
+    doc.text(etiqueta, COL_ETIQUETA, y);
+    doc.text(valor, COL_VALOR, y, { align: 'right' });
+    y += 6;
+  }
+
+  y += 2;
   doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL:`, 140, finalY + 24);
-  doc.text(`$${fmt(quotation.total)}`, 180, finalY + 24, { align: "right" });
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL:', COL_ETIQUETA, y);
+  doc.text(fmtMoney(quotation.total), COL_VALOR, y, { align: 'right' });
 
-  // Notes & Conditions
+  // ── Notas y condiciones ─────────────────────────────────────────────────
+  //
+  // DEBAJO de los totales y a ancho completo. Antes empezaban en la misma `y`
+  // que la fila «Subtotal» y solo se salvaban por estar en otra columna: en
+  // cuanto la nota era larga, `splitTextToSize` la llevaba hasta la columna de
+  // los totales. Ponerlas debajo mata la colision por construccion, no
+  // ajustando numeros.
   doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(100);
-  
-  let noteY = finalY + 10;
-  if (quotation.notes && quotation.notes.trim() !== '') {
-    doc.text("Notas:", 14, noteY);
-    doc.text(doc.splitTextToSize(quotation.notes, 100), 14, noteY + 5);
-    noteY += 20;
-  }
-  
-  if (quotation.conditions && quotation.conditions.trim() !== '') {
-    doc.text("Condiciones:", 14, noteY);
-    doc.text(doc.splitTextToSize(quotation.conditions, 100), 14, noteY + 5);
+  const anchoTexto = anchoPagina(doc) - MARGEN_X * 2;
+
+  for (const bloque of [
+    { titulo: 'Notas', texto: quotation.notes },
+    { titulo: 'Condiciones', texto: quotation.conditions }
+  ]) {
+    const texto = String(bloque.texto || '').trim();
+    if (!texto) continue;
+    const lineas = doc.splitTextToSize(texto, anchoTexto);
+    y = hueco(doc, y + 8, 6 + lineas.length * 4);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${bloque.titulo}:`, MARGEN_X, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lineas, MARGEN_X, y + 5);
+    y += 5 + lineas.length * 4;
   }
 
-  // Footer / Signature line
+  // La firma va DESPUES del contenido, no clavada al pie de la hoja: con una
+  // cotizacion de tres lineas quedaria flotando veinte centimetros mas abajo y
+  // pareceria un error de maquetacion.
+  y = hueco(doc, y + 16, 12);
+  doc.setDrawColor(150);
   doc.setLineWidth(0.5);
-  doc.line(14, 280, 80, 280);
-  doc.text("Firma de Aceptación", 30, 285);
+  doc.line(MARGEN_X, y, MARGEN_X + 66, y);
+  doc.setTextColor(80);
+  doc.setFontSize(9);
+  doc.text('Firma de aceptación', MARGEN_X, y + 5);
 
-  const filename = `Cotizacion_${String(quotation.id).padStart(5, '0')}.pdf`;
+  paginar(doc);
 
-  return createPdfResult(doc, filename, action);
+  return createPdfResult(doc, quoteDocumentFilename(quotation), action);
 }
 
 export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = null) {

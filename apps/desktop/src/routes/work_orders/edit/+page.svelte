@@ -229,7 +229,7 @@
     const { url, filename } = generateWorkOrderPDF(woData, items, 'preview', company);
     pdfPreviewUrl   = url;
     pdfPreviewFile  = filename;
-    pdfPreviewTitle = `Orden de Trabajo WO-${String(currentWO.id).padStart(5,'0')}`;
+    pdfPreviewTitle = `Orden de trabajo WO-${String(currentWO.id).padStart(5,'0')}`;
     showPdfPreview  = true;
   }
 

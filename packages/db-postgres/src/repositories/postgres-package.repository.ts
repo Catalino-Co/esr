@@ -17,6 +17,18 @@ import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { availabilityColumnsSql, AVAILABILITY_ORDER_STATUSES } from './availability';
 
+/** Una linea de paquete tal como la pinta la vista previa del dialogo. */
+export type PackagePreviewLine = {
+	package_id: ESRId;
+	item_id: ESRId;
+	quantity: number;
+	name: string;
+	internal_code: string | null;
+	/** `NUMERIC` de PostgreSQL: llega como CADENA, no como numero. */
+	rental_price: string;
+	is_active: number;
+};
+
 export class PostgresPackageRepository implements TenantPackageRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
 
@@ -81,6 +93,35 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 			 WHERE pi.company_id = $1 AND pi.package_id = $2
 			 ORDER BY i.name`,
 			[requireCompanyId(ctx), packageId, AVAILABILITY_ORDER_STATUSES]
+		);
+		return result.rows;
+	}
+
+	/**
+	 * Lineas de TODOS los paquetes en UNA consulta.
+	 *
+	 * Alimenta la vista previa del dialogo «Agregar paquete». Pedirlas con
+	 * `listItems` paquete a paquete seria una consulta por paquete en cada
+	 * carga de la ficha —N+1— y ademas `listItems` calcula disponibilidad con
+	 * una subconsulta correlacionada por linea, que la previa no pinta. Las
+	 * filas totales de `package_items` de una empresa son decenas, no miles.
+	 *
+	 * `i.is_active` viaja a proposito: `addItem` exige `is_active = 1` y LANZA
+	 * si no lo encuentra, asi que un paquete con un articulo dado de baja
+	 * revienta a mitad de la insercion y deja la cotizacion con las lineas
+	 * anteriores ya metidas. La previa lo enseña antes de que ocurra.
+	 */
+	async listAllItems(ctx: RepositoryContext): Promise<PackagePreviewLine[]> {
+		const result = await this.pool.query<PackagePreviewLine>(
+			`SELECT pi.package_id, pi.item_id, pi.quantity,
+				i.name, i.internal_code,
+				i.rental_price::text AS rental_price,
+				i.is_active
+			 FROM package_items pi
+			 INNER JOIN items i ON i.id = pi.item_id AND i.company_id = pi.company_id
+			 WHERE pi.company_id = $1
+			 ORDER BY pi.package_id, i.name`,
+			[requireCompanyId(ctx)]
 		);
 		return result.rows;
 	}
