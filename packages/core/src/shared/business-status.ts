@@ -72,6 +72,18 @@ const STATUS: Record<string, StatusInfo> = {
 	'dañado': { label: 'Dañado', tone: 'danger' },
 	perdido: { label: 'Perdido', tone: 'danger' },
 
+	// Movimientos de stock. Nacieron en ingles y siguen asi en la base. Los
+	// `reverso_*` los escribe la anulacion de un conduce en modo operacion: la
+	// bitacora no se borra, se compensa con el movimiento contrario.
+	delivered: { label: 'Entregado', tone: 'neutral' },
+	returned: { label: 'Devuelto', tone: 'neutral' },
+	damaged: { label: 'Dañado', tone: 'danger' },
+	lost: { label: 'Perdido', tone: 'danger' },
+	reverso_delivered: { label: 'Reverso de entrega', tone: 'warning' },
+	reverso_returned: { label: 'Reverso de devolución', tone: 'warning' },
+	reverso_damaged: { label: 'Reverso de daño', tone: 'warning' },
+	reverso_lost: { label: 'Reverso de pérdida', tone: 'warning' },
+
 	// Eventos
 	tentativo: { label: 'Tentativo', tone: 'warning' },
 

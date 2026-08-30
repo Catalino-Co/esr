@@ -1,5 +1,5 @@
 import type { RepositoryContext } from '@esr/core';
-import { requireCompanyId } from '@esr/core';
+import { requireCompanyId, todayISO } from '@esr/core';
 import type { ChecklistItem, ChecklistType, ESRId, Incident } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -124,8 +124,8 @@ export class PostgresIncidentRepository {
 	async create(ctx: RepositoryContext, data: Omit<Incident, 'id' | 'company_id'>, client?: pg.PoolClient): Promise<Incident> {
 		const result = await this.db(client).query<Incident>(
 			`INSERT INTO incidents
-				(company_id, type, item_id, client_id, work_order_id, date, description, severity, estimated_cost, status, notes, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1)
+				(company_id, type, item_id, client_id, work_order_id, conduce_id, date, description, severity, estimated_cost, status, notes, is_active)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1)
 			 RETURNING *`,
 			[
 				requireCompanyId(ctx),
@@ -133,7 +133,10 @@ export class PostgresIncidentRepository {
 				data.item_id || null,
 				data.client_id || null,
 				data.work_order_id || null,
-				data.date || new Date().toISOString().slice(0, 10),
+				data.conduce_id || null,
+				// `todayISO`, no `toISOString`: este ultimo da el dia UTC, y a las
+				// 22h con -04:00 fecha la incidencia manana.
+				data.date || todayISO(),
 				data.description || '',
 				data.severity || 'media',
 				data.estimated_cost ?? 0,
@@ -142,6 +145,20 @@ export class PostgresIncidentRepository {
 			]
 		);
 		return result.rows[0];
+	}
+
+	/**
+	 * Anula de golpe las incidencias que genero un conduce. Las usa la anulacion
+	 * del conduce en modo operacion: si la devolucion no ocurrio, el daño que
+	 * reporto tampoco.
+	 */
+	async voidByConduce(ctx: RepositoryContext, conduceId: ESRId, client?: pg.PoolClient): Promise<number> {
+		const result = await this.db(client).query(
+			`UPDATE incidents SET status = 'anulado'
+			 WHERE company_id = $1 AND conduce_id = $2 AND status <> 'anulado'`,
+			[requireCompanyId(ctx), conduceId]
+		);
+		return result.rowCount ?? 0;
 	}
 
 	async resolve(ctx: RepositoryContext, id: ESRId): Promise<Incident> {

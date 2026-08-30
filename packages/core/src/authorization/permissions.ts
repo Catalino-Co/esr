@@ -53,6 +53,7 @@ export const PERMISSIONS = [
 	'operations.return',
 	'checklists.save',
 	'conduces.view',
+	'conduces.cancel',
 	'conduces.archive',
 
 	// Facturacion. La factura es el documento de dinero: cubre una o varias
@@ -127,6 +128,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'operations.return': 'Registrar devoluciones',
 	'checklists.save': 'Guardar checklists',
 	'conduces.view': 'Ver conduces',
+	'conduces.cancel': 'Anular conduces',
 	'conduces.archive': 'Archivar conduces',
 
 	'invoices.view': 'Ver facturas',
@@ -196,6 +198,7 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 			'operations.return',
 			'checklists.save',
 			'conduces.view',
+			'conduces.cancel',
 			'conduces.archive'
 		]
 	},
@@ -304,6 +307,8 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'events.archive',
 	'quotes.archive',
 	'work_orders.archive',
+	// Anular un conduce puede deshacer una entrega entera: no es operacion diaria.
+	'conduces.cancel',
 	'conduces.archive',
 	'quotes.approve',
 	'quotes.cancel',

@@ -286,7 +286,7 @@ Estados de orden (español): `confirmado`, `en_preparacion`, `entregado`, `parci
 
 Numeración por empresa: conduces `CON-000001` (entrega) y `DEV-000001` (devolución); facturas `FAC-000001`.
 
-Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items`, `invoices` / `invoice_items` / `invoice_conduces`, `work_order_checklists`, `incidents`, `stock_movements`.
+Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items` / `conduce_item_serials`, `invoices` / `invoice_items` / `invoice_conduces`, `work_order_checklists`, `incidents`, `stock_movements`.
 
 Numeración comercial MVP por empresa: `COT-000001`, `ORD-000001` (último número + 1; no apto para alta concurrencia sin endurecer).
 
@@ -336,6 +336,58 @@ Reglas de seguridad:
 - `companyId` viene desde `locals` (nunca desde formularios).
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
+
+### Fase 4 - Anular un conduce
+
+Un conduce se anula en uno de dos modos:
+
+- **Solo el documento** — la entrega ocurrio; lo que se retira es el papel. Las
+  cantidades, los seriales y el estado de la orden no se tocan.
+- **Deshacer la operacion** — la entrega no ocurrio. Vuelven atras las
+  cantidades, el estado de la linea, el estado de la orden, los seriales y las
+  incidencias que genero, y se escriben movimientos de stock que compensan los
+  suyos. Todo en UNA transaccion.
+
+Los dos modos venian del plan como `comercial` y `error`, de cuando el conduce
+era el documento de dinero. La 012 se llevo el dinero a la factura, asi que
+`comercial` dejo de describir nada: hoy la distincion util es documento contra
+operacion, y la migracion **013** renombra el CHECK.
+
+**Una entrega cubierta por una factura viva no se puede anular.** Primero se
+anula la factura, que libera la entrega. Sin esa regla se estaria cobrando algo
+que ya no ocurrio.
+
+#### Lo que la migracion 013 tuvo que anadir
+
+Al ir a escribir la reversion salio que tres de los siete efectos eran
+**inalcanzables** con el esquema de entonces. El conduce registraba QUE se movio
+y CUANTO, pero no CUALES unidades ni CON QUE resultado:
+
+- `conduce_item_serials` — que seriales movio cada conduce.
+  `work_order_item_serials` guarda lo mismo indexado por ORDEN, asi que con dos
+  entregas parciales no sabe cual movio cual. El backfill solo atribuye los
+  casos sin ambiguedad —una unica entrega candidata—; el resto se queda sin
+  atribuir a proposito.
+- `conduce_items.return_condition` — con que condicion volvio cada linea. El
+  estado del articulo se calculaba y se perdia, asi que al anular UNA de varias
+  devoluciones no habia con que recalcular el que queda.
+- `incidents.conduce_id` — que conduce genero cada incidencia.
+
+Un conduce anterior a la 013 puede no tener estos datos. En ese caso el modo
+operacion **se niega** en vez de adivinar, y dice por que.
+
+#### Las otras dos negativas
+
+- Una entrega cuya mercancia ya se devolvio no se deshace: dejaria la linea con
+  mas devuelto que entregado. Hay que anular antes la devolucion.
+- Una orden `cerrado` o `cancelado` no admite cambios hacia atras.
+
+`stock_movements` es bitacora *append-only*: no se borra nada, se escribe el
+movimiento contrario (`reverso_delivered`, `reverso_returned`,
+`reverso_damaged`, `reverso_lost`) con la misma cantidad.
+
+Permiso nuevo: `conduces.cancel`, de gerencia para arriba. Anular un conduce
+puede deshacer una entrega entera, asi que no es operacion diaria.
 
 ### Fase 9.3 - La factura es un documento propio
 

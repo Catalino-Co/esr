@@ -1,8 +1,12 @@
 import {
 	canCloseOrder,
+	canRevertDeliveredQuantity,
 	getDeliverableQuantity,
 	getReturnableQuantity,
 	mapReturnConditionToItemStatus,
+	ORDER_STATUSES_FROZEN,
+	recalcItemStatusAfterCancel,
+	recalcOrderStatusAfterCancel,
 	validateOrderTransition,
 	type RepositoryContext
 } from '@esr/core';
@@ -79,8 +83,14 @@ export class WorkOrderOperationsService {
 
 			// Seriales que salen en esta entrega, por linea. Se resuelven antes de
 			// crear el conduce para poder abortar la transaccion entera si alguno
-			// ya no esta disponible.
-			const serialAssignments: Array<{ item_id: ESRId; serial_id: ESRId }> = [];
+			// ya no esta disponible. `work_order_item_id` viaja con ellos porque
+			// luego hay que colgarlos de la LINEA del conduce: es lo unico que
+			// permite deshacer la entrega si el conduce se anula.
+			const serialAssignments: Array<{
+				work_order_item_id: ESRId;
+				item_id: ESRId;
+				serial_id: ESRId;
+			}> = [];
 
 			for (const line of input.lines) {
 				const woItem = itemMap.get(String(line.work_order_item_id));
@@ -105,7 +115,11 @@ export class WorkOrderOperationsService {
 								`El serial seleccionado de ${woItem.name} ya no está disponible. Vuelva a cargar la página.`
 							);
 						}
-						serialAssignments.push({ item_id: woItem.item_id, serial_id: serialId });
+						serialAssignments.push({
+							work_order_item_id: woItem.id,
+							item_id: woItem.item_id,
+							serial_id: serialId
+						});
 					}
 				}
 
@@ -151,6 +165,21 @@ export class WorkOrderOperationsService {
 				},
 				client
 			);
+
+			// Los seriales se cuelgan del conduce DESPUES de crearlo, que es cuando
+			// existen los ids de sus lineas.
+			for (const assignment of serialAssignments) {
+				await this.conduces.linkSerial(
+					ctx,
+					{
+						conduce_id: conduce.id!,
+						conduce_item_id: conduce.line_ids.get(String(assignment.work_order_item_id)),
+						item_id: assignment.item_id,
+						serial_id: assignment.serial_id
+					},
+					client
+				);
+			}
 
 			await this.conduces.complete(
 				ctx,
@@ -211,7 +240,13 @@ export class WorkOrderOperationsService {
 
 			const items = await this.orders.listItems(ctx, orderId);
 			const itemMap = new Map(items.map((item) => [String(item.id), item]));
-			const conduceLines: Array<{ work_order_item_id: ESRId; item_id: ESRId; quantity: number; price?: number }> = [];
+			const conduceLines: Array<{
+				work_order_item_id: ESRId;
+				item_id: ESRId;
+				quantity: number;
+				price?: number;
+				return_condition?: string;
+			}> = [];
 			const createdIncidents: Incident[] = [];
 
 			for (const line of input.lines) {
@@ -225,7 +260,11 @@ export class WorkOrderOperationsService {
 					work_order_item_id: woItem.id,
 					item_id: woItem.item_id,
 					quantity: line.quantity,
-					price: woItem.price
+					price: woItem.price,
+					// La condicion se guarda en la LINEA, no solo en el estado del
+					// articulo. Con varias devoluciones parciales, revertir una sin
+					// esto dejaria el estado del articulo sin con que recalcularse.
+					return_condition: line.condition
 				});
 			}
 
@@ -260,6 +299,22 @@ export class WorkOrderOperationsService {
 				},
 				client
 			);
+			for (const line of input.lines) {
+				for (const serialId of line.serial_ids ?? []) {
+					const woItem = itemMap.get(String(line.work_order_item_id))!;
+					await this.conduces.linkSerial(
+						ctx,
+						{
+							conduce_id: conduce.id!,
+							conduce_item_id: conduce.line_ids.get(String(line.work_order_item_id)),
+							item_id: woItem.item_id,
+							serial_id: serialId
+						},
+						client
+					);
+				}
+			}
+
 			await this.conduces.complete(ctx, conduce.id!, { notes: input.notes }, client);
 
 			for (const line of input.lines) {
@@ -301,7 +356,9 @@ export class WorkOrderOperationsService {
 							work_order_id: orderId,
 							description: line.notes || `Incidencia en devolución: ${woItem.name} (${itemStatus})`,
 							severity: itemStatus === 'perdido' ? 'alta' : 'media',
-							status: 'reportado'
+							status: 'reportado',
+							// Sin esto, anular la devolucion no sabria que incidencias creo.
+							conduce_id: conduce.id
 						},
 						client
 					);
@@ -321,6 +378,206 @@ export class WorkOrderOperationsService {
 				conduce,
 				incidents: createdIncidents
 			};
+		});
+	}
+
+	/**
+	 * Anula un conduce, en uno de dos modos.
+	 *
+	 *   `documento`  — la entrega ocurrio; lo que se retira es el papel. Nada de
+	 *                  la operacion se toca.
+	 *   `operacion`  — la entrega NO ocurrio. Se deshacen sus efectos, todos en
+	 *                  esta misma transaccion: o vuelven todos o no vuelve
+	 *                  ninguno.
+	 *
+	 * Los dos modos venian del plan de cuando el conduce era el documento de
+	 * dinero, y se llamaban `comercial` y `error`. La factura se llevo el dinero
+	 * en la migracion 012, asi que hoy la distincion util es documento contra
+	 * operacion.
+	 */
+	async cancelConduce(
+		ctx: RepositoryContext,
+		conduceId: ESRId,
+		input: { mode: 'documento' | 'operacion'; reason: string }
+	): Promise<{ conduce: Conduce; order: RentalOrder | null; voidedIncidents: number }> {
+		return withTransaction(async (client) => {
+			const conduce = await this.conduces.findById(ctx, conduceId, client);
+			if (!conduce) throw new Error('El conduce no existe en esta empresa.');
+			if (conduce.status === 'anulado') throw new Error('Este conduce ya estaba anulado.');
+
+			// Anular por detras de una factura viva dejaria cobrandose una entrega
+			// que ya no ocurrio. Se anula antes la factura, que libera la entrega.
+			const factura = await this.conduces.billedBy(ctx, conduceId, client);
+			if (factura) {
+				throw new Error(
+					`No se puede anular: la factura ${factura.invoice_number} lo cubre. Anule primero la factura, que liberará esta entrega.`
+				);
+			}
+
+			if (input.mode === 'documento') {
+				const anulado = await this.conduces.cancel(ctx, conduceId, input, client);
+				return { conduce: anulado, order: null, voidedIncidents: 0 };
+			}
+
+			const esDevolucion = conduce.conduce_type === 'devolucion';
+			const lineas = await this.conduces.listItems(ctx, conduceId, client);
+			if (!lineas.length) throw new Error('El conduce no tiene líneas que deshacer.');
+
+			const order = await this.orders.findById(ctx, conduce.work_order_id);
+			if (!order) throw new Error('La orden del conduce no existe.');
+			if (ORDER_STATUSES_FROZEN.includes(order.status as (typeof ORDER_STATUSES_FROZEN)[number])) {
+				throw new Error(
+					`La orden está ${order.status} y ya no admite cambios hacia atrás. Reábrala antes de deshacer la operación.`
+				);
+			}
+
+			// ── Lo que no se puede deshacer se rechaza ANTES de tocar nada ────
+			//
+			// Un conduce anterior a la migracion 013 puede no tener registrado que
+			// unidades movio ni con que condicion volvieron. Deshacerlo a ojo seria
+			// peor que negarse.
+			const serialesDelConduce = await this.conduces.listSerials(ctx, conduceId, client);
+			const serializados = await client.query<{ item_id: ESRId; name: string }>(
+				`SELECT DISTINCT ci.item_id, i.name
+				 FROM conduce_items ci
+				 JOIN items i ON i.id = ci.item_id AND i.company_id = ci.company_id
+				 WHERE ci.company_id = $1 AND ci.conduce_id = $2 AND i.item_type = 'serializado'`,
+				[ctx.companyId, conduceId]
+			);
+			const conSerial = new Set(serialesDelConduce.map((fila) => String(fila.item_id)));
+			const sinRastro = serializados.rows.filter((fila) => !conSerial.has(String(fila.item_id)));
+			if (sinRastro.length) {
+				throw new Error(
+					`No se puede deshacer: no consta qué unidades concretas movió este conduce de ${sinRastro
+						.map((fila) => fila.name)
+						.join(', ')}. Es anterior al registro de seriales por documento.`
+				);
+			}
+
+			if (esDevolucion && lineas.some((linea) => !linea.return_condition)) {
+				throw new Error(
+					'No se puede deshacer: esta devolución no registró con qué condición volvió cada línea. Es anterior al registro por documento.'
+				);
+			}
+
+			const items = await this.orders.listItems(ctx, conduce.work_order_id);
+			const itemMap = new Map(items.map((item) => [String(item.id), item]));
+
+			// Lo que quedara en cada linea, calculado ANTES de escribir nada.
+			const nuevos = new Map<string, { delivered: number; returned: number; quantity: number | string }>();
+			for (const linea of lineas) {
+				const woItem = itemMap.get(String(linea.work_order_item_id));
+				if (!woItem?.id) throw new Error('Una línea del conduce ya no corresponde a la orden.');
+				const cantidad = Number(linea.quantity || 0);
+				const delivered = Number(woItem.delivered_quantity || 0);
+				const returned = Number(woItem.returned_quantity || 0);
+
+				if (esDevolucion) {
+					if (returned - cantidad < 0) {
+						throw new Error(`Las cantidades de ${woItem.name} no cuadran: no se puede deshacer.`);
+					}
+					nuevos.set(String(woItem.id), {
+						delivered,
+						returned: returned - cantidad,
+						quantity: woItem.quantity
+					});
+				} else {
+					const check = canRevertDeliveredQuantity({ delivered, returned }, cantidad);
+					if (!check.ok) {
+						throw new Error(
+							check.error === 'conduce.revert.returned_first'
+								? `No se puede deshacer la entrega de ${woItem.name}: parte ya se devolvió. Anule antes la devolución.`
+								: `Las cantidades de ${woItem.name} no cuadran: no se puede deshacer.`
+						);
+					}
+					nuevos.set(String(woItem.id), {
+						delivered: delivered - cantidad,
+						returned,
+						quantity: woItem.quantity
+					});
+				}
+			}
+
+			// ── A partir de aqui se escribe ──────────────────────────────────
+			for (const [woItemId, cifras] of nuevos) {
+				const condiciones = await this.conduces.listLiveReturnConditions(ctx, woItemId, conduceId, client);
+				const estado = recalcItemStatusAfterCancel(cifras, condiciones);
+				await this.orders.updateItemQuantities(
+					ctx,
+					conduce.work_order_id,
+					woItemId,
+					{ delivered_quantity: cifras.delivered, returned_quantity: cifras.returned, status: estado },
+					client
+				);
+			}
+
+			// Los seriales vuelven al estado del que salieron.
+			for (const fila of serialesDelConduce) {
+				if (esDevolucion) {
+					// La devolucion los habia liberado: vuelven a estar en la calle.
+					await client.query(
+						`UPDATE item_serials SET status = 'entregado' WHERE company_id = $1 AND id = $2`,
+						[ctx.companyId, fila.serial_id]
+					);
+					await client.query(
+						`INSERT INTO work_order_item_serials (company_id, work_order_id, item_id, serial_id)
+						 VALUES ($1, $2, $3, $4) ON CONFLICT (work_order_id, serial_id) DO NOTHING`,
+						[ctx.companyId, conduce.work_order_id, fila.item_id, fila.serial_id]
+					);
+				} else {
+					await client.query(
+						`UPDATE item_serials SET status = 'disponible' WHERE company_id = $1 AND id = $2`,
+						[ctx.companyId, fila.serial_id]
+					);
+					await client.query(
+						`DELETE FROM work_order_item_serials
+						 WHERE company_id = $1 AND work_order_id = $2 AND serial_id = $3`,
+						[ctx.companyId, conduce.work_order_id, fila.serial_id]
+					);
+				}
+			}
+
+			// `stock_movements` es bitacora: no se borra, se compensa. Cada
+			// movimiento del conduce recibe su contrario, del mismo tamaño.
+			const movimientos = await this.conduces.listStockMovements(ctx, conduceId, client);
+			for (const movimiento of movimientos) {
+				await this.stock.create(
+					ctx,
+					{
+						item_id: movimiento.item_id,
+						work_order_id: conduce.work_order_id,
+						work_order_item_id: movimiento.work_order_item_id ?? undefined,
+						movement_type: `reverso_${movimiento.type}`,
+						quantity: movimiento.quantity,
+						reference_type: 'conduce',
+						reference_id: conduceId,
+						notes: `Anulación de ${conduce.note_number}: ${input.reason}`
+					},
+					client
+				);
+			}
+
+			// Si la devolucion no ocurrio, el daño que reporto tampoco.
+			const voidedIncidents = await this.incidents.voidByConduce(ctx, conduceId, client);
+
+			const anulado = await this.conduces.cancel(ctx, conduceId, input, client);
+
+			const paraOrden = items.map((item) => {
+				const cifras = nuevos.get(String(item.id));
+				return {
+					quantity: item.quantity,
+					delivered: cifras ? cifras.delivered : Number(item.delivered_quantity || 0),
+					returned: cifras ? cifras.returned : Number(item.returned_quantity || 0)
+				};
+			});
+			const updatedOrder = await this.orders.changeStatus(
+				ctx,
+				conduce.work_order_id,
+				recalcOrderStatusAfterCancel(paraOrden),
+				client
+			);
+
+			return { conduce: anulado, order: updatedOrder, voidedIncidents };
 		});
 	}
 

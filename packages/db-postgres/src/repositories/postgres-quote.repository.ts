@@ -7,7 +7,7 @@ import {
 	type TenantCreateQuoteInput,
 	type TenantQuoteRepository
 } from '@esr/core';
-import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
 import type { ESRId, Quote, QuoteItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -126,7 +126,7 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 				data.client_id,
 				data.event_id || null,
 				quoteNumber,
-				data.date || new Date().toISOString().slice(0, 10),
+				data.date || todayISO(),
 				data.validity_days ?? 15,
 				data.valid_until || null,
 				totals.subtotal,

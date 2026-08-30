@@ -1,5 +1,5 @@
 import type { RecordState, RentalOrderListFilters, RepositoryContext, TenantCreateRentalOrderInput, TenantRentalOrderRepository } from '@esr/core';
-import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
+import { DEFAULT_RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
 import type { ESRId, Quote, QuoteItem, RentalOrder, RentalOrderItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -54,7 +54,7 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 				quote.event_id || null,
 				quote.id,
 				orderNumber,
-				quote.date || new Date().toISOString().slice(0, 10),
+				quote.date || todayISO(),
 				quote.subtotal ?? 0,
 				quote.discount ?? 0,
 				quote.tax_amount ?? 0,

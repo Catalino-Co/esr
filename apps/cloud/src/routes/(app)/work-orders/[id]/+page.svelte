@@ -26,7 +26,7 @@
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric"><strong>{data.customer?.name ?? '—'}</strong><span>Cliente</span></div>
 		<div class="metric"><strong>{data.event?.name ?? '—'}</strong><span>Evento</span></div>
-		<div class="metric"><strong>{order.status}</strong><span>Estado</span></div>
+		<div class="metric"><strong>{statusLabel(order.status)}</strong><span>Estado</span></div>
 		<div class="metric"><strong>{Number(order.total || 0).toFixed(2)}</strong><span>Total</span></div>
 	</div>
 
@@ -194,7 +194,7 @@
 			<tbody>
 				{#each data.stockMovements as movement (movement.id)}
 					<tr>
-						<td>{movement.type}</td>
+						<td>{statusLabel(movement.type)}</td>
 						<td>{movement.quantity}</td>
 						<td>{movement.reference || '—'}</td>
 						<td>{movement.created_at ? String(movement.created_at).slice(0, 19) : '—'}</td>

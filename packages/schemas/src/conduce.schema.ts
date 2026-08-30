@@ -35,6 +35,8 @@ export type ConduceItem = {
 	quantity: number;
 	price?: number;
 	status?: string;
+	/** Solo en devoluciones: con que condicion volvio la linea. */
+	return_condition?: Nullable<string>;
 	notes?: string;
 };
 

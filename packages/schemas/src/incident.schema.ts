@@ -12,6 +12,8 @@ export type Incident = {
 	client_id?: Nullable<ESRId>;
 	event_id?: Nullable<ESRId>;
 	work_order_id?: Nullable<ESRId>;
+	/** El conduce que la genero, si nacio de una devolucion. Anularlo la anula. */
+	conduce_id?: Nullable<ESRId>;
 	date?: string;
 	description?: string;
 	severity?: IncidentSeverity;
