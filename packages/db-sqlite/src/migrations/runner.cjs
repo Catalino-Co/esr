@@ -2,11 +2,13 @@ const { getQuery, runQuery } = require('../connection.cjs');
 const baseline = require('./versioned/0001_initial_schema.cjs');
 const operationalExtensions = require('./versioned/0002_operational_extensions.cjs');
 const invoicesAndPayments = require('./versioned/0003_invoices_and_payments.cjs');
+const reservationsPerConduce = require('./versioned/0004_reservations_per_conduce.cjs');
 
 const MIGRATIONS = [
   baseline,
   operationalExtensions,
-  invoicesAndPayments
+  invoicesAndPayments,
+  reservationsPerConduce
 ];
 
 async function initDatabase() {

@@ -27,11 +27,36 @@ function shouldDeductStockForConduce(status) {
   return STOCK_DEDUCTING_CONDUCE_STATUSES.includes(status);
 }
 
+/**
+ * Que articulos no alcanzan para lo pedido.
+ *
+ * AGREGA `requested` por articulo antes de comparar. Antes no lo hacia, y por
+ * eso comparaba LINEA A LINEA: una orden con el mismo articulo en dos lineas de
+ * 3 y 4 unidades, con 5 disponibles, pasaba el control dos veces (3<=5, 4<=5) y
+ * despues descontaba 7 de 5. Depender de que quien llama traiga las filas ya
+ * agrupadas es una trampa: el camino del conduce las agrupaba y el de la orden
+ * no.
+ *
+ * El orden del spread tambien importa: `line` va DESPUES para que la cantidad
+ * pedida gane sobre cualquier `quantity` que traiga la fila de stock. Al reves
+ * —como estaba— una llamada con dos arrays distintos habria comparado el stock
+ * contra si mismo sin avisar.
+ */
 function findInsufficientStock(requested, stock) {
   const stockById = new Map(stock.map((item) => [item.item_id, item]));
 
-  return requested
-    .map((line) => ({ ...line, ...stockById.get(line.item_id) }))
+  const pedidoPorItem = new Map();
+  for (const line of requested) {
+    const previo = pedidoPorItem.get(line.item_id);
+    if (previo) {
+      previo.quantity = Number(previo.quantity || 0) + Number(line.quantity || 0);
+      continue;
+    }
+    pedidoPorItem.set(line.item_id, { ...line, quantity: Number(line.quantity || 0) });
+  }
+
+  return [...pedidoPorItem.values()]
+    .map((line) => ({ ...stockById.get(line.item_id), ...line }))
     .filter((line) => line.available_quantity !== undefined && Number(line.available_quantity) < Number(line.quantity));
 }
 

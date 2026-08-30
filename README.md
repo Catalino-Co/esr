@@ -338,6 +338,58 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Desktop: reservas por conduce y el GROUP BY
+
+Dos fallos del stock de Desktop que el modulo de facturas destapaba, porque una
+factura cubre VARIAS entregas de una orden y ese flujo el codigo de stock no lo
+soportaba.
+
+**El segundo conduce de una orden nunca descontaba.** `reserveConduceStock`
+miraba si la ORDEN tenia «alguna» reserva y, si la tenia, salia con
+`already_reserved` sin tocar nada. Con `UNIQUE(work_order_id, item_id)` en la
+tabla, no habia forma de que dos conduces de la misma orden apuntaran cada uno
+lo suyo.
+
+Esa comprobacion no era gratuita: hay DOS mecanismos que apartan mercancia y se
+solapan —la orden al pasar a `preparado`, y el conduce al emitirse—, y sin ella
+el conduce descontaria encima de lo que la orden ya aparto. Por eso la solucion
+no es quitarla sino que la tabla sepa QUIEN reservo (migracion **0004**):
+
+| `conduce_id` | Significado |
+| --- | --- |
+| `NULL` | Lo aparto la ORDEN; cubre todas sus lineas. |
+| `N` | Lo descontó el conduce N. |
+
+Con eso las reglas quedan explicitas: la orden aparta una vez, cada conduce
+descuenta una vez, y un conduce no descuenta si la orden ya aparto el total
+(`reason: 'covered_by_work_order'`).
+
+Hubo que **reconstruir la tabla**: `UNIQUE(work_order_id, item_id)` es una
+restriccion en linea y en SQLite eso crea un indice automatico que no se puede
+borrar. En su lugar van dos indices PARCIALES —uno `WHERE conduce_id IS NULL` y
+otro `WHERE conduce_id IS NOT NULL`— porque un `UNIQUE(wo, item, conduce_id)` de
+tres columnas no serviria: SQLite considera los NULL distintos entre si y
+dejaria meter varias reservas de orden para el mismo articulo.
+
+Las filas que ya existian se quedan con `conduce_id NULL`. La tabla nunca guardo
+quien las creo y tratarlas como compromiso de la orden conserva el
+comportamiento actual; inventar una atribucion seria peor.
+
+**El GROUP BY que faltaba.** La consulta de `reserveWorkOrderStock` no agrupaba,
+asi que un articulo repetido en dos lineas de la orden se comprobaba por linea:
+3 y 4 unidades pasaban por separado contra 5 disponibles, y despues el bucle
+descontaba 7, dejaba `available_quantity` en negativo y el segundo INSERT
+chocaba con el indice unico a media transaccion. Era latente —la pantalla usa
+`mergeRentalOrderItem` y no produce lineas duplicadas por el camino normal— pero
+alcanzable por SQL crudo o por importacion.
+
+Se arregla en los dos sitios: la consulta agrupa, y `findInsufficientStock`
+**agrega por articulo** en vez de fiarse de que quien llama traiga las filas ya
+agrupadas. Depender de eso era una trampa: el camino del conduce agrupaba y el
+de la orden no. De paso se corrige el orden del spread, que hacia que la
+cantidad de la fila de stock pisara la pedida cuando se pasan dos arrays
+distintos.
+
 ### Desktop: facturas y cobros
 
 Cloud recibio seis fases seguidas; Desktop, ninguna. Esta tanda cierra el hueco
@@ -410,6 +462,11 @@ negocio son la interfaz.
 `/invoices`, `/invoices/new` (dos fases) y `/invoices/detail?id=`. Query params y
 no `[id]` porque Desktop es SPA prerenderizada. **`detail`, no `edit`**: una
 factura emitida no se edita.
+
+**El conduce sale del menu**, igual que en Cloud: es la nota de entrega, no un
+modulo que se visite por su cuenta. La ruta sigue viva y se llega desde la orden
+y desde la factura. `resolvePageTitle` mantiene su titulo mediante
+`hiddenTitles`, o la cabecera caeria al generico.
 
 Se emite desde el modulo eligiendo entregas, con atajos desde el conduce y desde
 la orden que apuntan al mismo camino. El campo de descuento se precarga con la
