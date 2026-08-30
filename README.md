@@ -570,6 +570,16 @@ de la misma fila: buscador a la izquierda, selects en medio, boton a la derecha.
 Antes colgaba de un `.page-header` propio encima, que gastaba una fila entera
 para un solo boton.
 
+La accion de **editar** de una fila lleva `.btn-edit`: caja, borde y el ambar
+de `--warning-text`, el color que el sistema ya reserva para «esto modifica
+algo». Antes era un `.btn-link`, o sea texto suelto del color de los enlaces,
+que en una columna de acciones no se distingue de un enlace cualquiera.
+
+El borde va del **color del texto**, no gris: `--border-strong` da 1.48:1 sobre
+blanco y a esa distancia no se ve que haya una caja, que es justo el problema
+que el boton venia a resolver. Con `--warning-text` son 5.02:1 en claro y
+8.76:1 en oscuro, sin inventar un token nuevo.
+
 Los botones que **abren** un alta llevan `.btn-new`, que les pone un `+` con
 `::before`. Va en CSS y no en el marcado porque es decorativo —el texto ya dice
 que se crea algo— y asi no llega a los lectores de pantalla. Los `submit` de

@@ -47,7 +47,7 @@
 								{recordStateLabel(customer.is_active)}
 							</span>
 						</td>
-						<td><a href="/customers/{customer.id}">Ver / editar</a></td>
+						<td><a class="btn-edit" href="/customers/{customer.id}">Editar</a></td>
 					</tr>
 				{/each}
 			</tbody>

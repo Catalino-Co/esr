@@ -49,7 +49,7 @@
 						<td>{event.date || '—'}</td>
 						<td>{event.pickup_date || event.date || '—'}</td>
 						<td>{event.status || '—'}</td>
-						<td><a href="/events/{event.id}">Ver / editar</a></td>
+						<td><a class="btn-edit" href="/events/{event.id}">Editar</a></td>
 					</tr>
 				{/each}
 			</tbody>

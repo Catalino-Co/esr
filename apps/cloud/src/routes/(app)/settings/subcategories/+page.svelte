@@ -118,7 +118,7 @@
 							</span>
 						</td>
 						<td class="row-actions">
-							<button type="button" class="btn-link" onclick={() => abrirEdicion(sub)}>Editar</button>
+							<button type="button" class="btn-edit" onclick={() => abrirEdicion(sub)}>Editar</button>
 							<form method="POST" action="?/toggle" use:enhance>
 								<input type="hidden" name="id" value={sub.id} />
 								<input type="hidden" name="is_active" value={activa ? '2' : '1'} />

@@ -57,7 +57,7 @@
 						<td>{item.total_quantity ?? 0}</td>
 						<td>{item.available_quantity ?? 0}</td>
 						<td>{item.status || '—'}</td>
-						<td><a href="/inventory/{item.id}">Ver / editar</a></td>
+						<td><a class="btn-edit" href="/inventory/{item.id}">Editar</a></td>
 					</tr>
 				{/each}
 			</tbody>

@@ -131,7 +131,7 @@
 								<!-- El propietario es intocable: ni se degrada ni se desactiva. -->
 								<span class="text-muted">—</span>
 							{:else}
-								<button type="button" class="btn-link" onclick={() => abrirEdicion(member)}>
+								<button type="button" class="btn-edit" onclick={() => abrirEdicion(member)}>
 									Editar
 								</button>
 								<form method="POST" action="?/setStatus" use:enhance>

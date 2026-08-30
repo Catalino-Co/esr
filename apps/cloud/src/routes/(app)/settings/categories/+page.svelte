@@ -105,7 +105,7 @@
 							</span>
 						</td>
 						<td class="row-actions">
-							<button type="button" class="btn-link" onclick={() => abrirEdicion(category)}>
+							<button type="button" class="btn-edit" onclick={() => abrirEdicion(category)}>
 								Editar
 							</button>
 							<form method="POST" action="?/toggleCategory" use:enhance>

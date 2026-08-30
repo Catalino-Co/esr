@@ -218,6 +218,51 @@ p {
    estiraba el boton a lo ancho de la linea entera. Aqui el eje principal es
    horizontal, con lo que el boton vuelve a medir lo que su texto.
    Misma forma que `.modal-footer` de theme.css y que los pies de ESR Pro. */
+/* Accion de editar de una fila. Antes era un `.btn-link`, o sea texto suelto
+   del color de los enlaces: en una columna de acciones no se distingue de un
+   enlace cualquiera ni se ve donde se puede pulsar. Aqui lleva caja, borde y
+   el ambar de --warning-text (#b45309), que es el color que el sistema ya
+   reserva para «esto modifica algo».
+   El lapiz va en `::before`, como el `+` de `.btn-new`: es decorativo, el
+   texto ya dice Editar, y asi hereda `currentColor` sin ensuciar el marcado. */
+.btn-edit {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: var(--sp-1) var(--sp-3);
+	/* El borde va del color del texto, no gris: --border-strong da 1.48:1
+	   sobre blanco y a esa distancia no se ve que haya una caja, que es
+	   justo el problema que este boton venia a resolver. Con --warning-text
+	   son 5.02:1 en claro y 8.76:1 en oscuro, sin inventar un token nuevo. */
+	border: 1px solid var(--warning-text);
+	border-radius: var(--border-radius-sm);
+	background: var(--surface);
+	color: var(--warning-text);
+	font-size: var(--font-sm);
+	font-weight: 600;
+	line-height: 1.4;
+	white-space: nowrap;
+	cursor: pointer;
+	text-decoration: none;
+	transition: all var(--transition-fast);
+}
+
+.btn-edit::before {
+	content: '✎';
+	font-size: 1.05em;
+	line-height: 1;
+}
+
+.btn-edit:hover {
+	background: var(--warning-bg);
+}
+
+.btn-edit:focus-visible {
+	outline: none;
+	background: var(--warning-bg);
+	box-shadow: var(--focus-ring);
+}
+
 /* Boton que ABRE un alta: lleva un `+` delante. Va en `::before` y no en el
    marcado porque es decorativo —el texto ya dice que se crea algo— y asi no
    llega a los lectores de pantalla ni hay que importarlo en ocho archivos.

@@ -124,7 +124,7 @@
 							</span>
 						</td>
 						<td class="row-actions">
-							<button type="button" class="btn-link" onclick={() => abrirEdicion(entry)}>
+							<button type="button" class="btn-edit" onclick={() => abrirEdicion(entry)}>
 								Editar
 							</button>
 							<form method="POST" action="?/toggle" use:enhance>
