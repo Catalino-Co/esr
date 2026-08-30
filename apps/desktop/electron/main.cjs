@@ -43,12 +43,32 @@ function createWindow() {
   });
 }
 
-const { initDB } = require('./db/index.cjs');
+const { initDB, createLocalSqliteBackup } = require('./db/index.cjs');
 const { seedDB } = require('./db/seed.cjs');
 const { setupIpcHandlers } = require('./ipcHandlers.cjs');
 
+/**
+ * Un fallo al respaldar NO impide arrancar: dejar al usuario fuera de su propia
+ * aplicacion porque no se pudo copiar un fichero seria peor que el riesgo que
+ * se intenta cubrir. Se avisa por consola y se sigue.
+ */
+async function respaldarAntesDeMigrar() {
+  try {
+    const destino = path.join(app.getPath('userData'), 'backups');
+    const { filename } = await createLocalSqliteBackup(destino);
+    console.log(`Respaldo previo a la migracion: ${filename}`);
+  } catch (error) {
+    console.warn('No se pudo respaldar antes de migrar:', error.message);
+  }
+}
+
 app.whenReady().then(async () => {
   try {
+    // Copia antes de migrar. Ninguna migracion tiene `down`, asi que sin esto
+    // un fallo a media migracion deja la base del cliente sin vuelta atras.
+    // `createLocalSqliteBackup` existia desde hace meses sin que nadie la
+    // llamase.
+    await respaldarAntesDeMigrar();
     await initDB();
     console.log("Database initialized successfully.");
     await seedDB();

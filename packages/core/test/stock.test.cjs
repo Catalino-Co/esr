@@ -1,28 +1,16 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
-  calculateAvailableStock,
-  calculateCommittedStock,
   findInsufficientStock,
   formatInsufficientStockDetail,
-  shouldDeductStockForConduce
+  shouldDeductStockForConduce,
+  shouldReserveStock
 } = require('../src/index.cjs');
 
-test('stock: calculates committed stock per item', () => {
-  const committed = calculateCommittedStock([
-    { item_id: 1, quantity: 2 },
-    { item_id: 1, quantity: 3 },
-    { item_id: 2, quantity: 1 }
-  ]);
-
-  assert.equal(committed.get(1), 5);
-  assert.equal(committed.get(2), 1);
-});
-
-test('stock: available stock never goes below zero', () => {
-  assert.equal(calculateAvailableStock(10, 4), 6);
-  assert.equal(calculateAvailableStock(3, 8), 0);
-});
+// Aqui se probaban tambien `calculateCommittedStock` y `calculateAvailableStock`.
+// Se retiraron con la poda: no las llamaba nadie —ni en CommonJS ni en
+// TypeScript— y desde que la disponibilidad se calcula en SQL no tenian nada
+// que hacer.
 
 test('stock: detects and formats insufficient stock', () => {
   const insufficient = findInsufficientStock(
@@ -45,4 +33,10 @@ test('stock: conduce deducting statuses are explicit', () => {
   assert.equal(shouldDeductStockForConduce('emitido'), true);
   assert.equal(shouldDeductStockForConduce('entregado'), true);
   assert.equal(shouldDeductStockForConduce('anulado'), false);
+});
+
+test('stock: reserving statuses are explicit', () => {
+  assert.equal(shouldReserveStock('preparado'), true);
+  assert.equal(shouldReserveStock('cargado'), true);
+  assert.equal(shouldReserveStock('confirmado'), false);
 });

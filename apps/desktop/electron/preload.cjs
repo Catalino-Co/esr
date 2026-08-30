@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld('api', {
     getOne: (sql, params) => ipcRenderer.invoke('db:getOne', sql, params)
   },
   auth: {
-    login: (credentials) => ipcRenderer.invoke('auth:login', credentials)
+    login: (credentials) => ipcRenderer.invoke('auth:login', credentials),
+    needsBootstrap: () => ipcRenderer.invoke('auth:needsBootstrap'),
+    bootstrapAdmin: (data) => ipcRenderer.invoke('auth:bootstrapAdmin', data)
   },
   users: {
     create: (user) => ipcRenderer.invoke('users:create', user),
@@ -30,6 +32,26 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('checklists:findActiveIncidentKeys', workOrderId),
     createAutomaticIncident: (input) =>
       ipcRenderer.invoke('checklists:createAutomaticIncident', input)
+  },
+  invoices: {
+    list: (filters) => ipcRenderer.invoke('invoices:list', filters),
+    findById: (id) => ipcRenderer.invoke('invoices:findById', id),
+    listItems: (id) => ipcRenderer.invoke('invoices:listItems', id),
+    listConduces: (id) => ipcRenderer.invoke('invoices:listConduces', id),
+    listBillable: (workOrderId) => ipcRenderer.invoke('invoices:listBillable', workOrderId),
+    listOrdersWithBillable: (options) =>
+      ipcRenderer.invoke('invoices:listOrdersWithBillable', options),
+    findByConduce: (conduceId) => ipcRenderer.invoke('invoices:findByConduce', conduceId),
+    previewLines: (conduceIds) => ipcRenderer.invoke('invoices:previewLines', conduceIds),
+    create: (input) => ipcRenderer.invoke('invoices:create', input),
+    cancel: (id, reason) => ipcRenderer.invoke('invoices:cancel', id, reason),
+    setState: (id, state) => ipcRenderer.invoke('invoices:setState', id, state)
+  },
+  payments: {
+    listForInvoice: (invoiceId) => ipcRenderer.invoke('payments:listForInvoice', invoiceId),
+    create: (input) => ipcRenderer.invoke('payments:create', input),
+    void: (id, reason) => ipcRenderer.invoke('payments:void', id, reason),
+    clientBalance: (clientId) => ipcRenderer.invoke('payments:clientBalance', clientId)
   },
   settings: {
     getCompany: () => ipcRenderer.invoke('settings:getCompany'),

@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { getSingleQuery, runQuery } = require('./db/index.cjs');
+const { getSingleQuery, runQuery, withTransaction } = require('./db/index.cjs');
 
 const HASH_PREFIX = 'pbkdf2_sha256';
 const ITERATIONS = 310000;
@@ -54,24 +54,55 @@ async function login(username, password) {
   };
 }
 
-async function resetAdminUser() {
-  const passwordHash = hashPassword('admin123');
-  const existing = await getSingleQuery('SELECT id FROM users WHERE username = ?', ['admin']);
+/**
+ * Primer arranque: la aplicacion no traia ningun usuario.
+ *
+ * El esquema inicial solo inserta `company_info` y el seed no toca `users`, asi
+ * que una instalacion nueva se quedaba con la tabla vacia y la pantalla de
+ * acceso era infranqueable. En lugar de sembrar un `admin/admin123` —una
+ * credencial conocida, permanente, en una aplicacion con datos de facturacion—
+ * la pantalla de acceso detecta que no hay nadie y pide crear el administrador.
+ *
+ * Aqui vivia `resetAdminUser()`, que hacia UPDATE incondicional: llamarla en
+ * cada arranque habria pisado la contraseña de toda instalacion existente. Se
+ * retiro junto con esta nota para que no se reviva por descuido.
+ */
+async function needsBootstrap() {
+  const fila = await getSingleQuery('SELECT COUNT(*) AS total FROM users');
+  return Number(fila?.total || 0) === 0;
+}
 
-  if (existing) {
-    await runQuery(
-      `UPDATE users
-       SET password = ?, name = ?, role = ?, is_active = 1
-       WHERE username = ?`,
-      [passwordHash, 'Administrador Principal', 'admin', 'admin']
-    );
-    return;
+const MIN_PASSWORD = 8;
+
+async function bootstrapAdmin({ username, password, name } = {}) {
+  const usuario = String(username || '').trim();
+  const clave = String(password || '');
+
+  if (!usuario) throw new Error('Indique el nombre de usuario.');
+  if (clave.length < MIN_PASSWORD) {
+    throw new Error(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
+  }
+  if (clave.toLowerCase() === usuario.toLowerCase()) {
+    throw new Error('La contraseña no puede ser igual al usuario.');
   }
 
-  await runQuery(
-    'INSERT INTO users (username, password, name, role, is_active) VALUES (?, ?, ?, ?, 1)',
-    ['admin', passwordHash, 'Administrador Principal', 'admin']
-  );
+  return await withTransaction(async () => {
+    // Se vuelve a contar DENTRO de la transaccion. Sin esto, dos ventanas
+    // abiertas a la vez podrian crear dos administradores; con el UNIQUE de
+    // `username` la segunda fallaria, pero con un mensaje ininteligible. Y es
+    // ademas lo que impide que este canal se use mas tarde para colar un admin.
+    const fila = await getSingleQuery('SELECT COUNT(*) AS total FROM users');
+    if (Number(fila?.total || 0) > 0) {
+      throw new Error('Ya existe un usuario. Use el inicio de sesión.');
+    }
+
+    await runQuery(
+      'INSERT INTO users (username, password, name, role, is_active) VALUES (?, ?, ?, ?, 1)',
+      [usuario, hashPassword(clave), String(name || '').trim() || usuario, 'admin']
+    );
+
+    return { username: usuario };
+  });
 }
 
 async function createUser({ username, password, name, role }) {
@@ -96,10 +127,11 @@ async function updateUser({ id, username, password, name, role }) {
 }
 
 module.exports = {
+  bootstrapAdmin,
   createUser,
   hashPassword,
   login,
-  resetAdminUser,
+  needsBootstrap,
   updateUser,
   verifyPassword
 };

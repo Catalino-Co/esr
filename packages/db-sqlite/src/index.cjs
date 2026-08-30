@@ -5,7 +5,8 @@ const {
   getDatabasePath,
   getQuery,
   getSingleQuery,
-  runQuery
+  runQuery,
+  withTransaction
 } = require('./connection.cjs');
 const { initDatabase } = require('./migrations/runner.cjs');
 const { seedDB } = require('./migrations/seed.cjs');
@@ -14,6 +15,8 @@ const { SqliteCustomerRepository } = require('./repositories/sqlite-customer.rep
 const { SqliteEventRepository } = require('./repositories/sqlite-event.repository.cjs');
 const { SqliteConduceRepository } = require('./repositories/sqlite-conduce.repository.cjs');
 const { SqliteIncidentRepository } = require('./repositories/sqlite-incident.repository.cjs');
+const { SqliteInvoiceRepository } = require('./repositories/sqlite-invoice.repository.cjs');
+const { SqlitePaymentRepository } = require('./repositories/sqlite-payment.repository.cjs');
 const {
   SqliteInventoryRepository,
   sqliteInventoryRepository
@@ -41,6 +44,7 @@ module.exports = {
   initDatabase,
   runQuery,
   seedDB,
+  withTransaction,
   SqliteCategoryRepository,
   SqliteCustomerRepository,
   SqliteConduceRepository,
@@ -49,7 +53,9 @@ module.exports = {
   SqliteCompanySettingsRepository,
   SqliteIncidentRepository,
   SqliteInventoryRepository,
+  SqliteInvoiceRepository,
   SqlitePackageRepository,
+  SqlitePaymentRepository,
   SqliteQuoteRepository,
   SqliteRentalRepository,
   SqliteSerialRepository,

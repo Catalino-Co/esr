@@ -418,7 +418,9 @@
   <div style="display:flex;gap:10px;">
     {#if isEditing}
       <button class="btn btn-secondary" on:click={() => openPDF('wo')} title="Imprimir Orden de Trabajo">🖨️ WO</button>
-      <button class="btn btn-secondary" on:click={handleConduceBtn} title="Ver / Crear Conduce">🧾 Conduce</button>
+      <button class="btn btn-secondary" on:click={handleConduceBtn} title="Ver / Crear Conduce">🚚 Conduce</button>
+      <button class="btn btn-secondary" on:click={() => goto(`/invoices/new?wo=${currentWO.id}`)}
+              title="Facturar las entregas de esta orden">🧾 Facturar</button>
     {/if}
     <button class="btn btn-primary" on:click={saveWO} disabled={isSaving}>
       {isSaving ? 'Guardando…' : '💾 Guardar'}

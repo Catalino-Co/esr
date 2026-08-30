@@ -63,6 +63,12 @@ const groups = [
 				summary: 'Conduces de entrega y devolución, checklists de salida y retorno.'
 			},
 			{
+				slug: 'facturas',
+				icon: ICONS.invoices,
+				title: 'Facturas y cobros',
+				summary: 'Emitir la factura de una o varias entregas, cobrarla y anularla.'
+			},
+			{
 				slug: 'incidencias',
 				icon: ICONS.incidents,
 				title: 'Incidencias',

@@ -9,6 +9,8 @@ export const navItems = [
 	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes },
 	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders },
 	{ path: '/conduces', label: 'Conduces', icon: ICONS.conduces },
+	// Orden documental: cotizacion -> orden -> conduce -> factura.
+	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices },
 	{ path: '/events', label: 'Eventos', icon: ICONS.events },
 	{ path: '/clients', label: 'Clientes', icon: ICONS.customers },
 	{ path: '/items', label: 'Inventario', icon: ICONS.inventory },

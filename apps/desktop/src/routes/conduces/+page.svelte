@@ -14,6 +14,13 @@
   let viewState = '1';
   let conduces  = [];
 
+  /**
+   * Factura viva de cada conduce, si la tiene. Se carga junto al listado para
+   * que el boton diga «Facturar» o «Ver FAC-…» sin una consulta por fila desde
+   * la plantilla.
+   */
+  let facturaPorConduce = {};
+
   async function loadConduces() {
     if (!window.api?.db) return;
     conduces = await window.api.db.get(`
@@ -23,6 +30,14 @@
       WHERE c.is_active = ?
       ORDER BY c.id DESC
     `, [parseInt(viewState)]);
+
+    facturaPorConduce = {};
+    if (!window.api?.invoices) return;
+    for (const c of conduces) {
+      const res = await window.api.invoices.findByConduce(c.id);
+      if (res?.ok && res.data) facturaPorConduce[c.id] = res.data;
+    }
+    facturaPorConduce = { ...facturaPorConduce };
   }
 
   onMount(() => loadConduces());
@@ -127,6 +142,15 @@
                       on:click={() => goto(`/conduces/edit?id=${c.id}`)}>✏️</button>
               <button class="btn-icon text-primary" title="Imprimir Conduce"
                       on:click={() => printConduce(c)}>🖨️</button>
+
+              {#if facturaPorConduce[c.id]}
+                <button class="btn-icon text-success"
+                        title={`Ver ${facturaPorConduce[c.id].invoice_number}`}
+                        on:click={() => goto(`/invoices/detail?id=${facturaPorConduce[c.id].id}`)}>🧾</button>
+              {:else if c.status !== 'anulado' && viewState === '1'}
+                <button class="btn-icon" title="Facturar esta entrega"
+                        on:click={() => goto(`/invoices/new?wo=${c.work_order_id}&conduce=${c.id}`)}>🧾</button>
+              {/if}
 
               {#if c.status === 'emitido' && viewState === '1'}
                 <button class="btn-icon text-success" title="Marcar Entregado"

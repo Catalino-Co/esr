@@ -338,6 +338,89 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Desktop: facturas y cobros
+
+Cloud recibio seis fases seguidas; Desktop, ninguna. Esta tanda cierra el hueco
+mas visible —Desktop no tenia forma de cobrar— y arregla un fallo que lo
+bloqueaba todo.
+
+**Una instalacion nueva no podia entrar.** El esquema inicial solo inserta
+`company_info`, el seed no crea usuarios y `resetAdminUser()` estaba exportada
+sin llamadores. La tabla `users` quedaba vacia y el login era infranqueable. En
+vez de sembrar un `admin/admin123` —credencial conocida y permanente en una
+aplicacion con datos de facturacion— la pantalla de acceso detecta que no hay
+nadie y pide **crear el administrador**, revalidando `COUNT(*) = 0` dentro de la
+misma transaccion del INSERT. `resetAdminUser()` se borro: hacia UPDATE
+incondicional y llamarla habria pisado la contraseña de toda instalacion
+existente.
+
+#### Migracion 0003
+
+`invoices`, `invoice_items`, `invoice_conduces` y `payments`. Puramente
+aditiva. Decisiones que se apartan de Cloud, y por que:
+
+- **`invoice_seq` aparte de `invoice_number`.** SQLite no tiene regex; extraer el
+  numero del texto obligaria a un `substr` posicional que se rompe el dia que el
+  numero sea un NCF. Con columna numerica, `MAX(invoice_seq)+1` es trivial.
+- **Sin `CHECK`.** En SQLite cambiar un CHECK exige reconstruir la tabla entera,
+  y el esquema existente no tiene ninguno. La validacion vive en el repositorio.
+- **`REAL` para el dinero.** Todo el esquema lo usa; mezclar centavos enteros
+  daria errores de factor 100 en la frontera con `conduce_items`. Se compensa
+  redondeando a dos decimales en cada escritura.
+- **Sin `conduce_type`.** En Desktop las devoluciones no emiten conduce, asi que
+  todas las entregas son facturables. Añadir la columna introduciria el concepto
+  que se retiro de Cloud. El unico punto a tocar si eso cambia es la constante
+  `BILLABLE_CONDUCE_SQL` del repositorio.
+- **Indice unico PARCIAL** `ON invoice_conduces (conduce_id) WHERE is_active = 1`,
+  igual que Cloud: un enlace vivo por entrega y N muertos, de modo que anular
+  libera sin borrar historia. Va en el ESQUEMA y no en el codigo porque `db:run`
+  deja al renderer ejecutar SQL arbitrario; el indice se cumple igual.
+  Comprobado contra el sqlite3 que usa Desktop (3.52.0).
+
+#### `withTransaction`: lo que no estaba en el encargo
+
+En `db-postgres` la transaccion viaja en un parametro. En `db-sqlite` no: `db` es
+una variable de modulo y `BEGIN`/`COMMIT` operan sobre estado ambiental. Eso
+produce dos fallos silenciosos —anidamiento entre repositorios, y dos
+invocaciones IPC simultaneas— que con cuatro operaciones transaccionales nuevas
+dejan de ser teoricos. `connection.cjs` gana `withTransaction`, que serializa por
+cola de promesas.
+
+**Convencion:** un metodo con prefijo `tx` asume transaccion abierta y no hace
+BEGIN. Los publicos abren la suya.
+
+Diferencia con Cloud que simplifica el codigo: en PostgreSQL una violacion de
+unicidad aborta la transaccion entera y por eso el reintento de numeracion
+necesita `SAVEPOINT`. En SQLite el conflicto por defecto es `ABORT`, que deshace
+solo la sentencia. **No lo «arregle» copiando Cloud.**
+
+#### Patron de datos
+
+Repositorio + IPC, no SQL crudo en el `.svelte`. Es la excepcion en Desktop —11
+de sus 14 repositorios estan muertos porque las pantallas escriben su propio
+SQL— y se eligio porque ese camino **no tiene transacciones**, y emitir o anular
+una factura con sus cobros exige atomicidad.
+
+`invoices.cjs` devuelve `{ok, data|error}` en vez de lanzar: `ipcRenderer.invoke`
+antepone «Error invoking remote method…» al mensaje, y aqui los mensajes de
+negocio son la interfaz.
+
+#### Pantallas
+
+`/invoices`, `/invoices/new` (dos fases) y `/invoices/detail?id=`. Query params y
+no `[id]` porque Desktop es SPA prerenderizada. **`detail`, no `edit`**: una
+factura emitida no se edita.
+
+Se emite desde el modulo eligiendo entregas, con atajos desde el conduce y desde
+la orden que apuntan al mismo camino. El campo de descuento se precarga con la
+suma de los descuentos de los conduces elegidos: la factura recalcula el subtotal
+desde las lineas e ignora el del conduce, y sin precargarlo el usuario ve un
+total en el conduce y otro mayor en la factura.
+
+Contra la avalancha de conduces historicos —el dia que se instala el modulo todas
+las entregas pasadas aparecen como pendientes— la fase 1 muestra por defecto solo
+los ultimos 90 dias.
+
 ### Codigo muerto retirado de core
 
 `packages/core/src/conduces/` entero (`use-cases.ts` y `repositories.ts`) y casi
@@ -369,6 +452,17 @@ vivas: las usan `packages/db-sqlite` y los tests de `packages/core/test`.
 
 Un `grep --include=*.ts` no ve ese mundo y da por muerto lo que no lo esta. Aqui
 paso: la primera busqueda dijo que estas funciones no tenian ningun uso.
+
+**Poda posterior.** De los 28 simbolos de `index.cjs`, solo 4 tienen consumidor de
+produccion: los que requiere `sqlite-inventory.repository.cjs`. Se retiraron 12
+—los cinco de conduce, `calculateCommittedStock`, `calculateAvailableStock`,
+`calculateQuoteLineTotal`, `calculateQuoteTotals`, `mergeRentalOrderItem`,
+`planRentalOrderStatusForSave` y una constante duplicada— y dos dejaron de
+exportarse. `calculateQuoteTotals` **no se corrigio, se borro**: divergia del
+TypeScript porque ignora el impuesto, pero no tiene ni un llamador ni un test, asi
+que arreglarla no habria cambiado nada. El bug real esta en otro sitio: la tabla
+`quotations` de SQLite no tiene `tax_amount`, o sea que **Desktop no cotiza ITBIS
+en absoluto**.
 
 ### Una sola cuenta de disponibilidad
 

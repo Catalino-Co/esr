@@ -1,70 +1,30 @@
+/**
+ * Reglas de negocio de ESR en CommonJS.
+ *
+ * ATENCION: este archivo NO es el `index.ts` compilado. `@esr/core` tiene
+ * exports condicionales —`import` resuelve al TypeScript, `require` aqui— y las
+ * dos implementaciones se escriben a mano por separado, porque `@esr/schemas`
+ * no tiene rama `require` y el TypeScript depende de el.
+ *
+ * Quien lo consume: SOLO
+ * `packages/db-sqlite/src/repositories/sqlite-inventory.repository.cjs`, que se
+ * ejecuta en el proceso principal de Electron (CommonJS obligado por
+ * `main: electron/main.cjs` y por el binding nativo de sqlite3).
+ *
+ * Se podo lo que no usaba nadie. `findInsufficientStock` y
+ * `formatInsufficientStockDetail` siguen aqui aunque el TypeScript las borro por
+ * considerarlas muertas: ese diagnostico salio de un grep que solo miraba `.ts`
+ * y no veia este mundo. Aqui estan vivas.
+ */
+
 const RESERVED_RENTAL_STATUSES = ['preparado', 'cargado'];
 const STOCK_DEDUCTING_CONDUCE_STATUSES = ['emitido', 'entregado'];
-const CONDUCE_STOCK_DEDUCTING_STATUSES = ['emitido', 'entregado'];
-
 function shouldReserveStock(status) {
   return RESERVED_RENTAL_STATUSES.includes(status);
 }
 
 function shouldDeductStockForConduce(status) {
   return STOCK_DEDUCTING_CONDUCE_STATUSES.includes(status);
-}
-
-function planRentalOrderStatusForSave(input) {
-  const shouldReserve = shouldReserveStock(input.targetStatus) && !shouldReserveStock(input.originalStatus);
-
-  return {
-    shouldReserve,
-    statusForSave: shouldReserve ? input.originalStatus : input.targetStatus
-  };
-}
-
-function mergeRentalOrderItem(items, item) {
-  const existing = items.find((line) => line.item_id === item.item_id);
-  if (existing) {
-    return items.map((line) =>
-      line.item_id === item.item_id
-        ? { ...line, quantity: Number(line.quantity || 0) + Number(item.quantity || 0) }
-        : line
-    );
-  }
-
-  return [...items, { ...item }];
-}
-
-function calculateQuoteLineTotal(input) {
-  return Number(input.quantity || 0) * Number(input.price || 0);
-}
-
-function calculateQuoteTotals(items, discount = 0) {
-  const subtotal = items.reduce((sum, item) => {
-    const total = item.total ?? calculateQuoteLineTotal(item);
-    return sum + Number(total || 0);
-  }, 0);
-  const normalizedDiscount = Number(discount) || 0;
-
-  return {
-    subtotal,
-    discount: normalizedDiscount,
-    total: subtotal - normalizedDiscount
-  };
-}
-
-function calculateCommittedStock(reservations) {
-  const committed = new Map();
-
-  for (const reservation of reservations) {
-    committed.set(
-      reservation.item_id,
-      (committed.get(reservation.item_id) || 0) + Number(reservation.quantity || 0)
-    );
-  }
-
-  return committed;
-}
-
-function calculateAvailableStock(totalQuantity, committedQuantity) {
-  return Math.max(0, Number(totalQuantity || 0) - Number(committedQuantity || 0));
 }
 
 function findInsufficientStock(requested, stock) {
@@ -80,38 +40,6 @@ function formatInsufficientStockDetail(items) {
     .map((item) => `${item.internal_code || ''} ${item.name || ''}`.trim())
     .filter(Boolean)
     .join(', ');
-}
-
-function calculateConduceLineTotal(line) {
-  return Number(line.quantity || 0) * Number(line.price || 0);
-}
-
-function calculateConduceTotals(items, discount = 0) {
-  const subtotal = items.reduce((sum, item) => {
-    const total = item.total ?? calculateConduceLineTotal(item);
-    return sum + Number(total || 0);
-  }, 0);
-  const normalizedDiscount = Number(discount) || 0;
-
-  return {
-    subtotal,
-    discount: normalizedDiscount,
-    total: subtotal - normalizedDiscount
-  };
-}
-
-function shouldDeductStockForConduceStatus(status) {
-  return CONDUCE_STOCK_DEDUCTING_STATUSES.includes(status);
-}
-
-function validateConduceDraft(input) {
-  return input.work_order_id
-    ? { ok: true, value: input }
-    : { ok: false, error: 'conduce.work_order_id.required' };
-}
-
-function buildConduceReference(id) {
-  return `COND-${String(id ?? '').padStart(5, '0')}`;
 }
 
 function isSerializedInventoryItem(item) {
@@ -198,31 +126,17 @@ function getIncidentSeverityTone(severity) {
 }
 
 module.exports = {
-  CONDUCE_STOCK_DEDUCTING_STATUSES,
-  RESERVED_RENTAL_STATUSES,
-  STOCK_DEDUCTING_CONDUCE_STATUSES,
-  calculateAvailableStock,
-  calculateCommittedStock,
-  calculateConduceLineTotal,
-  calculateConduceTotals,
-  calculateQuoteLineTotal,
-  calculateQuoteTotals,
-  buildConduceReference,
   findInsufficientStock,
   formatInsufficientStockDetail,
   getIncidentSeverityTone,
   getIncidentStatusBadgeKind,
   isSerializedInventoryItem,
-  mergeRentalOrderItem,
   normalizeSerializedInventoryInput,
   normalizeSerializedRentalLine,
   parseSerialLines,
-  planRentalOrderStatusForSave,
   shouldDeductStockForConduce,
-  shouldDeductStockForConduceStatus,
   shouldReserveStock,
   uniqueSerialLines,
-  validateConduceDraft,
   validateIncidentDraft,
   validateSerialCatalogInput,
   validateSerializedRentalLines

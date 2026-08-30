@@ -1,10 +1,74 @@
 <script>
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 
   let username = '';
   let password = '';
+  let passwordConfirm = '';
+  let fullName = '';
   let errorMsg = '';
   let loading = false;
+
+  /**
+   * Primer arranque.
+   *
+   * El esquema no sembraba ningun usuario, asi que una instalacion nueva se
+   * quedaba con `users` vacia y esta pantalla era infranqueable. En vez de
+   * sembrar un `admin/admin123` —una credencial conocida y permanente en una
+   * aplicacion con datos de facturacion— se pide crear el administrador aqui.
+   *
+   * `null` mientras se comprueba: sin ese tercer estado la pantalla parpadea
+   * enseñando el formulario equivocado.
+   */
+  let bootstrap = null;
+
+  onMount(async () => {
+    try {
+      bootstrap = await window.api.auth.needsBootstrap();
+    } catch (err) {
+      console.error(err);
+      // Si la comprobacion falla se cae al acceso normal, que es el caso
+      // habitual y siempre se puede reintentar.
+      bootstrap = false;
+    }
+  });
+
+  async function handleBootstrap() {
+    errorMsg = '';
+
+    if (!username || !password) {
+      errorMsg = 'Indique el usuario y la contraseña.';
+      return;
+    }
+    if (password !== passwordConfirm) {
+      errorMsg = 'Las contraseñas no coinciden.';
+      return;
+    }
+
+    loading = true;
+    try {
+      await window.api.auth.bootstrapAdmin({ username, password, name: fullName });
+      // Se entra en el acto: volver a pedir las credenciales recien escritas
+      // seria gratuito.
+      const user = await window.api.auth.login({ username, password });
+      if (user) {
+        sessionStorage.setItem('esr_user', JSON.stringify(user));
+        goto('/', { replaceState: true });
+        return;
+      }
+      errorMsg = 'El administrador se creó, pero no se pudo iniciar sesión.';
+      bootstrap = false;
+    } catch (err) {
+      // El IPC antepone «Error invoking remote method '...': Error: » al
+      // mensaje. Interesa lo que dice la regla de negocio, no el envoltorio.
+      errorMsg =
+        String(err?.message || '').replace(/^.*?Error:\s*/, '') ||
+        'No se pudo crear el administrador.';
+      console.error(err);
+    } finally {
+      loading = false;
+    }
+  }
 
   async function handleLogin() {
     errorMsg = '';
@@ -41,6 +105,41 @@
       <p>Events Stock & Rentals</p>
     </div>
 
+    {#if bootstrap === null}
+      <p class="comprobando">Comprobando…</p>
+    {:else if bootstrap}
+      <form on:submit|preventDefault={handleBootstrap} class="login-form">
+        <p class="aviso">No hay ningún usuario todavía. Cree el administrador para empezar.</p>
+
+        {#if errorMsg}
+          <div class="alert-error">{errorMsg}</div>
+        {/if}
+
+        <div class="input-group">
+          <label for="bs-username">Usuario</label>
+          <input type="text" id="bs-username" bind:value={username} placeholder="Ej. jperez" disabled={loading} autocomplete="off" />
+        </div>
+
+        <div class="input-group">
+          <label for="bs-name">Nombre</label>
+          <input type="text" id="bs-name" bind:value={fullName} placeholder="Nombre completo" disabled={loading} autocomplete="off" />
+        </div>
+
+        <div class="input-group">
+          <label for="bs-password">Contraseña</label>
+          <input type="password" id="bs-password" bind:value={password} placeholder="Mínimo 8 caracteres" disabled={loading} />
+        </div>
+
+        <div class="input-group">
+          <label for="bs-confirm">Repita la contraseña</label>
+          <input type="password" id="bs-confirm" bind:value={passwordConfirm} placeholder="••••••••" disabled={loading} />
+        </div>
+
+        <button type="submit" class="btn-login" disabled={loading}>
+          {loading ? 'Creando…' : 'Crear administrador'}
+        </button>
+      </form>
+    {:else}
     <form on:submit|preventDefault={handleLogin} class="login-form">
       {#if errorMsg}
         <div class="alert-error">{errorMsg}</div>
@@ -60,6 +159,7 @@
         {loading ? 'Verificando...' : 'Iniciar Sesión'}
       </button>
     </form>
+    {/if}
     
     <div class="login-footer">
       <small>v0.0.1 - Desktop Offline</small>
@@ -177,6 +277,14 @@
     font-size: 0.85rem;
     text-align: center;
     border: 1px solid var(--danger);
+  }
+
+  .comprobando,
+  .aviso {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
   }
 
   .login-footer {

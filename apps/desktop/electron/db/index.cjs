@@ -11,6 +11,8 @@ module.exports = {
   runQuery: sqlite.runQuery,
   getQuery: sqlite.getQuery,
   getSingleQuery: sqlite.getSingleQuery,
+  withTransaction: sqlite.withTransaction,
+  createLocalSqliteBackup: sqlite.createLocalSqliteBackup,
   repositories: {
     categories: new sqlite.SqliteCategoryRepository(),
     customers: new sqlite.SqliteCustomerRepository(),
@@ -20,6 +22,8 @@ module.exports = {
     companySettings: new sqlite.SqliteCompanySettingsRepository(),
     incidents: new sqlite.SqliteIncidentRepository(),
     inventory: sqlite.sqliteInventoryRepository,
+    invoices: new sqlite.SqliteInvoiceRepository(),
+    payments: new sqlite.SqlitePaymentRepository(),
     packages: new sqlite.SqlitePackageRepository(),
     quotes: new sqlite.SqliteQuoteRepository(),
     rentals: new sqlite.SqliteRentalRepository(),
