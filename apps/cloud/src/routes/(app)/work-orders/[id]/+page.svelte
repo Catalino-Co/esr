@@ -91,7 +91,11 @@
 						<td>{item.delivered_quantity ?? 0}</td>
 						<td>{item.returned_quantity ?? 0}</td>
 						<td>{Number(item.price || 0).toFixed(2)}</td>
-						<td>{item.status || 'reserved'}</td>
+						<td>
+							<span class="badge {statusBadgeClass(item.status || 'reserved')}">
+								{statusLabel(item.status || 'reserved')}
+							</span>
+						</td>
 					</tr>
 				{/each}
 			</tbody>

@@ -251,6 +251,7 @@ Tras login y empresa activa:
 /events
 /quotes
 /work-orders
+/work-orders/new    # orden sin cotizacion
 /invoices
 /invoices/new
 /invoices/[id]
@@ -336,6 +337,40 @@ Reglas de seguridad:
 - `companyId` viene desde `locals` (nunca desde formularios).
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
+
+### Fase 3 - Orden sin cotizacion
+
+`/work-orders/new` crea una orden sin documento comercial detras. El esquema
+siempre lo permitio —`work_orders.quotation_id` es nullable y sin indice
+unico—, pero no habia por donde.
+
+**El `create()` que existia no servia, y no tenia ni un llamador.** Le faltaban
+cinco cosas: no generaba `order_number`, nacia en `pendiente` —un estado sin
+ninguna transicion de salida, o sea una orden que no se puede preparar ni
+entregar ni cerrar—, no escribia totales, no creaba
+`work_order_stock_reservations` y su `replaceItems` insertaba solo `item_id` y
+`quantity`, perdiendo precio, total de linea, la ventana de alquiler y el
+estado. Se reescribio entero a imagen de `createFromQuote`, y `replaceItems`
+pasa de cuatro columnas a nueve.
+
+La orden nace **confirmada** y apartando stock. No hay estado borrador en
+`work_orders`, asi que se crea entera de una vez —cabecera y lineas en la misma
+pantalla—, al reves que la cotizacion, que nace vacia. Una orden vacia y
+confirmada seria una orden que no reserva nada y que no se puede preparar.
+
+`WorkOrderCreationService` es el espejo de `QuoteConversionService`: comprueba
+la disponibilidad de cada linea contra la ventana de alquiler ANTES de reservar,
+y todo va en una transaccion.
+
+**Nada de lo que llega por el formulario se cree por venir de un `<select>`.**
+Cliente, evento y cada articulo se releen contra la empresa activa. Las claves
+foraneas no frenan esto porque apuntan a la tabla entera, no a la empresa: sin
+la comprobacion, una orden podia acabar apuntando al cliente de otro inquilino.
+
+La ventana de alquiler se pide a nivel de orden y baja a todas las lineas y a
+sus reservas. Es con la que `checkAvailability` mide el solape.
+
+Permiso nuevo: `work_orders.create`, desde operador.
 
 ### Fase 4 - Anular un conduce
 

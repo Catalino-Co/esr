@@ -176,20 +176,93 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		return result.rows;
 	}
 
-	async create(ctx: RepositoryContext, data: TenantCreateRentalOrderInput): Promise<RentalOrder> {
+	/**
+	 * Crea una orden SIN cotizacion detras.
+	 *
+	 * Nace calcada de `createFromQuote` a proposito: la version anterior de este
+	 * metodo no tenia ni un llamador y le faltaban cinco cosas que la dejaban
+	 * inservible —no generaba `order_number`, nacia en `pendiente`, que es un
+	 * estado sin ninguna transicion de salida, no escribia totales, no reservaba
+	 * stock y sus lineas perdian precio, fechas y estado—.
+	 *
+	 * `order_number`, los totales y el estado se CALCULAN aqui; lo que venga en
+	 * `data` para esos campos se ignora. La disponibilidad se comprueba antes, en
+	 * el servicio, que es quien tiene el repositorio que sabe de reservas.
+	 */
+	async create(
+		ctx: RepositoryContext,
+		data: TenantCreateRentalOrderInput,
+		client?: pg.PoolClient
+	): Promise<RentalOrder> {
 		const companyId = requireCompanyId(ctx);
-		const result = await this.pool.query<RentalOrder>(
+		const db = this.queryClient(client);
+		const orderNumber = await this.nextOrderNumber(ctx, client);
+
+		const lineas = (data.items || []).filter((item) => item.item_id);
+		const subtotal = lineas.reduce(
+			(suma, item) => suma + Number(item.quantity || 0) * Number(item.price || 0),
+			0
+		);
+		const discount = Number(data.discount || 0);
+		const taxAmount = Number(data.tax_amount || 0);
+
+		const result = await db.query<RentalOrder>(
 			`INSERT INTO work_orders
-				(company_id, client_id, event_id, quotation_id, date, responsible_person, vehicle, notes, status)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+				(company_id, client_id, event_id, quotation_id, order_number, date,
+				 responsible_person, vehicle, notes,
+				 subtotal, discount, tax_amount, total, status, confirmed_at, is_active)
+			 VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'confirmado', NOW(), 1)
+			 RETURNING *`,
 			[
-				companyId, data.client_id || null, data.event_id || null, data.quotation_id || null,
-				data.date || null, data.responsible_person || null, data.vehicle || null,
-				data.notes || null, data.status || 'pendiente'
+				companyId,
+				data.client_id || null,
+				data.event_id || null,
+				orderNumber,
+				data.date || todayISO(),
+				data.responsible_person || null,
+				data.vehicle || null,
+				data.notes || null,
+				subtotal,
+				discount,
+				taxAmount,
+				subtotal - discount + taxAmount
 			]
 		);
-		await this.replaceItems(ctx, result.rows[0].id as ESRId, data.items || []);
-		return result.rows[0];
+		const order = result.rows[0];
+
+		for (const item of lineas) {
+			const cantidad = Number(item.quantity || 0);
+			const precio = Number(item.price || 0);
+			await db.query(
+				`INSERT INTO work_order_items
+					(company_id, work_order_id, item_id, quantity, price, line_total, start_date, end_date, status)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'reserved')`,
+				[
+					companyId,
+					order.id,
+					item.item_id,
+					cantidad,
+					precio,
+					cantidad * precio,
+					item.start_date || null,
+					item.end_date || null
+				]
+			);
+			// Sin esto la orden no aparta nada y el mismo articulo se puede
+			// comprometer dos veces.
+			await db.query(
+				`INSERT INTO work_order_stock_reservations
+					(company_id, work_order_id, item_id, quantity, status, start_date, end_date)
+				 VALUES ($1, $2, $3, $4, 'reserved', $5, $6)
+				 ON CONFLICT (work_order_id, item_id)
+				 DO UPDATE SET quantity = work_order_stock_reservations.quantity + EXCLUDED.quantity,
+					status = 'reserved',
+					start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date`,
+				[companyId, order.id, item.item_id, cantidad, item.start_date || null, item.end_date || null]
+			);
+		}
+
+		return order;
 	}
 
 	async update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateRentalOrderInput>): Promise<RentalOrder> {
@@ -285,9 +358,28 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 				'DELETE FROM work_order_items WHERE company_id = $1 AND work_order_id = $2', [companyId, orderId]
 			);
 			for (const item of items) {
+				// Nueve columnas, no cuatro. La version anterior insertaba solo
+				// `item_id` y `quantity`, asi que perdia el precio, el total de
+				// linea, la ventana de alquiler —con la que se comprueba
+				// disponibilidad y se reserva— y el estado de la linea.
+				const cantidad = Number(item.quantity || 0);
+				const precio = Number(item.price || 0);
 				await client.query(
-					`INSERT INTO work_order_items (company_id, work_order_id, item_id, quantity)
-					 VALUES ($1, $2, $3, $4)`, [companyId, orderId, item.item_id, item.quantity]
+					`INSERT INTO work_order_items
+						(company_id, work_order_id, item_id, quantity, price, line_total,
+						 start_date, end_date, status)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+					[
+						companyId,
+						orderId,
+						item.item_id,
+						cantidad,
+						precio,
+						Number(item.line_total ?? cantidad * precio),
+						item.start_date || null,
+						item.end_date || null,
+						item.status || 'reserved'
+					]
 				);
 			}
 			await client.query('COMMIT');

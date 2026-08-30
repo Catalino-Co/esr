@@ -23,6 +23,7 @@ import {
 	PostgresSubcategoryRepository,
 	InvoiceService,
 	QuoteConversionService,
+	WorkOrderCreationService,
 	getCompanyDocumentInfo,
 	WorkOrderOperationsService
 } from '@esr/db-postgres';
@@ -40,6 +41,7 @@ let conduceRepository: PostgresConduceRepository | null = null;
 let checklistRepository: PostgresChecklistRepository | null = null;
 let incidentRepository: PostgresIncidentRepository | null = null;
 let stockMovementRepository: PostgresStockMovementRepository | null = null;
+let workOrderCreationService: WorkOrderCreationService | null = null;
 let workOrderOperationsService: WorkOrderOperationsService | null = null;
 let auditLogRepository: PostgresAuditLogRepository | null = null;
 let companySettingsRepository: PostgresCompanySettingsRepository | null = null;
@@ -116,6 +118,11 @@ export function getIncidentRepository(): PostgresIncidentRepository {
 export function getStockMovementRepository(): PostgresStockMovementRepository {
 	if (!stockMovementRepository) stockMovementRepository = new PostgresStockMovementRepository();
 	return stockMovementRepository;
+}
+
+export function getWorkOrderCreationService(): WorkOrderCreationService {
+	if (!workOrderCreationService) workOrderCreationService = new WorkOrderCreationService();
+	return workOrderCreationService;
 }
 
 export function getWorkOrderOperationsService(): WorkOrderOperationsService {

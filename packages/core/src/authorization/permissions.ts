@@ -43,6 +43,7 @@ export const PERMISSIONS = [
 
 	// Ordenes de trabajo
 	'work_orders.view',
+	'work_orders.create',
 	'work_orders.prepare',
 	'work_orders.cancel',
 	'work_orders.close',
@@ -119,6 +120,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'quotes.archive': 'Archivar cotizaciones',
 
 	'work_orders.view': 'Ver ordenes',
+	'work_orders.create': 'Crear ordenes sin cotizacion',
 	'work_orders.prepare': 'Preparar ordenes',
 	'work_orders.cancel': 'Cancelar ordenes',
 	'work_orders.close': 'Cerrar ordenes',
@@ -190,6 +192,7 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 		label: 'Ordenes y operacion',
 		permissions: [
 			'work_orders.view',
+			'work_orders.create',
 			'work_orders.prepare',
 			'work_orders.cancel',
 			'work_orders.close',
@@ -287,6 +290,9 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'events.update',
 	'quotes.create',
 	'quotes.update',
+	// Crear la orden a pelo es operacion diaria: la reserva de stock la
+	// gobierna la disponibilidad, no el permiso.
+	'work_orders.create',
 	'work_orders.prepare',
 	'operations.deliver',
 	'operations.return',
