@@ -287,7 +287,7 @@ Estados de orden (español): `confirmado`, `en_preparacion`, `entregado`, `parci
 
 Numeración por empresa: conduces `CON-000001` (entrega) y `DEV-000001` (devolución); facturas `FAC-000001`.
 
-Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items` / `conduce_item_serials`, `invoices` / `invoice_items` / `invoice_conduces`, `work_order_checklists`, `incidents`, `stock_movements`.
+Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items` / `conduce_item_serials`, `invoices` / `invoice_items` / `invoice_conduces`, `work_order_checklists`, `incidents`, `stock_movements`. La disponibilidad no tiene tabla: se calcula.
 
 Numeración comercial MVP por empresa: `COT-000001`, `ORD-000001` (último número + 1; no apto para alta concurrencia sin endurecer).
 
@@ -337,6 +337,50 @@ Reglas de seguridad:
 - `companyId` viene desde `locals` (nunca desde formularios).
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
+
+### Una sola cuenta de disponibilidad
+
+Sobre el mismo articulo convivian TRES numeros y no coincidian. En la base de
+demo, un articulo del que existen 5 unidades: la tabla de reservas decia 7
+comprometidas, la columna guardada 4 disponibles, y la derivacion 4
+comprometidas.
+
+| Fuente | Quien la pintaba | Como se mantenia |
+| --- | --- | --- |
+| `items.available_quantity` | Listado, reportes, CSV, paquetes | Se tecleaba en la ficha. Ninguna entrega ni devolucion la tocaba. |
+| `work_order_stock_reservations` | Ficha del articulo | Se escribia al crear la orden y se soltaba SOLO al cancelarla. |
+| Derivacion sobre `work_order_items` | Nada visible | Correcta: era la unica que bloqueaba al crear una orden. |
+
+Se queda la tercera. La migracion **015** borra la tabla y la columna.
+
+**La liberacion deja de existir como paso.** No hay nada que soltar porque no
+hay nada apartado: una orden que llega a `devuelto` o `cerrado` sale de
+`ACTIVE_INVENTORY_ORDER_STATUSES` y deja de contar sola. La alternativa —
+mantener la tabla y añadir la liberacion en entrega, devolucion, cierre y
+anulacion de conduce— dejaba dos fuentes que alguien tendria que acordarse de
+mover en paso cada vez que se añada una operacion.
+
+La cuenta vive en `packages/db-postgres/src/repositories/availability.ts`, y de
+ahi la leen el listado, la ficha, los reportes, el CSV, la pantalla de paquetes
+y el `checkAvailability` que bloquea. Antes ese `checkAvailability` estaba en el
+repositorio de COTIZACIONES, que es donde nadie lo buscaria; ahora es del
+inventario, que es de donde es.
+
+#### Dos cosas que la unificacion destapo
+
+- **Se descontaba dos veces lo devuelto.** La consulta excluia las lineas con
+  estado `devuelto` Y ademas restaba `returned_quantity`. Una linea devuelta
+  entera ya daba cero por la resta; excluirla por estado hacia desaparecer
+  tambien las PARCIALMENTE devueltas, que si retienen lo que falta por volver.
+  El gate subestimaba y dejaba comprometer de mas.
+- **Las existencias de un articulo serializado se tecleaban.** El seed dejo un
+  articulo con `total_quantity = 5` y tres seriales. Ahora el total sale de los
+  seriales —descontando retirados y en mantenimiento— y la ficha avisa cuando lo
+  comprometido supera lo que hay en circulacion, que antes era invisible porque
+  los dos numeros no guardaban relacion.
+
+`shouldReserveStock` y `planRentalOrderStatusForSave` NO se tocan: no los usa
+Cloud, pero si Desktop, que lleva su propia reserva sobre SQLite.
 
 ### Fase 5 - Copiar una cotizacion
 

@@ -83,15 +83,6 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 					item.end_date || null
 				]
 			);
-			await db.query(
-				`INSERT INTO work_order_stock_reservations
-					(company_id, work_order_id, item_id, quantity, status, start_date, end_date)
-				 VALUES ($1, $2, $3, $4, 'reserved', $5, $6)
-				 ON CONFLICT (work_order_id, item_id)
-				 DO UPDATE SET quantity = EXCLUDED.quantity, status = 'reserved',
-					start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date`,
-				[companyId, order.id, item.item_id, item.quantity, item.start_date || null, item.end_date || null]
-			);
 		}
 
 		return order;
@@ -102,11 +93,6 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		const client = await this.pool.connect();
 		try {
 			await client.query('BEGIN');
-			await client.query(
-				`UPDATE work_order_stock_reservations SET status = 'cancelled'
-				 WHERE company_id = $1 AND work_order_id = $2`,
-				[companyId, id]
-			);
 			const result = await client.query<RentalOrder>(
 				`UPDATE work_orders SET status = 'cancelado', cancelled_at = NOW()
 				 WHERE company_id = $1 AND id = $2 RETURNING *`,
@@ -187,7 +173,10 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 	 *
 	 * `order_number`, los totales y el estado se CALCULAN aqui; lo que venga en
 	 * `data` para esos campos se ignora. La disponibilidad se comprueba antes, en
-	 * el servicio, que es quien tiene el repositorio que sabe de reservas.
+	 * el servicio.
+	 *
+	 * No hay que apartar nada en ninguna tabla: la orden retiene su mercancia por
+	 * el mero hecho de estar viva, y la suelta al pasar a `devuelto` o `cerrado`.
 	 */
 	async create(
 		ctx: RepositoryContext,
@@ -247,18 +236,6 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 					item.start_date || null,
 					item.end_date || null
 				]
-			);
-			// Sin esto la orden no aparta nada y el mismo articulo se puede
-			// comprometer dos veces.
-			await db.query(
-				`INSERT INTO work_order_stock_reservations
-					(company_id, work_order_id, item_id, quantity, status, start_date, end_date)
-				 VALUES ($1, $2, $3, $4, 'reserved', $5, $6)
-				 ON CONFLICT (work_order_id, item_id)
-				 DO UPDATE SET quantity = work_order_stock_reservations.quantity + EXCLUDED.quantity,
-					status = 'reserved',
-					start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date`,
-				[companyId, order.id, item.item_id, cantidad, item.start_date || null, item.end_date || null]
 			);
 		}
 

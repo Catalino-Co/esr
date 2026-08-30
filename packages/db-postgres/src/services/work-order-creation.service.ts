@@ -5,7 +5,6 @@ import { withTransaction } from '../transaction';
 import { PostgresCustomerRepository } from '../repositories/postgres-customer.repository';
 import { PostgresEventRepository } from '../repositories/postgres-event.repository';
 import { PostgresInventoryRepository } from '../repositories/postgres-inventory.repository';
-import { PostgresQuoteRepository } from '../repositories/postgres-quote.repository';
 import { PostgresRentalRepository } from '../repositories/postgres-rental.repository';
 
 /**
@@ -16,10 +15,8 @@ import { PostgresRentalRepository } from '../repositories/postgres-rental.reposi
  * las mismas comprobaciones de disponibilidad y la misma transaccion, saltandose
  * el documento comercial.
  *
- * La disponibilidad se pide al repositorio de cotizaciones porque es donde vive
- * `checkAvailability`. Esta mal colocada —es una regla de inventario— pero
- * duplicarla aqui crearia una tercera copia divergente, que es exactamente el
- * problema que este codigo ya arrastra con las constantes de estado.
+ * La disponibilidad se pide al repositorio de INVENTARIO, que es de donde es.
+ * Vivio un tiempo en el de cotizaciones, donde nadie la buscaria.
  */
 export type DirectOrderInput = {
 	client_id: ESRId | '';
@@ -37,7 +34,6 @@ export type DirectOrderInput = {
 export class WorkOrderCreationService {
 	constructor(
 		private readonly orders = new PostgresRentalRepository(),
-		private readonly quotes = new PostgresQuoteRepository(),
 		private readonly inventory = new PostgresInventoryRepository(),
 		private readonly customers = new PostgresCustomerRepository(),
 		private readonly events = new PostgresEventRepository()
@@ -82,7 +78,7 @@ export class WorkOrderCreationService {
 			// articulo.
 			for (const linea of lineas) {
 				const cantidad = Number(linea.quantity);
-				const disponible = await this.quotes.checkAvailability(
+				const disponible = await this.inventory.checkAvailability(
 					ctx,
 					linea.item_id as ESRId,
 					cantidad,

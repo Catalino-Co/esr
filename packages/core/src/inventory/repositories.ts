@@ -23,7 +23,6 @@ export type InventoryListFilters = {
 export interface InventoryRepository {
 	findById(id: ESRId): Promise<InventoryItem | null>;
 	findAvailableByDateRange(input: AvailabilityInput): Promise<InventoryAvailability[]>;
-	updateAvailableQuantity(id: ESRId, quantity: number): Promise<void>;
 }
 
 export interface TenantInventoryRepository {
@@ -38,5 +37,12 @@ export interface TenantInventoryRepository {
 	 */
 	setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void>;
 	findAvailableByDateRange(ctx: RepositoryContext, input: AvailabilityInput): Promise<InventoryAvailability[]>;
-	updateAvailableQuantity(ctx: RepositoryContext, id: ESRId, quantity: number): Promise<void>;
+	/** Si alcanza lo libre de un articulo para lo pedido, en una ventana dada. */
+	checkAvailability(
+		ctx: RepositoryContext,
+		itemId: ESRId,
+		quantity: number,
+		startDate?: string,
+		endDate?: string
+	): Promise<{ ok: boolean; available: number }>;
 }

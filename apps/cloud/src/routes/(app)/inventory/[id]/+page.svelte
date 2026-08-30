@@ -27,20 +27,34 @@
 	{/if}
 
 	{#if data.availability}
+		{@const total = Number(data.availability.total_quantity ?? 0)}
+		{@const comprometida = Number(data.availability.committed_quantity ?? 0)}
 		<div class="grid" style="margin-bottom: 16px">
 			<div class="metric">
-				<strong>{data.availability.total_quantity ?? item.total_quantity ?? 0}</strong>
-				<span>Cantidad total</span>
+				<strong>{total}</strong>
+				<span>{data.isSerialized ? 'Unidades en circulación' : 'Existencias'}</span>
 			</div>
 			<div class="metric">
-				<strong>{data.availability.available_quantity ?? item.available_quantity ?? 0}</strong>
-				<span>Disponible (sin reservas activas)</span>
+				<strong>{data.availability.available_quantity ?? 0}</strong>
+				<span>Libre para comprometer</span>
 			</div>
-			<div class="metric">
-				<strong>{data.availability.committed_quantity ?? 0}</strong>
-				<span>Comprometida en órdenes</span>
+			<div class="metric" class:metric-exceso={comprometida > total}>
+				<strong>{comprometida}</strong>
+				<span>Retenida por órdenes vivas</span>
 			</div>
 		</div>
+
+		{#if comprometida > total}
+			<!-- Antes esto no se veía: la ficha sumaba una tabla de reservas que
+			     nunca se soltaba, así que el número comprometido no guardaba
+			     relación con las existencias y nadie podía compararlos. -->
+			<div class="alert-error" role="status">
+				Hay {comprometida} unidad(es) comprometidas en órdenes vivas y solo {total} en
+				circulación. Revise las órdenes abiertas de este artículo{data.isSerialized
+					? ' o registre los seriales que falten'
+					: ' o corrija las existencias'}.
+			</div>
+		{/if}
 	{/if}
 
 	<form method="POST" action="?/update" class="form-grid" use:enhance>
@@ -205,6 +219,10 @@
 {/if}
 
 <style>
+	.metric-exceso strong {
+		color: var(--danger-text);
+	}
+
 	.sec-title {
 		margin: 0 0 var(--sp-3);
 		font-size: var(--font-md);

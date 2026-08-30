@@ -15,16 +15,6 @@ import { appendStateFilter } from './state-filter';
 import { appendPagination } from './pagination';
 import type { QuoteListFilters, RecordState } from '@esr/core';
 
-const ACTIVE_RESERVATION_STATUSES = [
-	'confirmado',
-	'en_preparacion',
-	'entregado',
-	'parcialmente_devuelto',
-	'pendiente',
-	'preparado',
-	'cargado'
-];
-
 /** Codigo de PostgreSQL para violacion de indice unico. */
 const UNIQUE_VIOLATION = '23505';
 
@@ -403,52 +393,4 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		await this.syncTotals(ctx, quoteId, client);
 	}
 
-	async getReservedQuantity(
-		ctx: RepositoryContext,
-		itemId: ESRId,
-		startDate?: string,
-		endDate?: string,
-		client?: pg.PoolClient
-	): Promise<number> {
-		const params: unknown[] = [requireCompanyId(ctx), itemId, ACTIVE_RESERVATION_STATUSES];
-		let dateClause = 'TRUE';
-		if (startDate && endDate) {
-			params.push(startDate, endDate);
-			dateClause = `(COALESCE(woi.start_date, wo.date, '') <= $${params.length}
-				AND COALESCE(woi.end_date, wo.date, '') >= $${params.length - 1})`;
-		}
-		const result = await this.queryClient(client).query<{ qty: string }>(
-			`SELECT COALESCE(SUM(
-				GREATEST(0, woi.quantity - COALESCE(woi.returned_quantity, 0))
-			 ), 0)::text AS qty
-			 FROM work_order_items woi
-			 INNER JOIN work_orders wo ON wo.id = woi.work_order_id AND wo.company_id = woi.company_id
-			 WHERE woi.company_id = $1 AND woi.item_id = $2
-			   AND wo.status = ANY($3::text[]) AND wo.is_active = 1
-			   AND woi.status NOT IN ('cancelado', 'devuelto')
-			   AND ${dateClause}`,
-			params
-		);
-		return Number(result.rows[0]?.qty || 0);
-	}
-
-	async checkAvailability(
-		ctx: RepositoryContext,
-		itemId: ESRId,
-		quantity: number,
-		startDate?: string,
-		endDate?: string
-	): Promise<{ ok: boolean; available: number }> {
-		const companyId = requireCompanyId(ctx);
-		const item = await this.pool.query<{ total_quantity: number }>(
-			'SELECT total_quantity FROM items WHERE company_id = $1 AND id = $2',
-			[companyId, itemId]
-		);
-		if (!item.rows[0]) return { ok: false, available: 0 };
-		const reserved = await this.getReservedQuantity(ctx, itemId, startDate, endDate);
-		const available = Number(item.rows[0].total_quantity || 0) - reserved;
-		return { ok: available >= quantity, available };
-	}
 }
-
-export { ACTIVE_RESERVATION_STATUSES };

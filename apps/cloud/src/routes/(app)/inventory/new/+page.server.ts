@@ -46,7 +46,6 @@ export const actions: Actions = {
 			notes: values.notes || undefined,
 			status: values.status,
 			total_quantity: totalQuantity,
-			available_quantity: totalQuantity,
 			rental_price: values.rental_price,
 			is_active: 1
 		});

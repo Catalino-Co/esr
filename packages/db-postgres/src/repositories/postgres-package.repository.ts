@@ -15,6 +15,7 @@ import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { availabilityColumnsSql, AVAILABILITY_ORDER_STATUSES } from './availability';
 
 export class PostgresPackageRepository implements TenantPackageRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
@@ -71,14 +72,15 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 	async listItems(ctx: RepositoryContext, packageId: ESRId): Promise<PackageItem[]> {
 		const result = await this.pool.query<PackageItem>(
 			`SELECT pi.item_id, pi.quantity,
-				i.name, i.internal_code, i.available_quantity,
+				i.name, i.internal_code,
+				${availabilityColumnsSql(3)},
 				i.rental_price::text AS rental_price,
 				i.item_type, i.is_active AS item_is_active
 			 FROM package_items pi
 			 INNER JOIN items i ON i.id = pi.item_id AND i.company_id = pi.company_id
 			 WHERE pi.company_id = $1 AND pi.package_id = $2
 			 ORDER BY i.name`,
-			[requireCompanyId(ctx), packageId]
+			[requireCompanyId(ctx), packageId, AVAILABILITY_ORDER_STATUSES]
 		);
 		return result.rows;
 	}

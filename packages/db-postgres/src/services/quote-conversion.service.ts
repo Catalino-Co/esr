@@ -3,13 +3,15 @@ import { validateQuoteCanConvert } from '@esr/core';
 import type { ESRId, Quote, RentalOrder } from '@esr/schemas';
 import type pg from 'pg';
 import { withTransaction } from '../transaction';
+import { PostgresInventoryRepository } from '../repositories/postgres-inventory.repository';
 import { PostgresQuoteRepository } from '../repositories/postgres-quote.repository';
 import { PostgresRentalRepository } from '../repositories/postgres-rental.repository';
 
 export class QuoteConversionService {
 	constructor(
 		private readonly quotes = new PostgresQuoteRepository(),
-		private readonly orders = new PostgresRentalRepository()
+		private readonly orders = new PostgresRentalRepository(),
+		private readonly inventory = new PostgresInventoryRepository()
 	) {}
 
 	async convertToWorkOrder(ctx: RepositoryContext, quoteId: ESRId): Promise<{ quote: Quote; order: RentalOrder }> {
@@ -23,7 +25,7 @@ export class QuoteConversionService {
 
 			for (const item of items) {
 				if (!item.item_id) continue;
-				const availability = await this.quotes.checkAvailability(
+				const availability = await this.inventory.checkAvailability(
 					ctx,
 					item.item_id,
 					Number(item.quantity || 0),

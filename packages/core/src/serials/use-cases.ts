@@ -35,8 +35,9 @@ export function normalizeSerializedInventoryInput<T extends InventoryItem>(item:
 		...item,
 		item_type: 'serializado',
 		uses_serial: 1,
-		total_quantity: uniqueSerials.length,
-		available_quantity: uniqueSerials.length
+		// Lo DISPONIBLE ya no se guarda: se calcula restando a las existencias lo
+		// que retienen las ordenes vivas (migracion 015).
+		total_quantity: uniqueSerials.length
 	};
 }
 

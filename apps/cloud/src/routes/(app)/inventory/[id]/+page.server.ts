@@ -72,7 +72,6 @@ export const actions: Actions = {
 		}
 
 		if (created.length) {
-			await syncSerializedQuantities(ctx, event.params.id);
 			await recordAuditLog(event, {
 				action: 'inventory.serials_added',
 				entity_type: 'inventory_item',
@@ -111,7 +110,6 @@ export const actions: Actions = {
 		}
 
 		await getSerialRepository().setStatus(ctx, serialId, status);
-		await syncSerializedQuantities(ctx, event.params.id);
 
 		await recordAuditLog(event, {
 			action: 'inventory.serial_status_changed',
@@ -159,12 +157,11 @@ export const actions: Actions = {
 
 		// En un artículo serializado las existencias son un reflejo de sus
 		// unidades, así que la cantidad tecleada se ignora.
+		//
+		// Lo DISPONIBLE ya no se guarda: se calcula restando a las existencias lo
+		// que retienen las órdenes vivas. La columna que había se tecleaba aquí y
+		// no la actualizaba ninguna entrega ni devolución (migración 015).
 		const effectiveTotal = wantsSerial ? serialCount : totalQuantity;
-		const availableQuantity = wantsSerial
-			? (await getSerialRepository().findByItem(ctx, params.id)).filter(
-					(serial) => serial.status === 'disponible'
-				).length
-			: Math.min(current.available_quantity ?? totalQuantity, totalQuantity);
 
 		await getInventoryRepository().update(ctx, params.id, {
 			item_type: wantsSerial ? 'serializado' : 'cantidad',
@@ -177,7 +174,6 @@ export const actions: Actions = {
 			notes: values.notes || undefined,
 			status: values.status,
 			total_quantity: effectiveTotal,
-			available_quantity: availableQuantity,
 			rental_price: values.rental_price
 		});
 
@@ -213,22 +209,3 @@ export const actions: Actions = {
 		return { success: `«${record.name}» ahora está ${RECORD_STATE_LABELS[state].toLowerCase()}.` };
 	}
 };
-
-/**
- * En un articulo serializado las existencias son un reflejo de sus unidades:
- * total = seriales registrados, disponible = los que estan 'disponible'.
- * Teclearlas a mano las dejaria mintiendo en cuanto sale o vuelve una unidad.
- */
-async function syncSerializedQuantities(
-	ctx: ReturnType<typeof toTenantContext>,
-	itemId: string
-): Promise<void> {
-	const serials = await getSerialRepository().findByItem(ctx, itemId);
-	const available = serials.filter((serial) => serial.status === 'disponible').length;
-	const retired = serials.filter((serial) => serial.status === 'retirado').length;
-
-	await getInventoryRepository().update(ctx, itemId, {
-		total_quantity: serials.length - retired,
-		available_quantity: available
-	});
-}

@@ -34,15 +34,13 @@ export const load: PageServerLoad = async (event) => {
 	});
 
 	return {
-		items: items.map((item) => {
-			const total = Number(item.total_quantity ?? 0);
-			const available = Number(item.available_quantity ?? 0);
-			return {
-				...item,
-				category_name: item.category_id ? categoryMap.get(String(item.category_id)) ?? '—' : '—',
-				committed_quantity: Math.max(0, total - available)
-			};
-		}),
+		// `total`, `available` y `committed` los calcula ya el repositorio, con la
+		// única cuenta que hay. Antes se restaban aquí dos columnas guardadas que
+		// ninguna operación mantenía.
+		items: items.map((item) => ({
+			...item,
+			category_name: item.category_id ? categoryMap.get(String(item.category_id)) ?? '—' : '—'
+		})),
 		search: search ?? '',
 		status: status ?? '',
 		category: category ?? '',

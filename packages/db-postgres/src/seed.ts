@@ -198,8 +198,8 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 	await client.query(
 		`INSERT INTO items
 			(company_id, internal_code, name, category_id, item_type, total_quantity,
-			 available_quantity, rental_price, status, is_active)
-		 SELECT $1, $2, $3, $4, 'cantidad', 10, 10, 100, 'disponible', 1
+			 rental_price, status, is_active)
+		 SELECT $1, $2, $3, $4, 'cantidad', 10, 100, 'disponible', 1
 		 WHERE NOT EXISTS (SELECT 1 FROM items WHERE company_id = $1 AND internal_code = $2)`,
 		[companyId, tenant.itemCode, tenant.itemName, categoryId]
 	);

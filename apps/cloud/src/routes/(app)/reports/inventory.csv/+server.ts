@@ -25,19 +25,15 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	]);
 	const categoryMap = new Map(categories.map((row) => [String(row.id), row.name]));
 
-	const rows = items.map((item) => {
-		const total = Number(item.total_quantity ?? 0);
-		const available = Number(item.available_quantity ?? 0);
-		return [
-			item.name,
-			item.internal_code ?? '',
-			item.category_id ? categoryMap.get(String(item.category_id)) ?? '' : '',
-			total,
-			available,
-			Math.max(0, total - available),
-			item.status ?? ''
-		];
-	});
+	const rows = items.map((item) => [
+		item.name,
+		item.internal_code ?? '',
+		item.category_id ? categoryMap.get(String(item.category_id)) ?? '' : '',
+		Number(item.total_quantity ?? 0),
+		Number(item.available_quantity ?? 0),
+		Number(item.committed_quantity ?? 0),
+		item.status ?? ''
+	]);
 
 	const csv = toCsv(
 		['Articulo', 'SKU', 'Categoria', 'Total', 'Disponible', 'Comprometido', 'Estado'],

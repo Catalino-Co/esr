@@ -12,8 +12,20 @@ export type InventoryItem = {
 	description?: string;
 	item_type?: InventoryItemType;
 	uses_serial?: number | boolean;
+	/**
+	 * Existencias. Para un articulo de CANTIDAD es la columna `total_quantity`;
+	 * para uno SERIALIZADO se deriva de sus seriales, descontando retirados y en
+	 * mantenimiento.
+	 */
 	total_quantity?: number;
+	/**
+	 * Derivados en cada consulta, NO columnas: `available = total - committed`,
+	 * y `committed` es lo que retienen las ordenes vivas. La columna
+	 * `available_quantity` que existia se tecleaba a mano y ninguna entrega ni
+	 * devolucion la actualizaba (migracion 015).
+	 */
 	available_quantity?: number;
+	committed_quantity?: number;
 	rental_price?: number;
 	status?: string;
 	notes?: string;
