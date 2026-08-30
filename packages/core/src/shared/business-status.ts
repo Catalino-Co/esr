@@ -53,6 +53,14 @@ const STATUS: Record<string, StatusInfo> = {
 	emitido: { label: 'Emitido', tone: 'neutral' },
 	completado: { label: 'Completado', tone: 'success' },
 
+	// Lineas de conduce y de orden: estas nacieron en ingles y siguen asi en la
+	// base. Se traducen aqui para que no lleguen crudas a la pantalla.
+	pending: { label: 'Pendiente', tone: 'neutral' },
+	completed: { label: 'Completado', tone: 'success' },
+	reserved: { label: 'Reservado', tone: 'neutral' },
+	'dañado': { label: 'Dañado', tone: 'danger' },
+	perdido: { label: 'Perdido', tone: 'danger' },
+
 	// Eventos
 	tentativo: { label: 'Tentativo', tone: 'warning' },
 

@@ -71,6 +71,19 @@ function formatoCorto(date: Date): string {
 	return `${parte('day')} ${mes} ${parte('year')}`;
 }
 
+/**
+ * El dia de HOY en formato `YYYY-MM-DD`, en hora local.
+ *
+ * `new Date().toISOString().slice(0, 10)` da el dia en UTC: en un huso negativo
+ * —el nuestro— a partir de las 20h ya devuelve el dia siguiente, y un cobro
+ * registrado por la noche aparece fechado mañana.
+ */
+export function todayISO(now: Date = new Date()): string {
+	const mes = String(now.getMonth() + 1).padStart(2, '0');
+	const dia = String(now.getDate()).padStart(2, '0');
+	return `${now.getFullYear()}-${mes}-${dia}`;
+}
+
 const MS_POR_DIA = 86_400_000;
 
 /**
