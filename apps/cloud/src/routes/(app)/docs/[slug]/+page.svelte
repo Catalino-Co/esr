@@ -279,8 +279,6 @@
 
 	.doc-sibling-label {
 		font-size: var(--font-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--text-muted);
 	}
 
@@ -304,8 +302,6 @@
 	.doc-toc-title {
 		font-size: var(--font-xs);
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--text-muted);
 		margin-bottom: var(--sp-3);
 	}

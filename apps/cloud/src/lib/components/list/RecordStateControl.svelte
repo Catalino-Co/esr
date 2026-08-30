@@ -82,8 +82,6 @@
 
 	.state-label {
 		font-size: var(--font-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--text-secondary);
 	}
 

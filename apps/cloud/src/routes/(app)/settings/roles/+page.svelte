@@ -163,8 +163,6 @@
 		text-align: left;
 		background: var(--surface-sunken);
 		font-size: var(--font-sm);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		color: var(--text-secondary);
 	}
 

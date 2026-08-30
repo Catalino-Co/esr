@@ -95,7 +95,6 @@
 		color: #6c757d;
 		font-size: 0.9rem;
 		margin: 5px 0 0;
-		text-transform: uppercase;
 		letter-spacing: 1px;
 	}
 

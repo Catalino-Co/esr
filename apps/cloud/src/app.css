@@ -84,12 +84,13 @@ p {
 	line-height: 1.6;
 }
 
+/* Sentence case. El peso baja de 800 a 700: sin las mayusculas, un 800 a 12px
+   se ve macizo. */
 .eyebrow {
 	margin: 0 0 6px;
 	color: var(--accent);
 	font-size: var(--font-xs);
-	font-weight: 800;
-	text-transform: uppercase;
+	font-weight: 700;
 }
 
 .grid {

@@ -86,8 +86,6 @@
 		padding: 0 var(--sp-4) var(--sp-1);
 		font-size: var(--font-xs);
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--text-muted);
 	}
 
