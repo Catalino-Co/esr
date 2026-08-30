@@ -6,6 +6,7 @@ const reservationsPerConduce = require('./versioned/0004_reservations_per_conduc
 const clientDirectory = require('./versioned/0005_client_directory.cjs');
 const quoteTax = require('./versioned/0006_quote_tax.cjs');
 const quoteLineTaxes = require('./versioned/0007_quote_line_taxes.cjs');
+const companyDefaultTaxRate = require('./versioned/0008_company_default_tax_rate.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -14,7 +15,8 @@ const MIGRATIONS = [
   reservationsPerConduce,
   clientDirectory,
   quoteTax,
-  quoteLineTaxes
+  quoteLineTaxes,
+  companyDefaultTaxRate
 ];
 
 async function initDatabase() {

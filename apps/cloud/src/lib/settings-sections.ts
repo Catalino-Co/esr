@@ -29,6 +29,14 @@ export const settingsSections: SettingsSection[] = [
 		permission: null
 	},
 	{
+		href: '/settings/general',
+		title: 'Generales',
+		icon: ICONS.settings,
+		description:
+			'Valores que la aplicación propone al trabajar, como el impuesto por defecto de las líneas de cotización.',
+		permission: 'settings.company.update'
+	},
+	{
 		href: '/settings/company',
 		title: 'Datos de la empresa',
 		icon: ICONS.company,

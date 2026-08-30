@@ -33,6 +33,13 @@
   // Menú principal de ajustes
   const settingModules = [
     {
+      title: 'Generales',
+      description: 'Valores que la aplicación propone al trabajar, como el impuesto por defecto de las líneas de cotización.',
+      icon: '⚙️',
+      path: '/settings/general',
+      color: '#64748b' // pizarra
+    },
+    {
       title: 'Datos de la Empresa',
       description: 'Configurar el nombre, logo, RNC y datos de contacto para los PDFs.',
       icon: '🏢',

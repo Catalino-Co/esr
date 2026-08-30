@@ -421,6 +421,56 @@
 		aspect-ratio: 1;
 	}
 
+	/* ─── Accion de fila ──────────────────────────────────────────
+	   Boton de SOLO ICONO dentro de una tabla: editar, quitar. Va con
+	   `aria-label` obligatorio, porque un glifo no es un nombre
+	   accesible.
+
+	   Nombre nuevo y NO `.btn-icon`: aqui arriba solo se define
+	   `.btn.btn-icon` y su comentario explica por que. Desktop usa
+	   `class="btn-icon"` suelto con estilos por pagina que significan un
+	   boton transparente, lo contrario de esto. */
+	.row-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--sp-1);
+		border: 1px solid transparent;
+		border-radius: var(--border-radius-sm);
+		background: none;
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast);
+	}
+
+	.row-action:hover {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.row-action:focus-visible {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* El de quitar se tiñe SOLO al apuntarlo. En reposo va del mismo gris
+	   que el de editar: una columna de papeleras rojas grita mas que la
+	   accion primaria de la pantalla, que es la regla 1 del sistema. */
+	.row-action--danger:hover {
+		background: var(--danger-bg);
+		color: var(--danger-text);
+	}
+
+	/* Las dos acciones de una fila, juntas y sin separarse. */
+	.row-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-1);
+	}
+
 	.btn-link {
 		background: none;
 		border: none;

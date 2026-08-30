@@ -9,7 +9,11 @@ const {
   findWorkOrderSummary,
   replaceForWorkOrder
 } = require('./checklists.cjs');
-const { getCompanySettings, updateCompanySettings } = require('./settings.cjs');
+const {
+  getCompanySettings,
+  updateCompanySettings,
+  updateCompanyDefaults
+} = require('./settings.cjs');
 const facturacion = require('./invoices.cjs');
 const cotizaciones = require('./quotes.cjs');
 
@@ -117,6 +121,12 @@ function setupIpcHandlers() {
 
   ipcMain.handle('settings:updateCompany', async (event, data) => {
     return await updateCompanySettings(data);
+  });
+
+  // Configuracion › Generales. Lee por `settings:getCompany`, que ya devuelve
+  // la fila entera; solo la ESCRITURA necesita canal propio.
+  ipcMain.handle('settings:updateDefaults', async (event, data) => {
+    return await updateCompanyDefaults(data);
   });
 }
 

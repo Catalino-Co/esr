@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('api', {
   },
   settings: {
     getCompany: () => ipcRenderer.invoke('settings:getCompany'),
-    updateCompany: (data) => ipcRenderer.invoke('settings:updateCompany', data)
+    updateCompany: (data) => ipcRenderer.invoke('settings:updateCompany', data),
+    updateDefaults: (data) => ipcRenderer.invoke('settings:updateDefaults', data)
   }
 });

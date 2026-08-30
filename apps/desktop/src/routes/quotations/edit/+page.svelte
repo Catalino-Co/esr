@@ -11,7 +11,7 @@
   } from '@esr/core';
   import { validateQuoteInput } from '@esr/schemas';
   import { generateQuotationPDF, quoteItemLabel } from '@esr/reports';
-  import { Modal, PdfPreviewModal } from '@esr/ui';
+  import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
 
   /**
    * Ficha de cotizacion de ESR Pro.
@@ -103,7 +103,8 @@
     error = '';
     mensaje = '';
 
-    const [clientesRows, articulosRows, paquetesRows, lineasPaqueteRows] = await Promise.all([
+    const [clientesRows, articulosRows, paquetesRows, lineasPaqueteRows, empresaRows] =
+      await Promise.all([
       window.api.db.get(
         'SELECT id, name, phone, document_id FROM clients WHERE is_active = 1 ORDER BY name ASC'
       ),
@@ -126,8 +127,13 @@
            FROM package_items pi
            JOIN items i ON i.id = pi.item_id
           ORDER BY i.name ASC`
-      )
+      ),
+      // Configuracion › Generales. En el mismo `Promise.all` y no en una
+      // consulta aparte: es una fila por id.
+      window.api.db.get('SELECT default_tax_rate FROM company_info WHERE id = 1')
     ]);
+
+    impuestoPorDefecto = Number(empresaRows?.[0]?.default_tax_rate) || 0;
 
     clientes = clientesRows;
     articulos = articulosRows;
@@ -222,6 +228,45 @@
     lineas = lineas.filter((_, i) => i !== indice);
   }
 
+  // ── Dialogo: editar linea ────────────────────────────────────────────────
+  //
+  // La tabla es de SOLO LECTURA: cinco columnas editables a la vez se leen mal
+  // y se tocan sin querer. Editar es un gesto explicito.
+  let editando = false;
+  let edicionIndice = -1;
+  // Copia, NO referencia: cancelar tiene que dejar la fila como estaba.
+  let edicion = { name: '', quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 };
+
+  $: importeEdicion = calculateQuoteLineAmounts(edicion);
+
+  function abrirEdicion(indice) {
+    const linea = lineas[indice];
+    edicionIndice = indice;
+    edicion = {
+      name: linea.name,
+      quantity: linea.quantity,
+      price: linea.price,
+      discount_rate: linea.discount_rate,
+      tax_rate: linea.tax_rate
+    };
+    editando = true;
+  }
+
+  function confirmarEdicion() {
+    lineas = lineas.map((linea, i) =>
+      i === edicionIndice
+        ? {
+            ...linea,
+            quantity: Number(edicion.quantity) || 0,
+            price: Number(edicion.price) || 0,
+            discount_rate: Number(edicion.discount_rate) || 0,
+            tax_rate: Number(edicion.tax_rate) || 0
+          }
+        : linea
+    );
+    editando = false;
+  }
+
   // ── Dialogo: agregar articulo ────────────────────────────────────────────
   //
   // NO se cierra al agregar, y lleva un contador en el pie: el catalogo que
@@ -233,15 +278,17 @@
   let agregados = 0;
 
   /**
-   * Las tasas que se proponen para una linea NUEVA: las de la ultima linea.
+   * Las tasas que se proponen para una linea NUEVA.
    *
-   * No hay tasa por defecto en ningun sitio del sistema, y una cotizacion de
-   * veinte lineas con el mismo ITBIS obligaria a teclear «18» veinte veces.
+   * El impuesto sale de Configuracion › Generales; el descuento nace en cero
+   * porque es una negociacion de esta linea, no una propiedad de la empresa.
+   *
+   * Antes esto adivinaba «las tasas de la ultima linea», un parche de cuando no
+   * habia ajuste. Ahora hay un valor de verdad, y dos fuentes para lo mismo
+   * acaban contradiciendose.
    */
-  $: tasasSugeridas = {
-    discount_rate: Number(lineas[lineas.length - 1]?.discount_rate) || 0,
-    tax_rate: Number(lineas[lineas.length - 1]?.tax_rate) || 0
-  };
+  let impuestoPorDefecto = 0;
+  $: tasasSugeridas = { discount_rate: 0, tax_rate: impuestoPorDefecto };
 
   $: resultados = (() => {
     const t = busqueda.trim().toLowerCase();
@@ -615,51 +662,34 @@
                   {/if}
                 </td>
                 <td>{linea.code || '—'}</td>
-                <td class="num">
-                  <input type="number" min="0" bind:value={linea.quantity} aria-label="Cantidad" />
-                </td>
-                <td class="num">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    bind:value={linea.price}
-                    aria-label="Precio"
-                  />
-                </td>
-                <td class="num">
-                  <!-- `step="any"`: con un paso declarado, un valor que no sea
-                       multiplo suyo da `stepMismatch` y el formulario no envia
-                       sin decir nada. El traspaso de las cotizaciones viejas
-                       deja tasas de tres decimales. -->
-                  <input
-                    class="tasa"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    bind:value={linea.discount_rate}
-                    aria-label="Descuento en porcentaje"
-                  />
-                </td>
-                <td class="num">
-                  <input
-                    class="tasa"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    bind:value={linea.tax_rate}
-                    aria-label="Impuesto en porcentaje"
-                  />
-                </td>
+                <td class="num">{linea.quantity}</td>
+                <td class="num">{formatMoney(linea.price)}</td>
+                <td class="num">{linea.discount_rate}%</td>
+                <td class="num">{linea.tax_rate}%</td>
                 <!-- Con impuesto y ya rebajado: es lo que se cobra por la linea,
                      y su suma es el total de la derecha. -->
                 <td class="num importe">
                   {formatMoney(calculateQuoteLineAmounts({ ...linea, total: undefined }).total)}
                 </td>
                 <td>
-                  <button class="btn-quitar" on:click={() => quitarLinea(i)}>Quitar</button>
+                  <div class="row-actions">
+                    <button
+                      class="row-action"
+                      on:click={() => abrirEdicion(i)}
+                      aria-label="Editar {linea.name}"
+                      title="Editar"
+                    >
+                      <Icon name="edit" />
+                    </button>
+                    <button
+                      class="row-action row-action--danger"
+                      on:click={() => quitarLinea(i)}
+                      aria-label="Quitar {linea.name}"
+                      title="Quitar"
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             {/each}
@@ -680,18 +710,17 @@
           <span>Subtotal</span>
           <span>{formatMoney(totales.subtotal)}</span>
         </div>
-        {#if totales.discount > 0}
-          <div class="total-row">
-            <span>Descuento</span>
-            <span>−{formatMoney(totales.discount)}</span>
-          </div>
-        {/if}
-        {#if totales.tax_amount > 0}
-          <div class="total-row">
-            <span>Impuesto</span>
-            <span>{formatMoney(totales.tax_amount)}</span>
-          </div>
-        {/if}
+        <!-- Las cuatro filas se ven SIEMPRE, aunque valgan cero: «Impuesto
+             RD$0.00» dice que el impuesto se tuvo en cuenta y vale cero, que no
+             es lo mismo que no decir nada. -->
+        <div class="total-row">
+          <span>Descuento</span>
+          <span>−{formatMoney(totales.discount)}</span>
+        </div>
+        <div class="total-row">
+          <span>Impuesto</span>
+          <span>{formatMoney(totales.tax_amount)}</span>
+        </div>
         <div class="total-row total-row--final">
           <span>Total</span>
           <span>{formatMoney(totales.total)}</span>
@@ -721,16 +750,61 @@
         </div>
       </div>
     </div>
-
-    <!-- ── Acciones ─────────────────────────────────────────────────────── -->
-    <div class="card">
-      <div class="card-header"><div class="card-title">Acciones</div></div>
-      <button class="btn btn-secondary bloque" on:click={() => goto('/quotations')}>
-        ← Volver a la lista
-      </button>
-    </div>
   </div>
 </div>
+
+<!-- ── Dialogo: editar linea ───────────────────────────────────────────── -->
+<Modal bind:show={editando} title="Editar línea" maxWidth="480px">
+  <p class="panel-hint">{edicion.name}</p>
+
+  <div class="form-grid">
+    <div class="form-field">
+      <label for="edit-cantidad">Cantidad</label>
+      <input id="edit-cantidad" type="number" min="1" bind:value={edicion.quantity} />
+    </div>
+    <div class="form-field">
+      <label for="edit-precio">Precio unitario</label>
+      <input id="edit-precio" type="number" min="0" step="0.01" bind:value={edicion.price} />
+    </div>
+    <div class="form-field">
+      <label for="edit-descuento">Descuento %</label>
+      <!--
+        `step="any"` y no `step="0.01"`: con un paso declarado, un valor que no
+        sea múltiplo suyo se marca inválido. El traspaso de las cotizaciones
+        viejas produce tasas de tres decimales.
+      -->
+      <input
+        id="edit-descuento"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={edicion.discount_rate}
+      />
+    </div>
+    <div class="form-field">
+      <label for="edit-impuesto">Impuesto %</label>
+      <input
+        id="edit-impuesto"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={edicion.tax_rate}
+      />
+    </div>
+  </div>
+
+  <p class="panel-hint ayuda">
+    <!-- Con impuesto y ya rebajado, igual que la columna de la tabla. -->
+    Importe: {formatMoney(importeEdicion.total)}
+  </p>
+
+  <svelte:fragment slot="footer">
+    <button class="btn btn-secondary" on:click={() => (editando = false)}>Cancelar</button>
+    <button class="btn btn-primary" on:click={confirmarEdicion}>Guardar línea</button>
+  </svelte:fragment>
+</Modal>
 
 <!-- ── Dialogo: agregar articulo ───────────────────────────────────────── -->
 <Modal bind:show={agregandoArticulo} title="Agregar artículo" maxWidth="560px">
@@ -1055,24 +1129,6 @@
   .importe {
     font-weight: 600;
     white-space: nowrap;
-  }
-
-  /* Una tasa son dos digitos y una coma, no un importe: con la anchura de un
-     campo de dinero, la tabla se va de ancho con las dos columnas nuevas. */
-  .tabla-lineas input.tasa {
-    width: 3.75rem;
-  }
-
-  .tabla-lineas input {
-    width: 5rem;
-    padding: var(--sp-1) var(--sp-2);
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius-sm);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: var(--font-sm);
-    text-align: right;
   }
 
   /* Bloque marcado y no un simple color de fondo: una linea heredada se

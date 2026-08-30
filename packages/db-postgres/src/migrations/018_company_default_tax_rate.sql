@@ -1,0 +1,18 @@
+-- Impuesto por defecto de la empresa, en PORCENTAJE.
+--
+-- Desde que el descuento y el impuesto salen de cada linea (migracion 017), una
+-- cotizacion de veinte lineas con el mismo ITBIS obligaba a teclear «18» veinte
+-- veces: no habia tasa por defecto en ningun sitio del sistema. Esta columna la
+-- fija en Configuracion › Generales y la propone en cada linea nueva.
+--
+-- PROPONE, no impone: la linea la puede corregir, y cambiar este valor NO toca
+-- ninguna cotizacion ya hecha. Un ajuste que reescribiera documentos emitidos
+-- seria otra cosa muy distinta.
+--
+-- `company_info` dejo de ser un singleton global en la migracion 002 —su clave
+-- primaria es (company_id, id)—, asi que la tasa queda por inquilino sin
+-- trabajo extra.
+--
+-- Aditiva y neutra: con DEFAULT 0, una empresa que no la configure se comporta
+-- exactamente como hasta ahora.
+ALTER TABLE company_info ADD COLUMN IF NOT EXISTS default_tax_rate NUMERIC(6, 3) DEFAULT 0;

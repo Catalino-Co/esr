@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
 import { SELECTABLE_STATES, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
 import {
+	getCompanySettingsRepository,
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
@@ -28,8 +29,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// cliente de esta cotización.
 	const TOPE_INVENTARIO = 500;
 
-	const [items, event, customer, inventory, linkedOrder, packages, packageLines, customers, events] =
-		await Promise.all([
+	const [
+		items,
+		event,
+		customer,
+		inventory,
+		linkedOrder,
+		packages,
+		packageLines,
+		customers,
+		events,
+		companySettings
+	] = await Promise.all([
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
 			getCustomerRepository().findById(ctx, quote.client_id),
@@ -38,7 +49,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getPackageRepository().list(ctx),
 			getPackageRepository().listAllItems(ctx),
 			getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
-			getEventRepository().list(ctx, { limit: 200, offset: 0 })
+			getEventRepository().list(ctx, { limit: 200, offset: 0 }),
+			// La tasa que se propone en cada linea nueva. Va en el mismo
+			// `Promise.all` y no en una consulta aparte: es una fila por id.
+			getCompanySettingsRepository().get(ctx)
 		]);
 
 	// Las lineas de todos los paquetes, agrupadas por paquete. Se agrupa aqui y
@@ -84,6 +98,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		events,
 		// El estado de cuenta ya no vive aqui: el dinero esta en el conduce, que
 		// es el documento que se cobra.
+		// Configuracion › Generales. Se PROPONE en la linea nueva; cambiar el
+		// ajuste no toca ninguna cotizacion ya hecha.
+		defaultTaxRate: Number(companySettings?.default_tax_rate ?? 0),
 		canEdit: quote.status !== 'convertida' && quote.status !== 'cancelada'
 	};
 };
