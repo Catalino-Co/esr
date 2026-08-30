@@ -1,6 +1,7 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
 
 	let { data, form } = $props();
 	const { order, items } = data;
@@ -109,10 +110,51 @@
 				{#each data.conduces as row (row.conduce.id)}
 					<tr>
 						<td><a href="/conduces/{row.conduce.id}">{row.conduce.note_number || `#${row.conduce.id}`}</a></td>
-						<td>{row.conduce.conduce_type}</td>
-						<td>{row.conduce.status}</td>
-						<td>{row.conduce.date || '—'}</td>
+						<td>{statusLabel(row.conduce.conduce_type)}</td>
+						<td>
+							<span class="badge {statusBadgeClass(row.conduce.status)}">
+								{statusLabel(row.conduce.status)}
+							</span>
+						</td>
+						<td>{formatDate(row.conduce.date)}</td>
 						<td>{row.conduce.received_by_name || '—'}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
+
+	<div class="seccion-facturas">
+		<h2>Facturas</h2>
+		{#if data.billable.length > 0 && can('invoices.create')}
+			<a class="btn-primary btn-new" href="/invoices/new?order={order.id}">
+				Facturar {data.billable.length} entrega(s)
+			</a>
+		{/if}
+	</div>
+	{#if data.invoices.length === 0}
+		<p class="empty-state">
+			{data.billable.length > 0
+				? 'Hay entregas sin facturar.'
+				: 'Sin facturas. Solo se factura lo que ya se entregó.'}
+		</p>
+	{:else}
+		<table class="data-table">
+			<thead>
+				<tr><th>Número</th><th>Fecha</th><th class="num">Total</th><th class="num">Cobrado</th><th>Estado</th></tr>
+			</thead>
+			<tbody>
+				{#each data.invoices as invoice (invoice.id)}
+					<tr>
+						<td><a href="/invoices/{invoice.id}">{invoice.invoice_number}</a></td>
+						<td>{formatDate(invoice.date)}</td>
+						<td class="num">{formatMoney(invoice.total)}</td>
+						<td class="num">{formatMoney(invoice.paid)}</td>
+						<td>
+							<span class="badge {statusBadgeClass(invoice.status)}">
+								{statusLabel(invoice.status)}
+							</span>
+						</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -162,3 +204,24 @@
 		</table>
 	{/if}
 </section>
+
+<style>
+	/* El titulo y su accion en la misma linea: la seccion de facturas es la
+	   unica de esta pantalla con un boton propio. */
+	.seccion-facturas {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-top: 24px;
+	}
+
+	.seccion-facturas h2 {
+		margin: 0;
+	}
+
+	.num {
+		text-align: right;
+		white-space: nowrap;
+	}
+</style>

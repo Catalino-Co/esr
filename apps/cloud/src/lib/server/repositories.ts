@@ -11,6 +11,7 @@ import {
 	PostgresEventRepository,
 	PostgresIncidentRepository,
 	PostgresInventoryRepository,
+	PostgresInvoiceRepository,
 	PostgresMemberRepository,
 	PostgresPackageRepository,
 	PostgresPaymentRepository,
@@ -20,6 +21,7 @@ import {
 	PostgresStockMovementRepository,
 	PostgresSupplierRepository,
 	PostgresSubcategoryRepository,
+	InvoiceService,
 	QuoteConversionService,
 	getCompanyDocumentInfo,
 	WorkOrderOperationsService
@@ -45,6 +47,8 @@ let memberRepository: PostgresMemberRepository | null = null;
 let eventTypeRepository: PostgresEventTypeRepository | null = null;
 let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
+let invoiceRepository: PostgresInvoiceRepository | null = null;
+let invoiceService: InvoiceService | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
 let packageRepository: PostgresPackageRepository | null = null;
 let serialRepository: PostgresSerialRepository | null = null;
@@ -147,6 +151,16 @@ export function getSupplierRepository(): PostgresSupplierRepository {
 export function getCollaboratorRepository(): PostgresCollaboratorRepository {
 	if (!collaboratorRepository) collaboratorRepository = new PostgresCollaboratorRepository();
 	return collaboratorRepository;
+}
+
+export function getInvoiceRepository(): PostgresInvoiceRepository {
+	if (!invoiceRepository) invoiceRepository = new PostgresInvoiceRepository();
+	return invoiceRepository;
+}
+
+export function getInvoiceService(): InvoiceService {
+	if (!invoiceService) invoiceService = new InvoiceService();
+	return invoiceService;
 }
 
 export function getPaymentRepository(): PostgresPaymentRepository {

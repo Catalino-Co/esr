@@ -41,11 +41,11 @@ export const navItems: NavItemConfig[] = [
 		permission: 'work_orders.view'
 	},
 	{
-		href: '/conduces',
-		label: 'Conduces',
-		icon: ICONS.conduces,
-		matchPrefix: '/conduces',
-		permission: 'conduces.view'
+		href: '/invoices',
+		label: 'Facturas',
+		icon: ICONS.invoices,
+		matchPrefix: '/invoices',
+		permission: 'invoices.view'
 	},
 	{
 		href: '/events',
@@ -120,7 +120,10 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/events', title: 'Eventos', subtitle: 'Calendario y reservas' },
 	{ prefix: '/quotes', title: 'Cotizaciones', subtitle: 'Propuestas comerciales' },
 	{ prefix: '/work-orders', title: 'Órdenes', subtitle: 'Operación y entregas' },
-	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Entregas y devoluciones' },
+	{ prefix: '/invoices', title: 'Facturas', subtitle: 'Documentos de cobro y estado de cuenta' },
+	// El conduce ya no esta en el menu: queda como nota de entrega, accesible
+	// desde la orden y desde la factura, a la espera de que se retome.
+	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Notas de entrega de la operación' },
 	{ prefix: '/incidents', title: 'Incidencias', subtitle: 'Seguimiento operativo' },
 	{ prefix: '/packages', title: 'Paquetes', subtitle: 'Artículos que se alquilan juntos' },
 	{ prefix: '/reports', title: 'Reportes', subtitle: 'Consultas operativas básicas' },

@@ -107,7 +107,13 @@ p {
 	margin-bottom: 4px;
 }
 
-.metric span {
+/* El `>` no es cosmetico. `.metric span` alcanzaba tambien a las badges que
+   van dentro del `<strong>` de la metrica y las repintaba con --text-muted:
+   4.34:1 sobre el fondo de la badge, por debajo de AA. Y no habia forma de
+   ganarle desde `.badge-muted` porque este archivo esta FUERA de @layer y
+   theme.css dentro, asi que gana siempre pase lo que pase con la
+   especificidad. La etiqueta es hija directa; la badge, nieta. */
+.metric > span {
 	color: var(--text-muted);
 	font-size: var(--font-sm);
 }

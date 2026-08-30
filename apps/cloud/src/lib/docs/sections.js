@@ -72,13 +72,24 @@ const groups = [
 				slug: 'conduces',
 				icon: ICONS.conduces,
 				title: 'Conduces',
-				summary: 'Conduces de entrega y devolución, numeración y checklists.'
+				summary: 'Notas de entrega y devolución, numeración y checklists.'
 			},
 			{
 				slug: 'incidencias',
 				icon: ICONS.incidents,
 				title: 'Incidencias',
 				summary: 'Registrar daños, faltantes y notas operativas, y resolverlos.'
+			}
+		]
+	},
+	{
+		label: 'Cobro',
+		sections: [
+			{
+				slug: 'facturas',
+				icon: ICONS.invoices,
+				title: 'Facturas',
+				summary: 'Emitir la factura de una o varias entregas, cobrarla y anularla.'
 			}
 		]
 	},

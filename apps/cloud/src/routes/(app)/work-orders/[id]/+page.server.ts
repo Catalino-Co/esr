@@ -6,6 +6,7 @@ import {
 	getCustomerRepository,
 	getEventRepository,
 	getIncidentRepository,
+	getInvoiceRepository,
 	getQuoteRepository,
 	getRentalRepository,
 	getStockMovementRepository,
@@ -35,6 +36,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getChecklistRepository().findByWorkOrder(ctx, params.id, 'retorno')
 		]);
 
+	// Facturacion de la orden: lo ya facturado y lo que queda por facturar. La
+	// segunda consulta es la que decide si el boton «Facturar» tiene sentido.
+	const [invoices, billable] = await Promise.all([
+		getInvoiceRepository().list(ctx, { work_order_id: params.id, state: [0, 1, 2], limit: 100 }),
+		getInvoiceRepository().listBillableConduces(ctx, params.id)
+	]);
+
 	const conducesWithItems = await Promise.all(
 		conduces.map(async (conduce) => ({
 			conduce,
@@ -49,6 +57,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		event,
 		quote,
 		conduces: conducesWithItems,
+		invoices,
+		billable,
 		incidents,
 		stockMovements,
 		checklists: { outbound: outboundChecklist, return: returnChecklist }

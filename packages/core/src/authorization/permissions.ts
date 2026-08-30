@@ -55,7 +55,12 @@ export const PERMISSIONS = [
 	'conduces.view',
 	'conduces.archive',
 
-	// Cobros del conduce, que es el documento de dinero
+	// Facturacion. La factura es el documento de dinero: cubre una o varias
+	// entregas y es de donde cuelgan los cobros.
+	'invoices.view',
+	'invoices.create',
+	'invoices.cancel',
+	'invoices.archive',
 	'payments.register',
 	'payments.void',
 
@@ -124,6 +129,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'conduces.view': 'Ver conduces',
 	'conduces.archive': 'Archivar conduces',
 
+	'invoices.view': 'Ver facturas',
+	'invoices.create': 'Emitir facturas',
+	'invoices.cancel': 'Anular facturas',
+	'invoices.archive': 'Archivar facturas',
 	'payments.register': 'Registrar cobros',
 	'payments.void': 'Anular cobros',
 
@@ -187,7 +196,16 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 			'operations.return',
 			'checklists.save',
 			'conduces.view',
-			'conduces.archive',
+			'conduces.archive'
+		]
+	},
+	{
+		label: 'Facturacion',
+		permissions: [
+			'invoices.view',
+			'invoices.create',
+			'invoices.cancel',
+			'invoices.archive',
 			'payments.register',
 			'payments.void'
 		]
@@ -248,6 +266,7 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	'quotes.view',
 	'work_orders.view',
 	'conduces.view',
+	'invoices.view',
 	'incidents.view',
 	'reports.view'
 ];
@@ -269,7 +288,8 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'operations.deliver',
 	'operations.return',
 	'checklists.save',
-	// Registrar un cobro es operacion diaria; anularlo no.
+	// Emitir la factura de una entrega ya hecha es operacion diaria; anularla no.
+	'invoices.create',
 	'payments.register',
 	'incidents.create'
 ];
@@ -291,7 +311,9 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'work_orders.cancel',
 	'work_orders.close',
 	'incidents.resolve',
-	// Anular un pago mueve dinero ya registrado: se reserva a gerencia.
+	// Anular factura o pago mueve dinero ya registrado: se reserva a gerencia.
+	'invoices.cancel',
+	'invoices.archive',
 	'payments.void',
 	'audit.view',
 	'settings.catalogs.manage'

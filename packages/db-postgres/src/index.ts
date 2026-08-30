@@ -11,12 +11,14 @@ export * from './repositories/postgres-inventory.repository';
 export * from './repositories/postgres-quote.repository';
 export * from './repositories/postgres-rental.repository';
 export * from './repositories/postgres-conduce.repository';
+export * from './repositories/postgres-invoice.repository';
 export * from './repositories/postgres-payment.repository';
 export * from './repositories/postgres-operations.repository';
 export * from './repositories/postgres-package.repository';
 export * from './repositories/postgres-audit-log.repository';
 export * from './repositories/postgres-company-settings.repository';
 export * from './repositories/postgres-member.repository';
+export * from './services/invoice.service';
 export * from './services/quote-conversion.service';
 export * from './services/work-order-operations.service';
 

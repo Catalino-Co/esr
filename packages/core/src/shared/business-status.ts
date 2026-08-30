@@ -49,9 +49,20 @@ const STATUS: Record<string, StatusInfo> = {
 	pagado: { label: 'Pagado', tone: 'success' },
 	anulado: { label: 'Anulado', tone: 'danger' },
 
-	// Conduces
+	// Conduces. `entrega` y `devolucion` no son estados sino TIPOS de conduce,
+	// pero se pintan por la misma funcion y sin estas dos entradas salian
+	// humanizados: «Devolucion», sin tilde.
+	entrega: { label: 'Entrega', tone: 'neutral' },
+	devolucion: { label: 'Devolución', tone: 'neutral' },
 	emitido: { label: 'Emitido', tone: 'neutral' },
 	completado: { label: 'Completado', tone: 'success' },
+
+	// Facturas. Van en femenino y por eso no comparten clave con el conduce:
+	// `emitido` y `emitida` son dos entradas distintas a proposito.
+	emitida: { label: 'Emitida', tone: 'neutral' },
+	anulada: { label: 'Anulada', tone: 'danger' },
+	facturada: { label: 'Facturada', tone: 'success' },
+	pendiente_de_facturar: { label: 'Pendiente de facturar', tone: 'warning' },
 
 	// Lineas de conduce y de orden: estas nacieron en ingles y siguen asi en la
 	// base. Se traducen aqui para que no lleguen crudas a la pantalla.

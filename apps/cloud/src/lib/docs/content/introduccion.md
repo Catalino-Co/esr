@@ -1,7 +1,7 @@
 ## Qué es ESR Cloud
 
 ESR Cloud es la versión web y multiusuario de ESR, el sistema para operar
-inventario, eventos, alquileres, cotizaciones, ordenes y conduces del flujo
+inventario, eventos, alquileres, cotizaciones, órdenes y facturas del flujo
 **Events Stock & Rentals**.
 
 Comparte núcleo con **ESR Pro**, la aplicación de escritorio: las mismas reglas
@@ -29,10 +29,11 @@ El manual sigue el orden natural del trabajo, no el del menú:
 
 1. **Introducción** — esta sección y los primeros pasos.
 2. **Comercial** — de la cotización a la orden de trabajo.
-3. **Logística** — conduces, entregas, devoluciones e incidencias.
-4. **Operación** — los catálogos que alimentan todo: eventos, clientes e inventario.
-5. **Análisis** — reportes y auditoría.
-6. **Administración** — configuración, roles y modelo multiempresa.
+3. **Logística** — entregas, devoluciones e incidencias.
+4. **Cobro** — facturas y estado de cuenta.
+5. **Operación** — los catálogos que alimentan todo: eventos, clientes e inventario.
+6. **Análisis** — reportes y auditoría.
+7. **Administración** — configuración, roles y modelo multiempresa.
 
 Las secciones marcadas como **En redacción** todavía no tienen texto: muestran
 el esquema previsto para que se sepa qué cubrirán.
@@ -43,11 +44,16 @@ El recorrido habitual de principio a fin:
 
 ```
 Cliente → Evento → Cotización → Aprobación → Orden de trabajo
-→ Preparación → Conduce de entrega → Devolución → Cierre
+→ Preparación → Entrega → Factura → Devolución → Cierre
 ```
 
 Si algo sale mal en el camino —un equipo dañado o un faltante— se registra como
 **incidencia** y queda ligada a la orden.
+
+Una precisión sobre el cobro: **solo se factura lo que ya se entregó**. Cada
+entrega genera su nota de entrega, y la factura cubre una o varias de esas
+entregas. Una devolución nunca genera factura, porque no se cobra lo que
+vuelve.
 
 ## Antes de empezar
 

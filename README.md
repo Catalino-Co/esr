@@ -251,7 +251,10 @@ Tras login y empresa activa:
 /events
 /quotes
 /work-orders
-/conduces
+/invoices
+/invoices/new
+/invoices/[id]
+/conduces          # sin entrada de menu: nota de entrega, aparcada
 /incidents
 /settings
 ```
@@ -265,7 +268,7 @@ Cliente → Evento → Cotización → Artículos → Aprobación → Orden de t
 Flujo operativo (Fase 6):
 
 ```text
-Orden confirmada → Preparación → Conduce de entrega → Entrega → Checklist salida
+Orden confirmada → Preparación → Conduce de entrega → Entrega → Checklist salida → Factura
 → Devolución → Checklist retorno → Incidencias (si aplica) → Cierre de orden
 ```
 
@@ -281,9 +284,9 @@ Rutas operativas desde el detalle de orden:
 
 Estados de orden (español): `confirmado`, `en_preparacion`, `entregado`, `parcialmente_devuelto`, `devuelto`, `cerrado`, `cancelado`.
 
-Numeración de conduces por empresa: `CON-000001` (entrega), `DEV-000001` (devolución).
+Numeración por empresa: conduces `CON-000001` (entrega) y `DEV-000001` (devolución); facturas `FAC-000001`.
 
-Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items`, `work_order_checklists`, `incidents`, `stock_movements`.
+Convención de tablas: `quotations` / `quotation_items`, `work_orders` / `work_order_items`, `conduces` / `conduce_items`, `invoices` / `invoice_items` / `invoice_conduces`, `work_order_checklists`, `incidents`, `stock_movements`.
 
 Numeración comercial MVP por empresa: `COT-000001`, `ORD-000001` (último número + 1; no apto para alta concurrencia sin endurecer).
 
@@ -334,16 +337,58 @@ Reglas de seguridad:
 - Todas las órdenes, conduces, checklists e incidencias filtran por `company_id`.
 - Entregas, devoluciones y cierre de orden se ejecutan en transacción PostgreSQL.
 
+### Fase 9.3 - La factura es un documento propio
+
+El conduce nacio como nota de **entrega** y de **devolucion**: se emite uno por
+cada entrega parcial y uno por cada devolucion. Eso lo hace un mal documento de
+cobro por dos razones que no se arreglan renombrandolo: una devolucion no se
+factura, y una misma venta puede repartirse en varias entregas.
+
+Asi que el dinero se muda a **`invoices`**, que cubre **una o varias entregas de
+la misma orden**, nunca una devolucion, y es el unico ancla de un pago. El
+conduce sigue existiendo tal cual, como nota de entrega: **pierde el menu y el
+estado de cuenta**, se llega a el desde la orden y desde la factura, y queda a
+la espera de que se retome.
+
+Tres tablas nuevas en la migracion **012**:
+
+- `invoices` — cabecera, numeracion `FAC-000001`, dos estados (`emitida`,
+  `anulada`) y el estado de circulacion de tres valores.
+- `invoice_items` — las lineas se **copian** de los conduces cubiertos, no se
+  leen por join: una factura emitida no puede cambiar porque alguien corrija el
+  conduce despues.
+- `invoice_conduces` — que entregas cubre. Su indice unico es **parcial**
+  (`WHERE is_active = 1`): al anular una factura sus enlaces pasan a 0 y las
+  entregas vuelven a estar disponibles. Un UNIQUE a secas las dejaria presas de
+  una factura anulada, y borrar la fila perderia el rastro.
+
+`payments.conduce_id` pasa a `invoice_id NOT NULL`. Esta vez **si hay backfill**:
+cada conduce de entrega con pagos recibe su factura, con sus mismas lineas y su
+mismo total. Solo se descartan los pagos que colgaban de una devolucion, porque
+no tienen factura posible; la migracion lo dice por `RAISE NOTICE`.
+
+Anular una factura va en **una sola transaccion**: la factura pasa a `anulada`,
+sus cobros vigentes se anulan y sus entregas se liberan. La pantalla informa de
+cuantos cobros se anularon, porque eso deshace dinero ya registrado.
+
+`invoices_company_number_unique` existe para frenar la carrera de
+`nextInvoiceNumber`, que lee el maximo y suma uno. El servicio reintenta sobre
+un `SAVEPOINT` al recibir un 23505. `nextQuoteNumber` no tiene ni el indice ni
+el reintento, y por eso todavia puede duplicar numero en silencio.
+
+Cuatro permisos nuevos: `invoices.view`, `invoices.create`, `invoices.cancel` e
+`invoices.archive`.
+
 ### Fase 9 - Fuera los contratos, el conduce cobra
 
 El flujo son tres documentos: **cotizacion -> orden -> conduce**. El contrato
-desaparecio; el conduce es el documento de dinero —lo que sera la facturacion—
-y ahi viven los pagos y las cuentas por cobrar.
+desaparecio; el conduce paso a ser el documento de dinero. La fase 9.3 movio ese
+papel a la factura: lo que sigue describe el paso intermedio.
 
-**Un pago cuelga de UN conduce.** Antes tenia doble ancla, contrato o
+**Un pago cuelga de UN documento.** Antes tenia doble ancla, contrato o
 cotizacion, que es lo que hacia que el saldo se mirase en un sitio y se cobrase
-en otro. `payments` pierde `contract_id` y `quotation_id`, y gana
-`conduce_id NOT NULL`.
+en otro. `payments` perdio `contract_id` y `quotation_id`; el ancla es hoy
+`invoice_id NOT NULL` (ver fase 9.3).
 
 La migracion **011** borra `contracts` y **descarta los pagos existentes**: un
 pago colgaba de un contrato o de una cotizacion, y una cotizacion puede tener
