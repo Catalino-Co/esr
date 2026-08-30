@@ -10,7 +10,11 @@ import type {
 	TenantCollaboratorRepository,
 	TenantCommercialSectorRepository,
 	TenantEventTypeRepository,
-	TenantSupplierRepository
+	TenantSupplierRepository,
+	TenantUnitOfMeasureRepository,
+	TenantWarehouseRepository,
+	UnitOfMeasureDraft,
+	WarehouseDraft
 } from '@esr/core';
 import { requireCompanyId } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
@@ -242,5 +246,55 @@ export class PostgresClientAddressTypeRepository
 
 	protected values(data: Omit<ClientAddressTypeDraft, 'id' | 'company_id'>): unknown[] {
 		return [data.name.trim(), data.description ?? null, data.is_active ?? 1];
+	}
+}
+
+/**
+ * Almacen. Donde esta fisicamente la mercancia.
+ *
+ * `usageQuery` mira `item_stock` y no `items`: lo que impide archivar un
+ * almacen es que TENGA existencias, no que existan articulos. Un almacen vacio
+ * se puede archivar aunque el catalogo este lleno.
+ */
+export class PostgresWarehouseRepository
+	extends PostgresCatalogRepository<WarehouseDraft>
+	implements TenantWarehouseRepository
+{
+	protected readonly table = 'warehouses';
+	protected readonly columns = 'id, company_id, name, code, address, notes, is_active';
+	protected readonly fields = ['name', 'code', 'address', 'notes', 'is_active'];
+
+	protected readonly usageQuery = `
+		SELECT COUNT(*)::text AS total
+		FROM item_stock
+		WHERE company_id = $1 AND warehouse_id = $2 AND quantity <> 0`;
+
+	protected values(data: Omit<WarehouseDraft, 'id' | 'company_id'>): unknown[] {
+		return [
+			data.name.trim(),
+			data.code ?? null,
+			data.address ?? null,
+			data.notes ?? null,
+			data.is_active ?? 1
+		];
+	}
+}
+
+/** Unidad de medida. `abbr` es lo que acompaña a la cantidad: «120 ud». */
+export class PostgresUnitOfMeasureRepository
+	extends PostgresCatalogRepository<UnitOfMeasureDraft>
+	implements TenantUnitOfMeasureRepository
+{
+	protected readonly table = 'units_of_measure';
+	protected readonly columns = 'id, company_id, name, abbr, is_active';
+	protected readonly fields = ['name', 'abbr', 'is_active'];
+
+	protected readonly usageQuery = `
+		SELECT COUNT(*)::text AS total
+		FROM items
+		WHERE company_id = $1 AND uom_id = $2`;
+
+	protected values(data: Omit<UnitOfMeasureDraft, 'id' | 'company_id'>): unknown[] {
+		return [data.name.trim(), data.abbr ?? null, data.is_active ?? 1];
 	}
 }

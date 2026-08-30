@@ -68,6 +68,20 @@
       color: '#f59e0b'
     },
     {
+      title: 'Almacenes',
+      description: 'Dónde está físicamente la mercancía. El inventario se ve por almacén.',
+      icon: '🏬',
+      path: '/settings/warehouses',
+      color: '#0891b2'
+    },
+    {
+      title: 'Unidades de Medida',
+      description: 'Cómo se cuenta cada artículo: unidad, juego, metro, caja…',
+      icon: '📏',
+      path: '/settings/units',
+      color: '#7c3aed'
+    },
+    {
       title: 'Categorías de Inventario',
       description: 'Gestión de categorías y subcategorías para organizar los artículos y equipos.',
       icon: '📁',

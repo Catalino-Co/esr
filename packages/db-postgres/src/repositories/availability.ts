@@ -23,7 +23,7 @@ import { ACTIVE_INVENTORY_ORDER_STATUSES } from '@esr/core';
 export const AVAILABILITY_ORDER_STATUSES = [...ACTIVE_INVENTORY_ORDER_STATUSES];
 
 /**
- * Existencias reales del articulo.
+ * Existencias reales del articulo, sumando TODOS sus almacenes.
  *
  * En un articulo SERIALIZADO las existencias son sus unidades, no un numero
  * tecleado: `total_quantity` mentia en cuanto se registraba o se retiraba un
@@ -31,6 +31,15 @@ export const AVAILABILITY_ORDER_STATUSES = [...ACTIVE_INVENTORY_ORDER_STATUSES];
  * mantenimiento (existen pero no se pueden alquilar). Los `entregado` SI
  * cuentan aqui: los descuenta el compromiso, y restarlos dos veces seria el
  * mismo error que se esta corrigiendo.
+ *
+ * En uno DE CANTIDAD la existencia dejo de ser `items.total_quantity` y pasa a
+ * ser la suma de `item_stock`, que es una fila por almacen. `total_quantity`
+ * sigue en la tabla y ya no se lee: se conserva para poder volver atras.
+ *
+ * ESTE ES EL UNICO PUNTO donde el reparto por almacenes toca el motor. El
+ * almacen INFORMA y NO RESERVA: `committedQuantitySql` —lo que las ordenes
+ * vivas retienen— no sabe de almacenes y no tiene por que. Cotizar, aprobar,
+ * convertir y entregar siguen comprometiendo contra el total de la empresa.
  */
 export const TOTAL_QUANTITY_SQL = `
 	CASE WHEN i.item_type = 'serializado'
@@ -39,7 +48,10 @@ export const TOTAL_QUANTITY_SQL = `
 			WHERE s.item_id = i.id AND s.company_id = i.company_id
 			  AND s.status NOT IN ('retirado', 'mantenimiento')
 		)
-		ELSE COALESCE(i.total_quantity, 0)
+		ELSE (
+			SELECT COALESCE(SUM(st.quantity), 0)::int FROM item_stock st
+			WHERE st.item_id = i.id AND st.company_id = i.company_id
+		)
 	END`;
 
 /**

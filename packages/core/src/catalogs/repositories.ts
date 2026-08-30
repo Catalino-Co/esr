@@ -74,6 +74,34 @@ export type ClientAddressTypeDraft = {
 	is_active?: number;
 };
 
+/**
+ * Almacen. Donde esta fisicamente la mercancia.
+ *
+ * El almacen INFORMA y NO RESERVA: el inventario se ve por almacen, pero
+ * cotizar, aprobar y convertir en orden siguen comprometiendo contra el total
+ * de la empresa. Repartir tambien las reservas es otro trabajo.
+ */
+export type WarehouseDraft = {
+	id?: ESRId | null;
+	company_id?: string;
+	name: string;
+	code?: string | null;
+	address?: string | null;
+	notes?: string | null;
+	is_active?: number;
+};
+
+/**
+ * Unidad de medida. `abbr` es lo que se pinta junto a la cantidad: «120 ud».
+ */
+export type UnitOfMeasureDraft = {
+	id?: ESRId | null;
+	company_id?: string;
+	name: string;
+	abbr?: string | null;
+	is_active?: number;
+};
+
 /** Contrato comun de un catalogo simple con alcance de empresa. */
 export interface TenantCatalogRepository<TDraft> {
 	list(ctx: RepositoryContext, options?: CatalogListOptions): Promise<TDraft[]>;
@@ -98,3 +126,5 @@ export type TenantSupplierRepository = TenantCatalogRepository<SupplierDraft>;
 export type TenantCollaboratorRepository = TenantCatalogRepository<CollaboratorDraft>;
 export type TenantCommercialSectorRepository = TenantCatalogRepository<CommercialSectorDraft>;
 export type TenantClientAddressTypeRepository = TenantCatalogRepository<ClientAddressTypeDraft>;
+export type TenantWarehouseRepository = TenantCatalogRepository<WarehouseDraft>;
+export type TenantUnitOfMeasureRepository = TenantCatalogRepository<UnitOfMeasureDraft>;

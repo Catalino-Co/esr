@@ -67,13 +67,15 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		const result = await this.pool.query<InventoryItem>(
 			`UPDATE items SET internal_code = $3, name = $4, category_id = $5, subcategory_id = $6,
 				description = $7, item_type = $8, uses_serial = $9, total_quantity = $10,
-				rental_price = $11, status = $12, notes = $13, is_active = $14
+				rental_price = $11, status = $12, notes = $13, is_active = $14,
+				supplier_id = $15, uom_id = $16, min_stock = $17
 			 WHERE company_id = $1 AND id = $2 RETURNING *`,
 			[
 				requireCompanyId(ctx), id, next.internal_code || null, next.name, next.category_id || null,
 				next.subcategory_id || null, next.description || null, next.item_type || 'cantidad',
 				next.uses_serial ? 1 : 0, next.total_quantity ?? 0,
-				next.rental_price ?? 0, next.status || 'disponible', next.notes || null, next.is_active ?? 1
+				next.rental_price ?? 0, next.status || 'disponible', next.notes || null, next.is_active ?? 1,
+				next.supplier_id || null, next.uom_id || null, next.min_stock ?? 0
 			]
 		);
 		return result.rows[0];
@@ -146,5 +148,48 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		return { ok: available >= quantity, available };
 	}
 
+
+	/**
+	 * Fija las existencias de un articulo en UN almacen.
+	 *
+	 * Desde la migracion 019 el total de un articulo de cantidad es la SUMA de
+	 * `item_stock`, asi que `items.total_quantity` dejo de moverlo. Este es el
+	 * unico camino que lo cambia.
+	 *
+	 * No aplica a los serializados: alli la existencia son los seriales, y una
+	 * fila aqui seria un segundo numero contradiciendo al primero.
+	 */
+	async setStock(
+		ctx: RepositoryContext,
+		itemId: ESRId,
+		warehouseId: ESRId,
+		quantity: number
+	): Promise<void> {
+		await this.pool.query(
+			`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (company_id, item_id, warehouse_id)
+			 DO UPDATE SET quantity = EXCLUDED.quantity`,
+			[requireCompanyId(ctx), itemId, warehouseId, Math.max(0, Math.trunc(Number(quantity) || 0))]
+		);
+	}
+
+	/**
+	 * El almacen por defecto de la empresa: el «Principal» que creo la migracion,
+	 * o el primero activo si alguien lo renombro.
+	 *
+	 * Existe para que las pantallas que todavia no eligen almacen —la ficha del
+	 * articulo, hasta la fase 2— tengan donde escribir.
+	 */
+	async defaultWarehouseId(ctx: RepositoryContext): Promise<ESRId | null> {
+		const result = await this.pool.query<{ id: ESRId }>(
+			`SELECT id FROM warehouses
+			 WHERE company_id = $1 AND is_active = 1
+			 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id
+			 LIMIT 1`,
+			[requireCompanyId(ctx)]
+		);
+		return result.rows[0]?.id ?? null;
+	}
 }
 

@@ -5,6 +5,8 @@ import {
 	PostgresClientAddressTypeRepository,
 	PostgresCollaboratorRepository,
 	PostgresCommercialSectorRepository,
+	PostgresUnitOfMeasureRepository,
+	PostgresWarehouseRepository,
 	PostgresChecklistRepository,
 	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
@@ -56,6 +58,8 @@ let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
 let commercialSectorRepository: PostgresCommercialSectorRepository | null = null;
 let clientAddressTypeRepository: PostgresClientAddressTypeRepository | null = null;
+let warehouseRepository: PostgresWarehouseRepository | null = null;
+let unitOfMeasureRepository: PostgresUnitOfMeasureRepository | null = null;
 let clientAddressRepository: PostgresClientAddressRepository | null = null;
 let invoiceRepository: PostgresInvoiceRepository | null = null;
 let invoiceService: InvoiceService | null = null;
@@ -176,6 +180,16 @@ export function getCollaboratorRepository(): PostgresCollaboratorRepository {
 export function getCommercialSectorRepository(): PostgresCommercialSectorRepository {
 	if (!commercialSectorRepository) commercialSectorRepository = new PostgresCommercialSectorRepository();
 	return commercialSectorRepository;
+}
+
+export function getWarehouseRepository(): PostgresWarehouseRepository {
+	if (!warehouseRepository) warehouseRepository = new PostgresWarehouseRepository();
+	return warehouseRepository;
+}
+
+export function getUnitOfMeasureRepository(): PostgresUnitOfMeasureRepository {
+	if (!unitOfMeasureRepository) unitOfMeasureRepository = new PostgresUnitOfMeasureRepository();
+	return unitOfMeasureRepository;
 }
 
 export function getClientAddressTypeRepository(): PostgresClientAddressTypeRepository {

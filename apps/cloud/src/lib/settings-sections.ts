@@ -45,6 +45,28 @@ export const settingsSections: SettingsSection[] = [
 		permission: 'settings.company.update'
 	},
 	{
+		href: '/settings/articles',
+		title: 'Artículos',
+		icon: ICONS.inventory,
+		description:
+			'El catálogo: qué artículos existen, su unidad, su proveedor y su estado. Las existencias se ven en Inventario.',
+		permission: 'inventory.view'
+	},
+	{
+		href: '/settings/warehouses',
+		title: 'Almacenes',
+		icon: ICONS.inventory,
+		description: 'Dónde está físicamente la mercancía. El inventario se ve por almacén.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/units',
+		title: 'Unidades de medida',
+		icon: ICONS.subcategories,
+		description: 'Cómo se cuenta cada artículo: unidad, juego, metro, caja…',
+		permission: 'settings.catalogs.manage'
+	},
+	{
 		href: '/settings/categories',
 		title: 'Categorías',
 		icon: ICONS.categories,

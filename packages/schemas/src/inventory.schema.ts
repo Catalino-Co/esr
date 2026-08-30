@@ -27,6 +27,15 @@ export type InventoryItem = {
 	available_quantity?: number;
 	committed_quantity?: number;
 	rental_price?: number;
+	/** Quien lo suministra. Apunta a `suppliers`, que ya tenia su CRUD. */
+	supplier_id?: Nullable<ESRId>;
+	/** Como se cuenta. Apunta a `units_of_measure`; su `abbr` acompaña a la cantidad. */
+	uom_id?: Nullable<ESRId>;
+	/**
+	 * Minimo por ARTICULO, comparado contra el TOTAL de la empresa: responde
+	 * «hay que comprar mas», que es una decision de compra y no de almacen.
+	 */
+	min_stock?: number;
 	status?: string;
 	notes?: string;
 	is_active?: number;

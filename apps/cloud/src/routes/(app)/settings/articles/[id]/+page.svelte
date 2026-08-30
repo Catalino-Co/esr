@@ -107,6 +107,43 @@
 			<input id="rental_price" name="rental_price" type="number" min="0" step="0.01" value={item.rental_price ?? 0} />
 		</div>
 		<div class="form-field">
+			<label for="supplier_id">Proveedor</label>
+			<select id="supplier_id" name="supplier_id">
+				<option value="">(Ninguno)</option>
+				{#each data.suppliers as proveedor (proveedor.id)}
+					<option value={proveedor.id} selected={String(item.supplier_id) === String(proveedor.id)}>
+						{proveedor.name}
+					</option>
+				{/each}
+			</select>
+		</div>
+		<div class="form-field">
+			<label for="uom_id">Unidad de medida</label>
+			<select id="uom_id" name="uom_id">
+				<option value="">(Ninguna)</option>
+				{#each data.units as unidad (unidad.id)}
+					<option value={unidad.id} selected={String(item.uom_id) === String(unidad.id)}>
+						{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}
+					</option>
+				{/each}
+			</select>
+		</div>
+		<div class="form-field">
+			<label for="min_stock">Mínimo</label>
+			<input
+				id="min_stock"
+				name="min_stock"
+				type="number"
+				min="0"
+				step="1"
+				value={item.min_stock ?? 0}
+			/>
+			<span class="form-hint">
+				Por debajo de este total, el artículo sale en «Solo stock bajo». Se compara con el
+				total de la empresa, no con lo disponible hoy.
+			</span>
+		</div>
+		<div class="form-field">
 			<label for="status">Estado</label>
 			<select id="status" name="status">
 				<option value="disponible" selected={item.status === 'disponible'}>Disponible</option>

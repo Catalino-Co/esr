@@ -7,6 +7,7 @@ const clientDirectory = require('./versioned/0005_client_directory.cjs');
 const quoteTax = require('./versioned/0006_quote_tax.cjs');
 const quoteLineTaxes = require('./versioned/0007_quote_line_taxes.cjs');
 const companyDefaultTaxRate = require('./versioned/0008_company_default_tax_rate.cjs');
+const warehousesAndStock = require('./versioned/0009_warehouses_and_stock.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -16,7 +17,8 @@ const MIGRATIONS = [
   clientDirectory,
   quoteTax,
   quoteLineTaxes,
-  companyDefaultTaxRate
+  companyDefaultTaxRate,
+  warehousesAndStock
 ];
 
 async function initDatabase() {

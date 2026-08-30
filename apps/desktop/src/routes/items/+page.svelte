@@ -14,6 +14,15 @@
   let items = [];
   let categories = [];
   let subcategories = [];
+  let suppliers = [];
+  let units = [];
+  /**
+   * El almacen donde escribe esta pantalla mientras no elija almacen.
+   *
+   * Desde la migracion 0009 las existencias se reparten en `item_stock`, y la
+   * pantalla de Inventario por almacen es el paso siguiente.
+   */
+  let almacenPorDefecto = null;
   let filterCategory = '';
   
   let showModal = false;
@@ -38,6 +47,16 @@
   async function loadData() {
     if (window.api && window.api.db) {
       categories = await window.api.db.get("SELECT * FROM categories ORDER BY name ASC");
+      suppliers = await window.api.db.get(
+        'SELECT id, name FROM suppliers WHERE is_active = 1 ORDER BY name ASC'
+      );
+      units = await window.api.db.get(
+        'SELECT id, name, abbr FROM units_of_measure WHERE is_active = 1 ORDER BY name ASC'
+      );
+      const almacenes = await window.api.db.get(
+        "SELECT id FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id LIMIT 1"
+      );
+      almacenPorDefecto = almacenes?.[0]?.id ?? null;
       loadItems();
     }
   }
@@ -78,7 +97,8 @@
     currentItem = {
       id: null, internal_code: '', name: '', category_id: '', subcategory_id: '',
       description: '', item_type: 'cantidad', uses_serial: 0, total_quantity: 1, 
-      rental_price: 0, status: 'disponible', notes: ''
+      rental_price: 0, status: 'disponible', notes: '',
+      supplier_id: '', uom_id: '', min_stock: 0
     };
     serialLines = '';
     subcategories = [];
@@ -126,21 +146,40 @@
       await window.api.db.run(`
         UPDATE items SET 
           internal_code=?, name=?, category_id=?, subcategory_id=?, description=?, 
-          item_type=?, uses_serial=?, total_quantity=?, available_quantity=?, rental_price=?, notes=?
-        WHERE id=?`, 
+          item_type=?, uses_serial=?, total_quantity=?, available_quantity=?, rental_price=?, notes=?,
+          supplier_id=?, uom_id=?, min_stock=?
+        WHERE id=?`,
         [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
          currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes, currentItem.id]
+         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
+         currentItem.supplier_id || null, currentItem.uom_id || null,
+         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0)), currentItem.id]
       );
     } else {
       const res = await window.api.db.run(`
-        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, notes, supplier_id, uom_id, min_stock)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
          currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes]
+         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
+         currentItem.supplier_id || null, currentItem.uom_id || null,
+         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0))]
       );
       itemId = res.id;
+    }
+
+    // Las existencias se reparten en `item_stock` desde la migración 0009. En
+    // ESR Pro `items.total_quantity` SIGUE siendo el total —esta app guarda los
+    // números en vez de calcularlos—, así que se mantienen los dos a la vez: el
+    // total y dónde está. Un serializado no lleva fila: su existencia son sus
+    // seriales, y una cantidad aquí sería un segundo número contradiciendo al
+    // primero.
+    if (!usesSerial && almacenPorDefecto) {
+      await window.api.db.run(
+        `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)
+         ON CONFLICT (item_id, warehouse_id) DO UPDATE SET quantity = excluded.quantity`,
+        [itemId, almacenPorDefecto, Math.max(0, Math.trunc(Number(currentItem.total_quantity) || 0))]
+      );
     }
 
     if (usesSerial) {
@@ -296,7 +335,35 @@
         <input id="itm-price" type="number" step="0.01" bind:value={currentItem.rental_price} class="form-control">
       </div>
     </div>
-    
+
+    <div style="display: flex; gap: 15px;">
+      <div style="flex: 1;">
+        <label for="itm-supplier">Proveedor</label>
+        <select id="itm-supplier" bind:value={currentItem.supplier_id} class="form-control">
+          <option value="">(Ninguno)</option>
+          {#each suppliers as proveedor (proveedor.id)}
+            <option value={proveedor.id}>{proveedor.name}</option>
+          {/each}
+        </select>
+      </div>
+      <div style="flex: 1;">
+        <label for="itm-uom">Unidad de Medida</label>
+        <select id="itm-uom" bind:value={currentItem.uom_id} class="form-control">
+          <option value="">(Ninguna)</option>
+          {#each units as unidad (unidad.id)}
+            <option value={unidad.id}>{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}</option>
+          {/each}
+        </select>
+      </div>
+      <div style="flex: 1;">
+        <label for="itm-min">Mínimo</label>
+        <input id="itm-min" type="number" min="0" step="1" bind:value={currentItem.min_stock} class="form-control">
+        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+          Por debajo de este total sale en «Solo stock bajo».
+        </span>
+      </div>
+    </div>
+
     <div>
       <span style="display:block; font-size:0.85rem; font-weight:500; color:var(--text-muted); margin-bottom:5px;">¿Controla Seriales Individuales?</span>
       <div style="display: flex; gap: 10px; margin-top: 5px;">
