@@ -4,7 +4,6 @@
   /* Densidad: propia de ESR Pro, no existe en el sistema compartido.
      Estos nombres pisan a los de theme.css por ir sin @layer. */
   --ui-font-scale: 1;
-  --header-height: 70px;
   --content-padding: 30px;
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 64px;
@@ -39,7 +38,6 @@ html {
 }
 
 html[data-ui-size='compact'] {
-  --header-height: 62px;
   --content-padding: 22px;
   --sidebar-width: 236px;
   --sidebar-collapsed-width: 56px;
@@ -51,7 +49,6 @@ html[data-ui-size='compact'] {
 }
 
 html[data-ui-size='comfortable'] {
-  --header-height: 74px;
   --content-padding: 32px;
   --sidebar-width: 276px;
   --sidebar-collapsed-width: 68px;
@@ -62,10 +59,24 @@ html[data-ui-size='comfortable'] {
   --nav-collapsed-icon-size: 1.15rem;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* El reset universal va DENTRO de `esr.base`, la primera capa que declara
+   theme.css, y no suelto.
+ 
+   Suelto ganaba a TODA la hoja compartida —lo no-capado gana a lo capado sin
+   importar la especificidad— y se comia el espaciado de cada componente:
+   `.card` sin padding, las celdas de `.table` pegadas, los `.badge` sin caja,
+   el `.topbar` sin margen. Esa era la razon de fondo de que Desktop no se
+   pareciera a Cloud, y no el marcado de cada pantalla.
+ 
+   Dentro de `esr.base` sigue haciendo su trabajo —anular los margenes por
+   defecto del navegador, que es a lo unico que deberia aspirar un reset— pero
+   pierde contra `esr.components`, que es donde vive el sistema de diseño. */
+@layer esr.base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 body {
@@ -142,22 +153,9 @@ a.btn-ghost {
   min-width: 0;
 }
 
-.header {
-  height: var(--header-height);
-  background-color: var(--panel-bg);
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 30px;
-  box-shadow: var(--shadow-sm);
-  z-index: 10;
-}
-
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
+/* La cabecera se fue a `<Topbar>`, y sus clases a @esr/config/theme.css.
+   `--header-height` se retira con ella: era su unico consumidor, y el padding
+   del topbar compartido no depende de una altura fija. */
 
 .content-area {
   flex: 1;
@@ -165,6 +163,18 @@ a.btn-ghost {
   overflow-y: auto;
   scrollbar-color: rgba(24,28,50,0.2) transparent;
   scrollbar-width: thin;
+}
+
+/* `a { color: inherit }` de arriba tambien pisa el color de las acciones de
+   fila, igual que el de los `a.btn-*`. Ese reset SI sigue sin capa —lo usa
+   toda la app para que los enlaces no salgan azules— asi que hay que
+   devolverles su color a mano. */
+a.btn-edit {
+  color: var(--warning-text);
+}
+
+a.btn-view {
+  color: var(--text-secondary);
 }
 
 /* Deltas sobre @esr/config/theme.css. El resto del vocabulario

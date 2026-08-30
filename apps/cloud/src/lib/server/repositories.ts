@@ -1,7 +1,10 @@
 import {
 	PostgresAuditLogRepository,
 	PostgresCategoryRepository,
+	PostgresClientAddressRepository,
+	PostgresClientAddressTypeRepository,
 	PostgresCollaboratorRepository,
+	PostgresCommercialSectorRepository,
 	PostgresChecklistRepository,
 	PostgresCompanySettingsRepository,
 	PostgresConduceRepository,
@@ -51,6 +54,9 @@ let memberRepository: PostgresMemberRepository | null = null;
 let eventTypeRepository: PostgresEventTypeRepository | null = null;
 let supplierRepository: PostgresSupplierRepository | null = null;
 let collaboratorRepository: PostgresCollaboratorRepository | null = null;
+let commercialSectorRepository: PostgresCommercialSectorRepository | null = null;
+let clientAddressTypeRepository: PostgresClientAddressTypeRepository | null = null;
+let clientAddressRepository: PostgresClientAddressRepository | null = null;
 let invoiceRepository: PostgresInvoiceRepository | null = null;
 let invoiceService: InvoiceService | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
@@ -165,6 +171,21 @@ export function getSupplierRepository(): PostgresSupplierRepository {
 export function getCollaboratorRepository(): PostgresCollaboratorRepository {
 	if (!collaboratorRepository) collaboratorRepository = new PostgresCollaboratorRepository();
 	return collaboratorRepository;
+}
+
+export function getCommercialSectorRepository(): PostgresCommercialSectorRepository {
+	if (!commercialSectorRepository) commercialSectorRepository = new PostgresCommercialSectorRepository();
+	return commercialSectorRepository;
+}
+
+export function getClientAddressTypeRepository(): PostgresClientAddressTypeRepository {
+	if (!clientAddressTypeRepository) clientAddressTypeRepository = new PostgresClientAddressTypeRepository();
+	return clientAddressTypeRepository;
+}
+
+export function getClientAddressRepository(): PostgresClientAddressRepository {
+	if (!clientAddressRepository) clientAddressRepository = new PostgresClientAddressRepository();
+	return clientAddressRepository;
 }
 
 export function getInvoiceRepository(): PostgresInvoiceRepository {

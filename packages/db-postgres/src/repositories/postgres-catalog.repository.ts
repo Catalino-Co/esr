@@ -1,10 +1,14 @@
 import type {
 	CatalogListOptions,
+	ClientAddressTypeDraft,
 	CollaboratorDraft,
+	CommercialSectorDraft,
 	EventTypeDraft,
 	RepositoryContext,
 	SupplierDraft,
+	TenantClientAddressTypeRepository,
 	TenantCollaboratorRepository,
+	TenantCommercialSectorRepository,
 	TenantEventTypeRepository,
 	TenantSupplierRepository
 } from '@esr/core';
@@ -193,5 +197,50 @@ export class PostgresCollaboratorRepository
 			data.notes ?? null,
 			data.is_active ?? 1
 		];
+	}
+}
+
+/**
+ * Sector comercial del cliente.
+ *
+ * A diferencia de los tres de arriba, el conteo de uso es una cuenta REAL por
+ * clave foranea. `PostgresEventTypeRepository` tiene que comparar por nombre
+ * porque `events.event_type` guarda texto; aqui el cliente guarda el id, asi
+ * que renombrar el sector no falsea la cuenta.
+ */
+export class PostgresCommercialSectorRepository
+	extends PostgresCatalogRepository<CommercialSectorDraft>
+	implements TenantCommercialSectorRepository
+{
+	protected readonly table = 'commercial_sectors';
+	protected readonly columns = 'id, company_id, name, description, is_active';
+	protected readonly fields = ['name', 'description', 'is_active'];
+
+	protected readonly usageQuery = `
+		SELECT COUNT(*)::text AS total
+		FROM clients
+		WHERE company_id = $1 AND sector_id = $2`;
+
+	protected values(data: Omit<CommercialSectorDraft, 'id' | 'company_id'>): unknown[] {
+		return [data.name.trim(), data.description ?? null, data.is_active ?? 1];
+	}
+}
+
+/** Tipo de una direccion de servicio: Sucursal, Almacen, Obra... */
+export class PostgresClientAddressTypeRepository
+	extends PostgresCatalogRepository<ClientAddressTypeDraft>
+	implements TenantClientAddressTypeRepository
+{
+	protected readonly table = 'client_address_types';
+	protected readonly columns = 'id, company_id, name, description, is_active';
+	protected readonly fields = ['name', 'description', 'is_active'];
+
+	protected readonly usageQuery = `
+		SELECT COUNT(*)::text AS total
+		FROM client_addresses
+		WHERE company_id = $1 AND address_type_id = $2`;
+
+	protected values(data: Omit<ClientAddressTypeDraft, 'id' | 'company_id'>): unknown[] {
+		return [data.name.trim(), data.description ?? null, data.is_active ?? 1];
 	}
 }

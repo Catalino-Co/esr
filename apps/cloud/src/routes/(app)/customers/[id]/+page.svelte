@@ -1,72 +1,112 @@
 <script>
-	import RecordStateControl from '$lib/components/list/RecordStateControl.svelte';
-	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import CustomerAddressBook from '$lib/components/customers/CustomerAddressBook.svelte';
+	import CustomerFormFields from '$lib/components/customers/CustomerFormFields.svelte';
+	import { can } from '$lib/can';
 
 	let { data, form } = $props();
-	const customer = data.customer;
+
+	// `$derived` y no una desestructuracion: navegar de un cliente a otro
+	// reutiliza el componente, y un `const` se quedaria con el anterior.
+	const customer = $derived(data.customer);
+	const addresses = $derived(data.addresses ?? []);
+	const addressTypes = $derived(data.addressTypes ?? []);
+	const sectors = $derived(data.sectors ?? []);
+
+	// El mensaje del cliente y el de las direcciones comparten el objeto `form`:
+	// el `scope` decide sobre cual de las dos tarjetas se pinta.
+	const mensaje = $derived(form?.scope === 'customer' ? form : null);
+
+	/**
+	 * `reset: false` no es un detalle: `update()` resetea el `<form>`, y un reset
+	 * devuelve cada input a su `defaultValue` —el atributo HTML—, que Svelte
+	 * nunca escribe porque asigna `value` como PROPIEDAD. El formulario se
+	 * vaciaba al guardar. Y no se repone solo en el re-render: como los valores
+	 * del servidor son los mismos que antes de enviar, Svelte no ve cambio y no
+	 * toca el DOM.
+	 */
+	const alGuardar = () => async ({ update }) => update({ reset: false });
 </script>
 
-<section class="panel">
-	<div class="page-header">
-		<h1>{customer.name}</h1>
-		<a class="btn-secondary" href="/customers">Volver al listado</a>
-	</div>
+<div class="record-header">
+	<h1>{customer.name}</h1>
+	<span class="badge {recordStateBadgeClass(customer.is_active)}">
+		{recordStateLabel(customer.is_active)}
+	</span>
+</div>
 
-	<RecordStateControl
-		state={customer.is_active}
-		editable={can('customers.archive')}
-		noun="cliente"
-	/>
+<div class="client-layout">
+	<section class="panel">
+		{#if mensaje?.success}
+			<div class="alert-success" role="status">{mensaje.success}</div>
+		{/if}
+		{#if mensaje?.error}
+			<div class="alert-error" role="alert">{mensaje.error}</div>
+		{/if}
 
-	{#if form?.success}
-		<p class="badge badge-active">Cambios guardados.</p>
-	{/if}
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
+		<form method="POST" action="?/update" use:enhance={alGuardar}>
+			<CustomerFormFields
+				values={customer}
+				{sectors}
+				fieldErrors={mensaje?.fieldErrors ?? null}
+				showState={can('customers.archive')}
+			/>
 
-	<form method="POST" action="?/update" class="form-grid" use:enhance>
-		<div class="form-field">
-			<label for="name">Nombre *</label>
-			<input id="name" name="name" value={customer.name} required />
-		</div>
-		<div class="form-field">
-			<label for="email">Email</label>
-			<input id="email" name="email" type="email" value={customer.email ?? ''} />
-		</div>
-		<div class="form-field">
-			<label for="phone">Teléfono</label>
-			<input id="phone" name="phone" value={customer.phone ?? ''} />
-		</div>
-		<div class="form-field">
-			<label for="document_id">Documento</label>
-			<input id="document_id" name="document_id" value={customer.document_id ?? ''} />
-		</div>
-		<div class="form-field">
-			<label for="contact_person">Persona de contacto</label>
-			<input id="contact_person" name="contact_person" value={customer.contact_person ?? ''} />
-		</div>
-		<div class="form-field full">
-			<label for="address">Dirección</label>
-			<input id="address" name="address" value={customer.address ?? ''} />
-		</div>
-		<div class="form-field full">
-			<label for="notes">Notas</label>
-			<textarea id="notes" name="notes" rows="3">{customer.notes ?? ''}</textarea>
-		</div>
-		<div class="form-field">
-			<span class="badge {customer.is_active ? 'badge-active' : 'badge-inactive'}">
-				{customer.is_active ? 'Activo' : 'Inactivo'}
-			</span>
-		</div>
-		<div class="form-actions">
-			{#if can('customers.update')}
-				<button type="submit" class="btn-primary">Guardar cambios</button>
-			{:else}
-				<p class="panel-hint">Su rol no permite editar este registro.</p>
-			{/if}
-		</div>
-	</form>
+			<div class="form-actions">
+				<!-- «Volver al listado» va aqui, al pie y a la izquierda. El
+				     `margin-right: auto` es local: `.form-actions` es compartida
+				     y sigue alineando a la derecha en todas las demas pantallas. -->
+				<a class="btn-secondary back-link" href="/customers">Volver al listado</a>
+				{#if can('customers.update')}
+					<button type="submit" class="btn-primary">Guardar cambios</button>
+				{:else}
+					<p class="panel-hint">Su rol no permite editar este registro.</p>
+				{/if}
+			</div>
+		</form>
+	</section>
 
-</section>
+	<CustomerAddressBook {addresses} {addressTypes} {form} inherited={customer} />
+</div>
+
+<style>
+	/* Cabecera propia y no `.page-header`: esa clase lleva un
+	   `> :first-child:last-child { margin-left: auto }` para los listados, que
+	   solo tienen el boton de alta. Aqui el unico hijo es el titulo, y ese
+	   margen lo mandaba al borde derecho. */
+	.record-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-5);
+	}
+
+	.record-header h1 {
+		margin: 0;
+		font-size: 1.6rem;
+	}
+
+	.client-layout {
+		display: grid;
+		/* `minmax(0, 1fr)` y no `1fr`: el minimo de `1fr` es `auto`, y un input
+		   o una tabla dentro reventarian la columna. */
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--sp-4);
+		/* `start` y no `stretch`: con dos direcciones, estirar la tarjeta
+		   derecha a la altura del formulario deja un socavon vacio. */
+		align-items: start;
+	}
+
+	@media (max-width: 1100px) {
+		.client-layout {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.back-link {
+		margin-right: auto;
+	}
+</style>

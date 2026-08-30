@@ -5,7 +5,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
-  import { resolvePageTitle } from '$lib/navigation.js';
+  import Topbar from '$lib/components/layout/Topbar.svelte';
   import { theme } from '$lib/stores/theme.js';
 
   let user             = null;
@@ -75,7 +75,6 @@
     }
   }
 
-  $: pageTitle = resolvePageTitle($page.url.pathname);
 </script>
 
 {#if !isAuthChecked}
@@ -95,12 +94,7 @@
     />
 
     <main class="main-wrapper">
-      <header class="header">
-        <div class="header-title">{pageTitle}</div>
-        {#if user}
-          <span class="badge badge-primary">Admin Mode</span>
-        {/if}
-      </header>
+      <Topbar pathname={$page.url.pathname} />
       <div class="content-area">
         <slot />
       </div>

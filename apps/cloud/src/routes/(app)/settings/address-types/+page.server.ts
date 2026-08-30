@@ -10,22 +10,19 @@ import {
 	type CatalogAuditNames
 } from '$lib/server/catalogs';
 import { requirePermission } from '$lib/server/permissions';
-import { getEventTypeRepository } from '$lib/server/repositories';
+import { getClientAddressTypeRepository } from '$lib/server/repositories';
 import { toTenantContext } from '$lib/server/tenant';
 
 const NAMES: CatalogAuditNames = {
-	action: 'settings.event_type',
-	entity: 'event_type',
-	label: 'Tipo de evento'
+	action: 'settings.client_address_type',
+	entity: 'client_address_type',
+	label: 'Tipo de dirección'
 };
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
-	// Un estado a la vez, como el resto de listados. Antes se mostraban activos
-	// e inactivos juntos porque no habia forma de llegar a los inactivos; ahora
-	// el filtro es el camino, y ademas da acceso a los archivados.
 	const state = parseRecordState(url.searchParams.get('state'));
-	const entries = await getEventTypeRepository().list(toTenantContext(companyId), { state });
+	const entries = await getClientAddressTypeRepository().list(toTenantContext(companyId), { state });
 	return { entries, state };
 };
 
@@ -37,12 +34,11 @@ export const actions: Actions = {
 		return saveCatalogEntry({
 			event,
 			companyId,
-			repo: getEventTypeRepository(),
+			repo: getClientAddressTypeRepository(),
 			names: NAMES,
 			id: text(form, 'id') || undefined,
 			values: {
 				name: text(form, 'name'),
-				color: text(form, 'color') || '#6366f1',
 				description: optionalText(form, 'description'),
 				is_active: 1
 			}
@@ -57,25 +53,24 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'Falta el identificador.' });
 		if (isActive === null) return fail(400, { error: 'Estado no válido.' });
 
-		// Al sacarlo de circulación —desactivar o archivar— se avisa si hay
-		// eventos que lo usan. No se bloquea, porque el histórico debe conservar
-		// su tipo, pero conviene saberlo.
-		const retirando = isActive !== RECORD_STATE.ACTIVE;
-		const usages = retirando
-			? await getEventTypeRepository().countUsages(toTenantContext(companyId), id)
-			: 0;
+		// Al sacarlo de circulación se avisa si hay registros que lo usan. No se
+		// bloquea: la dirección conserva su tipo.
+		const usages =
+			isActive === RECORD_STATE.ACTIVE
+				? 0
+				: await getClientAddressTypeRepository().countUsages(toTenantContext(companyId), id);
 
 		const result = await toggleCatalogEntry({
 			event,
 			companyId,
-			repo: getEventTypeRepository(),
+			repo: getClientAddressTypeRepository(),
 			names: NAMES,
 			id,
 			isActive
 		});
 
 		if ('success' in result && usages > 0) {
-			return { success: `${result.success} Hay ${usages} evento(s) que lo usan; conservan su tipo.` };
+			return { success: `${result.success} Hay ${usages} dirección(es) de este tipo; lo conservan.` };
 		}
 		return result;
 	}

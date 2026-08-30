@@ -565,6 +565,268 @@ inventario, que es de donde es.
 `shouldReserveStock` y `planRentalOrderStatusForSave` NO se tocan: no los usa
 Cloud, pero si Desktop, que lleva su propia reserva sobre SQLite.
 
+### Clientes en Desktop, y por que las dos apps no se parecian
+
+El modulo de clientes ya estaba en las dos apps, pero al abrir ESR Pro la
+pantalla de Clientes se veia **exactamente igual que antes**. No era cache: el
+servidor servia el codigo nuevo y la migracion estaba aplicada. Era que al
+listado no se le habia cambiado ni un pixel — solo a donde llevaba el lapiz.
+
+Al ir a arreglarlo aparecio algo mas grande.
+
+#### El reset universal se estaba comiendo el sistema de diseño
+
+Las dos apps **ya compartian `theme.css`**: lo importan las dos antes de su
+propio `app.css`, y la hoja ya agrupaba `.card, .panel`, `.table, .data-table`,
+botones, badges y alertas. Sobre el papel, ESR Pro tenia el mismo sistema visual
+que Cloud desde hace meses.
+
+En la practica no lo tenia, y la causa eran tres declaraciones:
+
+```css
+/* apps/desktop/src/app.css — SIN capa */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+```
+
+`theme.css` va **dentro** de `@layer` y lo no-capado gana siempre, sin importar
+la especificidad. Asi que ese `*` ganaba a la hoja entera: `.card` sin padding
+—el titulo pegado al borde—, las celdas de `.table` sin aire, los `.badge` sin
+caja, el `.topbar` sin margen. Medido: `.card, .panel { padding: var(--sp-5) }`
+llevaba en la hoja compartida desde la unificacion y **nunca habia aplicado en
+Desktop**.
+
+La primera reaccion fue re-declarar clase por clase en el `app.css` de Desktop.
+Al llegar a la sexta linea quedo claro que eso es copiar `theme.css` entero. La
+solucion es de una linea y ataca la causa:
+
+```css
+@layer esr.base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+}
+```
+
+Dentro de `esr.base` el reset sigue anulando los valores por defecto del
+navegador —a lo unico que deberia aspirar un reset— pero pierde contra
+`esr.components`, que es donde vive el sistema de diseño.
+
+#### Lo que se promovio a la hoja compartida
+
+El vocabulario que daba el aspecto de Cloud vivia solo en `apps/cloud/src/app.css`,
+asi que Desktop no podia usarlo. Se mudo a `theme.css`: `.page-header`,
+`.form-grid` con sus inputs, `.form-field`, `.form-section` y su `legend`,
+`.form-actions`, `.form-error`, `.empty-state`, `.panel-hint`, `.sunken-card`,
+`.btn-edit`, `.btn-view`, `.btn-new`, la barra de filtros (`.filters*`,
+`.status-select`) y la cabecera (`.topbar*`, `.company-pill`).
+
+**Mover una regla a la capa la vuelve perdedora frente a los resets de
+elemento.** Eso costo dos rondas de regresiones reales, las dos invisibles en
+una captura:
+
+- `button { font: inherit }` dejaba el peso de `<button class="btn-edit">` en 400
+  en vez de 600.
+- `h1 { font-size: 2rem }` subia `.topbar-titles h1` de 20 a 32 px en TODAS las
+  pantallas.
+
+Por eso `cloud/app.css` termina con un bloque de rescates explicito: devuelve a
+mano lo que cada reset quita. No es duplicacion, es el precio de tener tres
+resets de elemento sin capa; el dia que se estrechen, el bloque entero se borra.
+
+Lo que **no** se promovio, y por que: `.page-header > :first-child:last-child`
+—es una compensacion del layout de Cloud, donde el titulo vive en el topbar, no
+vocabulario—, `.filter-bar` —la barra vieja, que solo usan los reportes—,
+`.eyebrow`, `.grid`, `.page-actions` y los deltas de `.metric` y de las alertas.
+
+#### La fuente que no se heredaba
+
+Un `<button>` y un `<input>` **no heredan** la fuente del documento: se quedan en
+la del sistema. Cloud lo tapaba con `button, input, select, textarea { font:
+inherit }`; Desktop no tenia ese reset, asi que sus botones salian en Arial y sus
+`<textarea>` en **monoespaciada** mientras el resto de la pantalla iba en Inter.
+Se arregla en la hoja compartida con un `font-family: inherit` en `.btn*`,
+`.form-control` y `.form-grid input/select/textarea` — que en Cloud es un no-op,
+porque su reset gana igual.
+
+#### Las dos pantallas
+
+El listado pasa a `<FilterBar>` con buscador y select de estado, columna de
+Estado con badge, y **un boton «Editar» con etiqueta** en vez de los cuatro
+emojis mudos, que es lo que manda el `DESIGN_SYSTEM.md`. Los cambios de estado
+viven en la ficha, donde esta el select, igual que en Cloud. Fuera todos los
+`style=` en linea: el estilo en linea gana a todo, capado o no, asi que mientras
+estuviera ahi ninguna clase compartida podia pisarlo.
+
+La ficha cambia de vocabulario —`.row`/`.field` → `.form-grid`/`.form-field`,
+`.entry` → `.sunken-card`, `.ok` → `.alert-success`— y **borra** sus
+redefiniciones locales de `label`, `.form-control` y `.btn-icon`, porque
+mientras estuvieran lo compartido quedaba inerte. De paso muere el uso de
+`--bg-body`, un token que no existe en ningun sitio: el directorio se pintaba
+con un gris improvisado en vez de `--surface-sunken`.
+
+Y la cabecera de Desktop pasa a ser un `<Topbar>` con titulo, subtitulo y la
+pildora de la empresa, igual que la de Cloud. `resolvePageTitle` —que devolvia
+un string— pasa a `resolvePageMeta`, con un solo consumidor.
+
+#### Como se comprobo que Cloud no cambio
+
+Comparar capturas a ojo no vale: de las cuatro regresiones posibles, dos
+—`font-weight` 600→400 en un boton de 13 px y un `margin-left: auto`— pasan
+cualquier revision rapida.
+
+Se volco `getComputedStyle` de 34 propiedades sobre los selectores promovidos
+**mas testigos que no debian moverse** (`.filter-bar input`, `.metric > span`,
+`.eyebrow`, `.alert-error`, `.data-table td`), en 16 rutas y en los dos temas,
+con el CSS nuevo y con `git stash` puesto. **886 mediciones, cero diferencias.**
+
+Dos trampas del metodo, por si alguien lo repite:
+
+- **`width` no es estable entre corridas.** Depende de cuando cargue la fuente,
+  y genera diferencias fantasma. Dos «regresiones» de `.btn-new` resultaron ser
+  eso, comprobado midiendo el elemento a mano dos veces.
+- **La linea base tiene que tomarse con el panel en el mismo estado.** Una
+  captura hecha antes de cambiar el tamaño de la ventana da 1110 diferencias que
+  no existen.
+
+#### Lo unico que SI cambio en Cloud, a proposito
+
+El `<legend>` de los grupos del formulario de cliente iba en `text-transform:
+uppercase` con `letter-spacing`, que incumple la **regla 5** del sistema
+(sentence case, sin ALL CAPS). Al promoverlo a la hoja compartida se corrigio en
+los dos sitios.
+
+### Modulo de clientes - direcciones de servicio
+
+El cliente solo admitia UNA direccion, y el negocio necesita varias: donde esta
+el cliente no es donde se presta el servicio. Es el concepto «ship to» aplicado
+al lugar de la entrega o el montaje.
+
+**Los dos conceptos de direccion conviven a proposito.** `clients.address` sigue
+siendo la FISCAL, la que sale en la factura —`postgres-invoice.repository.ts` la
+lee como `client_address`— y solo cambia de etiqueta. Las nuevas viven en
+`client_addresses` y son de servicio. Antes de decidirlo se comprobo quien lee
+esos campos: fuera de sus propias pantallas, **nadie** consume `address`,
+`contact_person` ni `notes` de un cliente. Reetiquetar era, por tanto, un cambio
+puramente de UI.
+
+#### `NULL` significa «hereda», y por eso nunca se escribe cadena vacia
+
+En `contact_person`, `phone` y `email` de la direccion, `NULL` no es «vacio»: es
+«toma el del cliente», y se resuelve al LEER con `COALESCE`. La alternativa
+—copiar el valor al guardar— parece lo mismo y no lo es: deja la direccion
+congelada cuando el cliente cambia de telefono. Eso es «rellenar», no «heredar».
+
+La consecuencia practica hay que respetarla en las dos apps: si alguien escribe
+`''` en esas tres columnas, esa direccion deja de heredar sin que nadie lo haya
+pedido y ya no hay forma de distinguir «heredo» de «no tiene». El celular no
+hereda, porque el cliente no tiene celular.
+
+En la UI la casilla viaja como un input con nombre propio (`inherit_phone`), no
+como un `disabled` en el campo. Deshabilitar funcionaria por accidente —un input
+deshabilitado no se envia y el servidor recibe ausencia— y se rompe en silencio
+el dia que alguien lo cambie a `readonly` para poder copiar el texto.
+
+#### El indice unico de `is_primary` es una trampa: NO existe
+
+El reflejo es `CREATE UNIQUE INDEX ... ON client_addresses (company_id,
+client_id) WHERE is_primary`. Rompe de forma intermitente: marcar una principal
+implica apagar la anterior, y PostgreSQL valida los indices unicos **fila a
+fila** durante el `UPDATE`, no al final de la sentencia, asi que segun el orden
+fisico puede haber dos `TRUE` a la vez. Y un indice PARCIAL no puede ser
+`DEFERRABLE` —solo las constraints se difieren, y las constraints no pueden ser
+parciales—. SQLite se comporta igual.
+
+La invariante la garantiza la forma de la sentencia, que es UNA sola y por tanto
+atomica:
+
+```sql
+UPDATE client_addresses SET is_primary = (id = $3)
+WHERE company_id = $1 AND client_id = $2;
+```
+
+Efecto colateral que decide otra cosa: **ninguna operacion sobre direcciones
+necesita transaccion**, y por eso el renderer de Desktop puede hacerlas por
+`window.api.db`, que es una sentencia por invocacion.
+
+#### Tipo de documento y condicion de pago son enums, no catalogos
+
+RNC / Cedula / Pasaporte / Otro es un conjunto fiscal y de pais (DGII), no algo
+que cada empresa configure; y «Credito 30» no es una etiqueta, es la fecha de
+vencimiento de una factura. Se guarda el codigo y `@esr/core` exporta los DIAS
+(`PAYMENT_TERMS_DAYS`), para que el modulo de facturas lo use en vez de
+reinventarlo. El **sector comercial** si es catalogo, con su CRUD.
+
+Los clientes que ya existen quedan en `NULL` en los tres campos, y asi se
+quedan. Preseleccionar «RNC» porque es lo comun en RD haria que abrir una ficha
+vieja y pulsar «Guardar cambios» escribiera un dato fiscal que nadie afirmo: la
+primera opcion es `— Sin especificar —`.
+
+#### Escalada de permisos al mover el estado al formulario
+
+El estado viajaba por `?/setState`, protegido con `customers.archive`; el resto
+del formulario va por `?/update`, con `customers.update`. Meter el select de
+estado dentro del formulario principal ponia una operacion de *archive* dentro
+de una action de *update*: un rol `staff` podia archivar clientes. Ocultar el
+select en la pagina no es un control.
+
+El servidor lee `is_active` **solo si** `can(role, 'customers.archive')`, y lo
+ignora si no. Comprobado posteando `is_active=0` a mano como `staff`: el resto
+del formulario se guarda y el estado no se mueve. Y el `record.state_changed` de
+auditoria se conserva: se emite ADEMAS del `customer.updated` cuando el estado
+cambia de verdad, o se habria perdido la señal que responde «¿quien archivo este
+cliente?».
+
+#### Dos fallos de presentacion que solo aparecen al usarlo
+
+- **El formulario se vaciaba al guardar.** `use:enhance` llama a `update()`, que
+  resetea el `<form>`, y un reset devuelve cada input a su `defaultValue` —el
+  atributo HTML—, que Svelte nunca escribe porque asigna `value` como PROPIEDAD.
+  Y no se repone en el re-render: como los valores del servidor son los mismos
+  que antes de enviar, Svelte no ve cambio y no toca el DOM. Se arregla con
+  `update({ reset: false })`.
+- **`opacity` sobre una fila inactiva hunde el contraste.** Difuminaba tambien
+  los botones: el «Archivar» rojo caia a 2.98:1 y el badge de estado a 2.65:1,
+  los dos por debajo de AA — y se difuminaba justo lo que anuncia el estado. Se
+  quito de las dos pantallas; el badge ya lo dice, y asi lo dice legible.
+
+Ademas, un prop llamado `state` en un componente Svelte 5 convierte `$state(...)`
+del mismo archivo en una suscripcion a store y revienta en el servidor con
+`store_invalid_shape`. El compilador solo lo avisa; `vite build` pasa igual. El
+prop se llama `currentState`.
+
+#### Desktop: ficha propia, y un repositorio muerto menos
+
+El modal de 500 px no daba para el formulario mas el directorio, asi que
+clientes pasa a `/clients/edit?id=`, el patron que ya usan cotizaciones,
+ordenes, conduces y paquetes. El id se lee de forma REACTIVA
+(`$page.url.searchParams`) y no en `onMount`: SvelteKit reutiliza el componente
+cuando solo cambia la query, asi que editar otro cliente desde el listado
+dejaria la pantalla mostrando el anterior.
+
+Tras crear se hace `goto('/clients/edit?id=' + res.id, { replaceState: true })`
+en vez de volver al listado: la tarjeta de direcciones pasa de deshabilitada a
+operativa sin cambiar de pantalla.
+
+Va por `window.api.db` con SQL crudo, como el resto del modulo. El unico
+argumento a favor de un repositorio era que «marcar la principal» necesitaba
+transaccion —y con el `UPDATE ... CASE WHEN` de arriba es una sola sentencia—,
+asi que **`sqlite-customer.repository.cjs` se borro**: nadie lo llamaba, escribia
+`''` donde ahora `NULL` significa «hereda», y dejarlo ahi era una costura falsa
+que el proximo lector confundiria con la via oficial.
+
+La pantalla no se puede verificar en el navegador —`window.api` solo existe
+dentro de Electron—, asi que su SQL se prueba con un script que emite
+exactamente las mismas sentencias contra una base migrada de verdad.
+
+#### `CatalogManager` con los tres estados
+
+Cloud solo alternaba 1↔2 mientras Desktop ya hacia los tres. Ahora el componente
+lista DESTINOS (Desactivar / Archivar / Reactivar) en vez de un interruptor
+—con tres estados «alternar» no significa nada— y la cabecera lleva el mismo
+filtro de estado que los listados.
+
+Cuidado con la URL: `?/save` a secas BORRA el resto de la query, asi que al
+guardar desde «Inactivos» la pantalla saltaba a «Activos». El nombre de la
+action tiene que ir el ultimo: `?state=2&/save`.
+
 ### Fase 5 - Copiar una cotizacion
 
 Boton **Copiar** en la ficha de la cotizacion. El dialogo pide cliente y evento,

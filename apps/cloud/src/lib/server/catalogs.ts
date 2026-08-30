@@ -1,7 +1,7 @@
-import { RECORD_STATE } from '@esr/core';
+import { RECORD_STATE, isRecordState } from '@esr/core';
 import { fail } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
-import type { CatalogListOptions, RepositoryContext } from '@esr/core';
+import type { CatalogListOptions, RecordState, RepositoryContext } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
 import { recordAuditLog } from './audit';
 import { toTenantContext } from './tenant';
@@ -46,6 +46,20 @@ export function optionalText(form: FormData, field: string): string | null {
 
 export function isValidEmail(value: string | null): boolean {
 	return !value || EMAIL_PATTERN.test(value);
+}
+
+/**
+ * Estado de circulacion pedido por un formulario, o `null` si no es valido.
+ *
+ * No se usa `parseRecordState`: ese cae al ACTIVO por defecto, que es lo
+ * correcto para un `?state=` de la URL —un filtro corrupto no debe vaciar la
+ * lista— pero aqui seria activar un registro que nadie pidio activar.
+ */
+export function recordStateField(form: FormData, field = 'is_active'): RecordState | null {
+	const raw = text(form, field);
+	if (!raw) return null;
+	const parsed = Number(raw);
+	return isRecordState(parsed) ? parsed : null;
 }
 
 type SaveArgs<TDraft> = {
@@ -100,9 +114,16 @@ export async function saveCatalogEntry<TDraft extends { id?: ESRId | null; name:
 	};
 }
 
+/** Como se nombra cada transito en la auditoria y en el mensaje al usuario. */
+const STATE_VERBS: Record<RecordState, { action: string; participle: string; verb: string }> = {
+	[RECORD_STATE.ACTIVE]: { action: 'reactivated', participle: 'reactivado', verb: 'se reactivó' },
+	[RECORD_STATE.INACTIVE]: { action: 'deactivated', participle: 'desactivado', verb: 'se desactivó' },
+	[RECORD_STATE.ARCHIVED]: { action: 'archived', participle: 'archivado', verb: 'se archivó' }
+};
+
 /**
- * Activa o desactiva una entrada. Nunca se borra: hay registros historicos que
- * apuntan a estas filas por id.
+ * Mueve una entrada entre los tres estados de circulacion. Nunca se borra: hay
+ * registros historicos que apuntan a estas filas por id.
  */
 export async function toggleCatalogEntry<TDraft extends { id?: ESRId | null; name: string }>({
 	event,
@@ -117,25 +138,26 @@ export async function toggleCatalogEntry<TDraft extends { id?: ESRId | null; nam
 	repo: CatalogRepo<TDraft>;
 	names: CatalogAuditNames;
 	id: string;
-	isActive: number;
+	isActive: RecordState;
 }) {
 	const ctx = toTenantContext(companyId);
+	// Se busca sin filtro de estado: reactivar una entrada archivada exige
+	// poder encontrarla, y `findById` no filtra por `is_active`.
 	const entry = await repo.findById(ctx, id);
 	if (!entry) return fail(404, { error: `${names.label} no encontrado.` });
 
 	await repo.setActive(ctx, id, isActive);
 
-	// Comparacion explicita: el inactivo es `2`, que como booleano es cierto.
-	const activated = isActive === RECORD_STATE.ACTIVE;
+	// Nada de ternarios sobre `isActive`: el inactivo es `2` y el archivado es
+	// `0`, asi que como booleano dirian lo contrario de lo que pasa.
+	const words = STATE_VERBS[isActive];
 
 	await recordAuditLog(event, {
-		action: activated ? `${names.action}.reactivated` : `${names.action}.deactivated`,
+		action: `${names.action}.${words.action}`,
 		entity_type: names.entity,
 		entity_id: String(id),
-		description: `${names.label} ${activated ? 'reactivado' : 'desactivado'}: ${entry.name}`
+		description: `${names.label} ${words.participle}: ${entry.name}`
 	});
 
-	return {
-		success: `«${entry.name}» ${activated ? 'se reactivó' : 'se desactivó'}.`
-	};
+	return { success: `«${entry.name}» ${words.verb}.` };
 }

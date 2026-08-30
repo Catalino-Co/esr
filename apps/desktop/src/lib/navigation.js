@@ -5,21 +5,21 @@ import { ICONS } from '@esr/ui/icons';
  * compartida que ESR Cloud.
  */
 export const navItems = [
-	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard },
-	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes },
-	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders },
+	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard, subtitle: 'Resumen de la operación' },
+	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes, subtitle: 'Propuestas comerciales' },
+	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders, subtitle: 'Operación y entregas' },
 	// Orden documental: cotizacion -> orden -> conduce -> factura. El conduce no
 	// esta en el menu (ver `hiddenTitles`).
-	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices },
-	{ path: '/events', label: 'Eventos', icon: ICONS.events },
-	{ path: '/clients', label: 'Clientes', icon: ICONS.customers },
-	{ path: '/items', label: 'Inventario', icon: ICONS.inventory },
+	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices, subtitle: 'Documentos de cobro y estado de cuenta' },
+	{ path: '/events', label: 'Eventos', icon: ICONS.events, subtitle: 'Calendario y reservas' },
+	{ path: '/clients', label: 'Clientes', icon: ICONS.customers, subtitle: 'Directorio de clientes de la empresa' },
+	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Artículos y disponibilidad' },
 	// Paquetes no existe en Cloud; va junto a Inventario, que es lo que agrupa.
-	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages },
-	{ path: '/reports', label: 'Reportes', icon: ICONS.reports },
-	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents },
-	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings },
-	{ path: '/docs', label: 'Documentación', icon: ICONS.docs }
+	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages, subtitle: 'Artículos que se alquilan juntos' },
+	{ path: '/reports', label: 'Reportes', icon: ICONS.reports, subtitle: 'Consultas operativas básicas' },
+	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents, subtitle: 'Seguimiento operativo' },
+	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings, subtitle: 'Configuración del sistema' },
+	{ path: '/docs', label: 'Documentación', icon: ICONS.docs, subtitle: 'Manual de usuario de ESR Pro' }
 ];
 
 /**
@@ -32,8 +32,8 @@ export const navItems = [
  * generico.
  */
 const hiddenTitles = [
-	{ path: '/conduces', label: 'Conduces' },
-	{ path: '/checklist', label: 'Checklist' }
+	{ path: '/conduces', label: 'Conduces', subtitle: 'Notas de entrega de la operación' },
+	{ path: '/checklist', label: 'Checklist', subtitle: 'Verificación de salida y retorno' }
 ];
 
 export function isNavActive(pathname, path) {
@@ -41,9 +41,16 @@ export function isNavActive(pathname, path) {
 	return pathname === path || pathname.startsWith(path + '/');
 }
 
-export function resolvePageTitle(pathname) {
+/**
+ * Titulo y subtitulo de la cabecera, como `resolvePageMeta` de Cloud. El
+ * subtitulo no es adorno: es lo que dice de que va la pantalla cuando el
+ * titulo es una sola palabra («Clientes», «Facturas»).
+ */
+export function resolvePageMeta(pathname) {
 	const match =
 		navItems.find((item) => isNavActive(pathname, item.path)) ??
 		hiddenTitles.find((item) => isNavActive(pathname, item.path));
-	return match ? match.label : 'Control Operativo';
+	return match
+		? { title: match.label, subtitle: match.subtitle ?? '' }
+		: { title: 'ESR Pro', subtitle: 'Control operativo' };
 }

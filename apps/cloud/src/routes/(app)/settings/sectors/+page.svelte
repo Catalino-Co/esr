@@ -4,22 +4,21 @@
 	let { data, form } = $props();
 
 	const fields = [
-		{ name: 'name', label: 'Nombre', required: true, placeholder: 'Boda, Corporativo, Cumpleaños…' },
-		{ name: 'color', label: 'Color', type: 'color' },
+		{ name: 'name', label: 'Nombre', required: true, placeholder: 'Eventos, Hoteles, Retail…' },
 		{ name: 'description', label: 'Descripción', type: 'textarea' }
 	];
 
 	const columns = [
 		{ field: 'name', label: 'Nombre' },
-		{ field: 'color', label: 'Color', kind: 'color' },
 		{ field: 'description', label: 'Descripción' }
 	];
 </script>
 
 <CatalogManager
-	hint="Clasifican los eventos de la empresa. Se usan al crear un evento y en los reportes."
+	hint="A qué se dedica el cliente. Es un campo opcional de su ficha y sirve para segmentar la cartera."
 	{fields}
 	{columns}
+	size="sm"
 	entries={data.entries}
 	currentState={data.state}
 	{form}

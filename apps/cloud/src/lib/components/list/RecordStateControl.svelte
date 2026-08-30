@@ -31,7 +31,7 @@
 	);
 </script>
 
-<div class="state-control">
+<div class="sunken-card state-control">
 	<div class="state-current">
 		<span class="state-label">Estado</span>
 		<span
@@ -62,15 +62,14 @@
 </div>
 
 <style>
+	/* La superficie (fondo, borde, radio y padding) la pone `.sunken-card` de
+	   app.css, compartida con el directorio de direcciones. Aqui solo queda la
+	   disposicion. */
 	.state-control {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--sp-3);
-		padding: var(--sp-3) var(--sp-4);
-		border: 1px solid var(--border);
-		border-radius: var(--border-radius);
-		background: var(--bg-elevated);
 		margin-bottom: var(--sp-4);
 	}
 

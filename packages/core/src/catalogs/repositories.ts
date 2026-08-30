@@ -51,6 +51,29 @@ export type CollaboratorDraft = {
 	is_active?: number;
 };
 
+/**
+ * Sector comercial del cliente: Eventos, Hoteles, Retail... Es lo unico de los
+ * tres campos comerciales nuevos que SI es catalogo: cambia por empresa y por
+ * negocio, al reves que el tipo de documento o la condicion de pago, que son
+ * fiscales y de pais.
+ */
+export type CommercialSectorDraft = {
+	id?: ESRId | null;
+	company_id?: string;
+	name: string;
+	description?: string | null;
+	is_active?: number;
+};
+
+/** Tipo de una direccion de servicio: Sucursal, Almacen, Obra... */
+export type ClientAddressTypeDraft = {
+	id?: ESRId | null;
+	company_id?: string;
+	name: string;
+	description?: string | null;
+	is_active?: number;
+};
+
 /** Contrato comun de un catalogo simple con alcance de empresa. */
 export interface TenantCatalogRepository<TDraft> {
 	list(ctx: RepositoryContext, options?: CatalogListOptions): Promise<TDraft[]>;
@@ -73,3 +96,5 @@ export interface TenantCatalogRepository<TDraft> {
 export type TenantEventTypeRepository = TenantCatalogRepository<EventTypeDraft>;
 export type TenantSupplierRepository = TenantCatalogRepository<SupplierDraft>;
 export type TenantCollaboratorRepository = TenantCatalogRepository<CollaboratorDraft>;
+export type TenantCommercialSectorRepository = TenantCatalogRepository<CommercialSectorDraft>;
+export type TenantClientAddressTypeRepository = TenantCatalogRepository<ClientAddressTypeDraft>;

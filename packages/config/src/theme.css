@@ -321,6 +321,12 @@
 		padding: var(--sp-2) var(--sp-4);
 		border: 1px solid transparent;
 		border-radius: var(--border-radius-sm);
+		/* `font-family` explicito: un <button> NO hereda la fuente del
+		   documento, se queda en la del sistema. Cloud lo tapaba con su
+		   `button { font: inherit }`; Desktop no tiene ese reset y sus
+		   botones salian en Arial mientras el resto de la pantalla iba en
+		   Inter. */
+		font-family: inherit;
 		font-size: var(--font-sm);
 		font-weight: 500;
 		line-height: 1.4;
@@ -427,6 +433,95 @@
 		text-decoration: underline;
 	}
 
+	/* Acciones de FILA. Un boton con etiqueta visible, no un icono mudo:
+	   en una columna de acciones un emoji no dice que hace ni donde se
+	   puede pulsar. Solo cambia el color entre los dos: ambar el que
+	   modifica, neutro el que solo lleva a mirar.
+
+	   Van DESPUES de `.btn-sm` a proposito: empatan en especificidad
+	   (0,1,0) y hay marcado que combina las dos —`btn-primary btn-new
+	   btn-sm`—, asi que el orden decide. Moverlas arriba cambia el
+	   padding de esos botones. */
+	.btn-edit,
+	.btn-view {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: var(--sp-1) var(--sp-3);
+		border-radius: var(--border-radius-sm);
+		background: var(--surface);
+		/* `font-family` no estaba en la version de Cloud y aqui hace falta:
+		   Cloud tiene `button { font: inherit }` en su app.css y Desktop no
+		   tiene ninguna regla global de fuente para <button>, asi que sin
+		   esto sus botones de fila salen en la fuente del navegador. */
+		font-family: inherit;
+		font-size: var(--font-sm);
+		font-weight: 600;
+		line-height: 1.4;
+		white-space: nowrap;
+		cursor: pointer;
+		text-decoration: none;
+		border: 1px solid;
+		transition: all var(--transition-fast);
+	}
+
+	/* El borde de los dos va del color de SU texto, no de un gris:
+	   `--border-strong` da 1.48:1 sobre blanco y a esa distancia no se ve
+	   que haya una caja, que es justo lo que estos botones vienen a
+	   resolver. Ningun gris del sistema llega a 3:1 en los dos temas. */
+	.btn-edit {
+		border-color: var(--warning-text);
+		color: var(--warning-text);
+	}
+
+	.btn-edit::before {
+		content: '✎';
+		font-size: 1.05em;
+		line-height: 1;
+	}
+
+	.btn-edit:hover,
+	.btn-edit:focus-visible {
+		background: var(--warning-bg);
+	}
+
+	/* Ver solo lleva a mirar: va en gris, no en el acento. El acento se
+	   reserva a una accion por pantalla —la primaria de la barra— y
+	   repartirlo por cada fila lo dejaria sin significar nada. */
+	.btn-view {
+		border-color: var(--text-muted);
+		color: var(--text-secondary);
+	}
+
+	/* La flecha va DETRAS y apunta adelante: estos botones navegan. */
+	.btn-view::after {
+		content: '→';
+		font-size: 1.05em;
+		line-height: 1;
+	}
+
+	.btn-view:hover,
+	.btn-view:focus-visible {
+		background: var(--surface-sunken);
+		border-color: var(--text-secondary);
+	}
+
+	.btn-edit:focus-visible,
+	.btn-view:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+	}
+
+	/* Boton que ABRE un alta: lleva un `+` delante. Va en `::before` y no
+	   en el marcado porque es decorativo —el texto ya dice que se crea
+	   algo— y asi no llega a los lectores de pantalla ni hay que
+	   importarlo en cada archivo. El `gap` de `.btn-*` ya lo separa. */
+	.btn-new::before {
+		content: '+';
+		font-size: 1.15em;
+		line-height: 1;
+	}
+
 	/* ─── Formularios ─────────────────────────────────────────────
 	   Nota: Desktop tiene ~113 usos de .form-control respaldados por
 	   <style> propios de cada pagina. Al estar sin capa y con mas
@@ -455,6 +550,10 @@
 		border-radius: var(--border-radius-sm);
 		padding: var(--sp-2) var(--sp-3);
 		color: var(--text-primary);
+		/* Igual que en los botones: los controles de formulario no heredan
+		   la fuente. Y el <textarea> es peor, porque su valor por defecto
+		   es monoespaciada. */
+		font-family: inherit;
 		font-size: var(--font-sm);
 		width: 100%;
 		outline: none;
@@ -489,6 +588,128 @@
 		color: var(--text-muted);
 	}
 
+	/* Rejilla de formulario. El `auto-fit` no tiene equivalente arriba:
+	   sin esto, todos los formularios colapsan a una sola columna.
+
+	   OJO con `.form-control`: si un input lleva las dos cosas —caso que
+	   solo puede darse en Desktop— gana `.form-grid input` (0,1,1) en
+	   caja y color, y `.form-control` (0,1,0) sigue aportando su
+	   `font-size`, `outline` y `transition`. El resultado es mixto y es
+	   el correcto, pero conviene saberlo antes de mezclarlos. */
+	.form-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+		gap: var(--sp-4);
+	}
+
+	/* Por selector de elemento y no con `.form-control`: asi el marcado no
+	   tiene que repetir una clase en cada campo. */
+	.form-grid input,
+	.form-grid select,
+	.form-grid textarea {
+		width: 100%;
+		font-family: inherit;
+		font-size: var(--font-sm);
+		padding: var(--sp-2) var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+	}
+
+	.form-grid input:focus,
+	.form-grid select:focus,
+	.form-grid textarea:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	/* Dos dialectos para la etiqueta, a proposito: `.form-label` de arriba
+	   es la de ESR Pro (peso 500 sobre `--text-secondary`) y esta es la de
+	   Cloud (peso 600 sobre `--text-primary`). Unificarlas cambiaria el
+	   aspecto de las fichas de Cloud, que es lo que las hace legibles. */
+	.form-field label,
+	.form-field-label {
+		font-size: var(--font-sm);
+		font-weight: 600;
+	}
+
+	.form-field.full {
+		grid-column: 1 / -1;
+	}
+
+	/* Boton que va EN LINEA con los campos, en su propia celda del grid
+	   (las altas de una fila: «Articulo · Cantidad · Agregar»). No puede
+	   ir en `.form-actions` porque no es un pie: se quedaria solo en una
+	   fila aparte. `align-items: flex-start` corta el estirado horizontal
+	   —el eje transversal de un flex en columna es el horizontal— y
+	   `justify-content: flex-end` lo baja al pie de la celda. */
+	.form-field--action {
+		align-items: flex-start;
+		justify-content: flex-end;
+	}
+
+	/* Pie de formulario. NO es un `.form-field`: ese es `flex-direction:
+	   column` sin `align-items`, y el `normal` inicial se comporta como
+	   `stretch`, asi que estiraba el boton a lo ancho de la linea entera.
+	   Aqui el eje principal es horizontal, con lo que el boton vuelve a
+	   medir lo que su texto. Misma forma que `.modal-footer`. */
+	.form-actions {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	/* Va en un <span>, no en un <p>: Cloud tiene `p { color:
+	   var(--text-muted) }` sin capa en su app.css, que pintaria el error
+	   de gris. */
+	.form-error {
+		color: var(--brand-danger);
+		font-size: var(--font-sm);
+	}
+
+	/* Agrupacion de campos dentro de un formulario largo. Va sobre un
+	   <fieldset> con <legend>, y no sobre un <div> con <h3>, porque el
+	   <legend> nombra el grupo para los lectores de pantalla. El navegador
+	   trae borde y padding propios que no encajan; solo se conserva la
+	   semantica. */
+	.form-section {
+		border: none;
+		padding: 0;
+		margin: 0 0 var(--sp-5);
+		min-width: 0;
+	}
+
+	/* Sentence case, sin ALL CAPS ni letter-spacing: es la regla 5 del
+	   sistema. Lo que distingue al titulo del grupo es el peso y el
+	   tamaño, no las mayusculas. */
+	.form-section legend {
+		padding: 0;
+		margin-bottom: var(--sp-3);
+		font-size: var(--font-xs);
+		font-weight: 700;
+		color: var(--text-secondary);
+	}
+
+	/* El `.form-grid` de arriba usa `minmax(220px, 1fr)`, pensado para un
+	   panel a ancho completo. Un formulario agrupado suele vivir en una
+	   ficha a media pantalla, y con ese minimo colapsa a una columna en
+	   cualquier portatil. */
+	.form-section .form-grid {
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: var(--sp-3) var(--sp-4);
+	}
+
 	/* ─── Superficies ─────────────────────────────────────────────
 	   `.panel` (Cloud) y `.card` (Desktop) son el mismo concepto con
 	   dos nombres. Se agrupan para no duplicar la definicion. */
@@ -510,6 +731,22 @@
 	.card-title {
 		font-size: var(--font-md);
 		font-weight: 600;
+	}
+
+	/* La TERCERA superficie del sistema: `--bg-base` el fondo, `--surface`
+	   la tarjeta, y esta hundida para lo que va DENTRO de una tarjeta y
+	   necesita separarse —el control de estado de una ficha, cada entrada
+	   de un directorio—.
+
+	   Ojo con el texto que va encima: sobre `--surface-sunken`,
+	   `--text-muted` da 4.34:1 y NO llega a AA. Usar `--text-secondary`.
+	   Es el error facil, porque `--text-muted` es lo que uno teclea por
+	   costumbre para «texto secundario». */
+	.sunken-card {
+		padding: var(--sp-3) var(--sp-4);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+		background: var(--surface-sunken);
 	}
 
 	.stat-card,
@@ -809,9 +1046,13 @@
 	}
 
 	/* ─── Layout de pagina ────────────────────────────────────────
-	   No se define `.empty-state` como contenedor: Cloud tiene 22 usos,
-	   algunos dentro de <td>, y el flex-column de Workshop los reflowea.
-	   Solo se aportan sus piezas internas. */
+	   `.empty-state` SI se define aqui como caja de texto centrado. El
+	   comentario anterior decia que no podia por unos usos en <td>: se
+	   comprobo y es falso, los 36 usos de Cloud son <p>.
+
+	   Y no debe ponerse nunca sobre un <td>: dentro de esta misma capa,
+	   `.data-table td` (0,1,1) le gana a `.empty-state` (0,1,0) y se come
+	   el padding y el color. Va en un <p> DENTRO de la celda. */
 	.page {
 		padding: var(--content-padding);
 		height: 100%;
@@ -831,6 +1072,305 @@
 		font-size: var(--font-sm);
 		color: var(--text-muted);
 		margin-top: var(--sp-1);
+	}
+
+	/* Cabecera de una pantalla: titulo a la izquierda, accion primaria a
+	   la derecha. Distinta de `.card-header`, que va DENTRO de la tarjeta;
+	   esta va encima. En Desktop no la combines con `.card-title`: la
+	   version de su app.css va sin capa y dejaria esta inerte. */
+	.page-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-5);
+	}
+
+	.page-header h1 {
+		margin: 0;
+		font-size: 1.6rem;
+	}
+
+	/* Texto de apoyo bajo el titulo de un panel. */
+	.panel-hint {
+		color: var(--text-muted);
+		font-size: var(--font-sm);
+		margin: 0 0 var(--sp-4);
+	}
+
+	.empty-state {
+		color: var(--text-muted);
+		padding: var(--sp-6);
+		text-align: center;
+	}
+
+	/* ─── Barra de filtros ────────────────────────────────────────
+	   UNA fila horizontal, no tres controles apilados: el buscador crece
+	   y los selects tienen base fija. La version anterior daba
+	   `width: 100%` a cada control sin `flex-basis`, asi que todos pedian
+	   el ancho entero y luego encogian segun su contenido — de ahi el
+	   aspecto irregular.
+
+	   No confundir con `.filter-bar`, que es la barra VIEJA y solo la
+	   usan los reportes de Cloud. */
+	.filters {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-4);
+	}
+
+	/* Empuja la accion primaria al borde derecho aunque el buscador no
+	   llene la fila. */
+	.filters-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+
+	/* El buscador es el unico que crece. */
+	.filters-search {
+		position: relative;
+		display: flex;
+		align-items: center;
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.filters-search-icon {
+		position: absolute;
+		left: var(--sp-3);
+		display: flex;
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.filters-search input {
+		width: 100%;
+		padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-8);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: var(--font-sm);
+		outline: none;
+		transition:
+			border-color var(--transition-fast),
+			box-shadow var(--transition-fast);
+	}
+
+	.filters-search input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.filters-search input:hover {
+		border-color: var(--border-light);
+	}
+
+	.filters-search input:focus {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* La X nativa del type=search duplica el borrado y descuadra la
+	   altura. */
+	.filters-search input::-webkit-search-cancel-button {
+		appearance: none;
+	}
+
+	/* Base fija: los selects no compiten por el ancho con el buscador. */
+	.filters-control {
+		flex: 0 0 auto;
+		min-width: 0;
+	}
+
+	.filters-control .status-select {
+		width: 100%;
+	}
+
+	.filters-control--date input {
+		padding: var(--sp-2) var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--font-sm);
+		outline: none;
+	}
+
+	.filters-control--date input:focus {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* Visible solo para quien navega sin JavaScript o con teclado. */
+	.filters-submit {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.filters-submit:focus-visible {
+		position: static;
+		width: auto;
+		height: auto;
+		margin: 0;
+		clip-path: none;
+		padding: var(--sp-2) var(--sp-4);
+		border: 1px solid var(--border-focus);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+	}
+
+	@media (max-width: 720px) {
+		.filters {
+			flex-wrap: wrap;
+		}
+
+		.filters-search {
+			flex: 1 1 100%;
+		}
+	}
+
+	/* Select con punto de color y chevron propio. Es un `<select>` nativo
+	   con `appearance: none`, no un menu a medida: conserva el teclado, el
+	   lector de pantalla y el desplegable del sistema operativo, que en
+	   movil es mucho mejor que cualquier imitacion. */
+	.status-select {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: 0 var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-surface);
+		transition:
+			border-color var(--transition-fast),
+			box-shadow var(--transition-fast);
+	}
+
+	.status-select:hover {
+		border-color: var(--border-light);
+	}
+
+	/* El foco vive en el label, no en el select, porque el select es
+	   transparente y su anillo quedaria por dentro del borde. */
+	.status-select:focus-within {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.status-select select {
+		appearance: none;
+		-webkit-appearance: none;
+		border: none;
+		background: transparent;
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--font-sm);
+		/* Sitio para el chevron, que va superpuesto. */
+		padding: var(--sp-2) var(--sp-5) var(--sp-2) 0;
+		width: 100%;
+		cursor: pointer;
+		outline: none;
+	}
+
+	/* Namespaced a proposito: un `.dot` suelto en la hoja compartida
+	   secuestraria cualquier `.dot` que alguien escriba en una pagina. */
+	.status-select .dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.status-select .dot--ok {
+		background: var(--brand-success);
+	}
+
+	.status-select .dot--warn {
+		background: var(--brand-warning);
+	}
+
+	.status-select .dot--off {
+		background: var(--text-muted);
+	}
+
+	.status-select .chevron {
+		position: absolute;
+		right: var(--sp-3);
+		display: flex;
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	/* ─── Cabecera de la aplicacion ───────────────────────────────
+	   La barra superior con el titulo de la pantalla. Vive aqui, y no
+	   en cada app, por el mismo motivo que la barra lateral: las dos
+	   deben tenerla identica. Lo que NO va aqui es el boton de menu
+	   movil, que solo tiene sentido en Cloud. */
+	.topbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-4);
+		padding: var(--sp-4) var(--sp-6);
+		background: var(--bg-surface);
+		border-bottom: 1px solid var(--border);
+		flex-shrink: 0;
+	}
+
+	.topbar-left {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		min-width: 0;
+	}
+
+	.topbar-titles h1 {
+		margin: 0;
+		font-size: var(--font-xl);
+		font-weight: 700;
+		color: var(--text-primary);
+		line-height: 1.2;
+	}
+
+	/* El subtitulo dice de que va la pantalla cuando el titulo es una
+	   sola palabra. */
+	.topbar-titles p {
+		margin: 2px 0 0;
+		font-size: var(--font-sm);
+		color: var(--text-muted);
+	}
+
+	.topbar-right {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.company-pill {
+		padding: var(--sp-1) var(--sp-3);
+		border-radius: 999px;
+		background: var(--bg-elevated);
+		color: var(--text-secondary);
+		font-size: var(--font-xs);
+		font-weight: 600;
+		white-space: nowrap;
 	}
 
 	.empty-state-icon {

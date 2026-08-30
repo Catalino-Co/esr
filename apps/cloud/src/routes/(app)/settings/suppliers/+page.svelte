@@ -26,5 +26,6 @@
 	{fields}
 	{columns}
 	entries={data.entries}
+	currentState={data.state}
 	{form}
 />

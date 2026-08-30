@@ -11,7 +11,6 @@ const {
 const { initDatabase } = require('./migrations/runner.cjs');
 const { seedDB } = require('./migrations/seed.cjs');
 const { createLocalSqliteBackup } = require('./backup/local-backup.cjs');
-const { SqliteCustomerRepository } = require('./repositories/sqlite-customer.repository.cjs');
 const { SqliteEventRepository } = require('./repositories/sqlite-event.repository.cjs');
 const { SqliteConduceRepository } = require('./repositories/sqlite-conduce.repository.cjs');
 const { SqliteIncidentRepository } = require('./repositories/sqlite-incident.repository.cjs');
@@ -46,7 +45,6 @@ module.exports = {
   seedDB,
   withTransaction,
   SqliteCategoryRepository,
-  SqliteCustomerRepository,
   SqliteConduceRepository,
   SqliteEventRepository,
   SqliteChecklistRepository,

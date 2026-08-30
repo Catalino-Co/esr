@@ -1,27 +1,36 @@
 <script>
   import { onMount } from 'svelte';
-  import { validateCustomerInput } from '@esr/schemas';
-  import { Modal } from '@esr/ui';
+  import { RECORD_STATES, RECORD_STATE_FILTER_LABELS, recordStateBadgeClass, recordStateLabel } from '@esr/core';
+  import FilterBar from '$lib/components/list/FilterBar.svelte';
 
-  let viewState = "1";
+  /**
+   * Listado de clientes. El alta y la edicion se fueron a `/clients/edit`, que
+   * es el patron del resto de la app (cotizaciones, ordenes, conduces,
+   * paquetes): el modal de 500 px no daba para el formulario mas el directorio
+   * de direcciones.
+   *
+   * Sin estilos propios ni `style=` en linea: todo el vocabulario sale de
+   * @esr/config/theme.css, el mismo que usa Cloud. El estilo en linea gana a
+   * todo, capado o no, asi que mientras estuviera ahi ninguna clase compartida
+   * podia pisarlo — que es como las dos apps se separaron.
+   */
+  const TONOS = { 1: 'ok', 2: 'warn', 0: 'off' };
+  const opcionesEstado = RECORD_STATES.map((value) => ({
+    value,
+    label: RECORD_STATE_FILTER_LABELS[value],
+    tone: TONOS[value]
+  }));
+
+  let viewState = 1;
+  let busqueda = '';
   let clients = [];
-  let showModal = false;
-  let isEditing = false;
-  
-  let currentClient = {
-    id: null,
-    name: '',
-    document_id: '',
-    phone: '',
-    email: '',
-    address: '',
-    contact_person: '',
-    notes: ''
-  };
 
   async function loadClients() {
     if (window.api && window.api.db) {
-      clients = await window.api.db.get("SELECT * FROM clients WHERE is_active = ? ORDER BY name ASC", [parseInt(viewState)]);
+      clients = await window.api.db.get(
+        'SELECT * FROM clients WHERE is_active = ? ORDER BY name ASC',
+        [viewState]
+      );
     }
   }
 
@@ -29,106 +38,78 @@
     loadClients();
   });
 
-  function openCreate() {
-    isEditing = false;
-    currentClient = { id: null, name: '', document_id: '', phone: '', email: '', address: '', contact_person: '', notes: '' };
-    showModal = true;
-  }
+  // El filtro de texto es en memoria: la consulta ya trajo todas las filas del
+  // estado elegido, y la lista es corta. Mismos campos que busca Cloud.
+  $: termino = busqueda.trim().toLowerCase();
+  $: visibles = termino
+    ? clients.filter((c) =>
+        [c.name, c.email, c.phone, c.contact_person, c.document_id]
+          .some((v) => (v ?? '').toLowerCase().includes(termino))
+      )
+    : clients;
 
-  function openEdit(client) {
-    isEditing = true;
-    currentClient = { ...client };
-    showModal = true;
-  }
-
-  async function saveClient() {
-    if (!validateCustomerInput(currentClient).valid) {
-      alert("El nombre es obligatorio");
-      return;
-    }
-
-    if (isEditing) {
-      await window.api.db.run(`
-        UPDATE clients SET 
-          name = ?, document_id = ?, phone = ?, email = ?, 
-          address = ?, contact_person = ?, notes = ?
-        WHERE id = ?`, 
-        [currentClient.name, currentClient.document_id, currentClient.phone, currentClient.email, 
-         currentClient.address, currentClient.contact_person, currentClient.notes, currentClient.id]
-      );
-    } else {
-      await window.api.db.run(`
-        INSERT INTO clients (name, document_id, phone, email, address, contact_person, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [currentClient.name, currentClient.document_id, currentClient.phone, currentClient.email, 
-         currentClient.address, currentClient.contact_person, currentClient.notes]
-      );
-    }
-    showModal = false;
+  function cambiarEstado(_, valor) {
+    viewState = Number(valor);
     loadClients();
-  }
-
-  async function changeState(id, newState) {
-    let msg = newState === 0 ? "¿Archivar este cliente?" 
-            : newState === 1 ? "¿Marcar este cliente como Activo?"
-            : "¿Marcar este cliente como Inactivo?";
-    if (confirm(msg)) {
-      await window.api.db.run("UPDATE clients SET is_active = ? WHERE id = ?", [newState, id]);
-      loadClients();
-    }
   }
 </script>
 
 <div class="card">
-  <div class="card-title" style="align-items: center;">
-    <div style="display: flex; gap: 15px; align-items: center;">
-      <span>Directorio de Clientes</span>
-      <select bind:value={viewState} on:change={loadClients} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
-        <option value="1">🟢 Activos</option>
-        <option value="2">🟠 Inactivos</option>
-        <option value="0">📁 Archivados</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" on:click={openCreate}>+ Nuevo Cliente</button>
-  </div>
+  <FilterBar
+    search={{ placeholder: 'Nombre, documento, email o teléfono', value: busqueda }}
+    selects={[
+      { name: 'state', label: 'Estado', value: viewState, options: opcionesEstado, width: '11rem' }
+    ]}
+    onSearch={(v) => (busqueda = v)}
+    onSelect={cambiarEstado}
+  >
+    <a slot="actions" class="btn btn-primary btn-new" href="/clients/edit">Nuevo cliente</a>
+  </FilterBar>
 
   <div class="table-wrapper">
     <table class="table">
       <thead>
         <tr>
-          <th>Nombre / Empresa</th>
+          <th>Cliente</th>
           <th>Contacto</th>
           <th>Teléfono</th>
           <th>Email</th>
-          <th>Acciones</th>
+          <th>Estado</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        {#each clients as client}
+        {#each visibles as client (client.id)}
           <tr>
-            <td style="font-weight: 500;">
-              {client.name}
-              {#if client.document_id}<div style="font-size: 0.8em; color: var(--text-muted);">ID: {client.document_id}</div>{/if}
-            </td>
-            <td>{client.contact_person || '-'}</td>
-            <td>{client.phone || '-'}</td>
-            <td>{client.email || '-'}</td>
             <td>
-              <button class="btn-icon" title="Editar" on:click={() => openEdit(client)}>✏️</button>
-              {#if viewState === '1'}
-                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(client.id, 2)}>⏸️</button>
-                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(client.id, 0)}>📁</button>
-              {:else if viewState === '2'}
-                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(client.id, 1)}>▶️</button>
-                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(client.id, 0)}>📁</button>
-              {:else}
-                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(client.id, 1)}>🔄</button>
-              {/if}
+              <strong>{client.name}</strong>
+              {#if client.document_id}<div class="doc">{client.document_id}</div>{/if}
+            </td>
+            <td>{client.contact_person || '—'}</td>
+            <td>{client.phone || '—'}</td>
+            <td>{client.email || '—'}</td>
+            <td>
+              <span class="badge {recordStateBadgeClass(client.is_active)}">
+                {recordStateLabel(client.is_active)}
+              </span>
+            </td>
+            <td>
+              <!-- Un boton con etiqueta, no un icono mudo. Los cambios de
+                   estado viven en la ficha, donde esta el select de Estado,
+                   igual que en Cloud: asi la fila tiene una sola accion. -->
+              <a class="btn-edit" href="/clients/edit?id={client.id}">Editar</a>
             </td>
           </tr>
         {:else}
           <tr>
-            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay clientes registrados.</td>
+            <!-- `.empty-state` va en un <p> DENTRO de la celda, nunca sobre el
+                 <td>: en la misma capa, `.table td` le ganaria y se comeria el
+                 padding y el color. -->
+            <td colspan="6">
+              <p class="empty-state">
+                {termino ? 'Ningún cliente coincide con la búsqueda.' : 'No hay clientes con este filtro.'}
+              </p>
+            </td>
           </tr>
         {/each}
       </tbody>
@@ -136,80 +117,12 @@
   </div>
 </div>
 
-<Modal bind:show={showModal} title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}>
-  <div style="display: flex; flex-direction: column; gap: 15px;">
-    <div>
-      <label for="cli-name">Nombre o Razón Social *</label>
-      <input id="cli-name" type="text" bind:value={currentClient.name} class="form-control" placeholder="Ej. Eventos SRL">
-    </div>
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="cli-doc">Cédula / RNC</label>
-        <input id="cli-doc" type="text" bind:value={currentClient.document_id} class="form-control">
-      </div>
-      <div style="flex: 1;">
-        <label for="cli-phone">Teléfono</label>
-        <input id="cli-phone" type="text" bind:value={currentClient.phone} class="form-control">
-      </div>
-    </div>
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="cli-contact">Persona Contacto</label>
-        <input id="cli-contact" type="text" bind:value={currentClient.contact_person} class="form-control">
-      </div>
-      <div style="flex: 1;">
-        <label for="cli-email">Email</label>
-        <input id="cli-email" type="email" bind:value={currentClient.email} class="form-control">
-      </div>
-    </div>
-    <div>
-      <label for="cli-addr">Dirección</label>
-      <input id="cli-addr" type="text" bind:value={currentClient.address} class="form-control">
-    </div>
-    <div>
-      <label for="cli-notes">Observaciones</label>
-      <textarea id="cli-notes" bind:value={currentClient.notes} class="form-control" rows="3"></textarea>
-    </div>
-  </div>
-
-  <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveClient}>Guardar Cliente</button>
-  </div>
-</Modal>
-
 <style>
-  .form-control {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-family: inherit;
-    font-size: 0.95rem;
-    color: var(--text-main);
-  }
-  .form-control:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
-  label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 500;
+  /* El documento bajo el nombre: es lo unico que esta pantalla necesita y que
+     el vocabulario compartido no cubre. */
+  .doc {
+    margin-top: 2px;
+    font-size: var(--font-xs);
     color: var(--text-muted);
-    margin-bottom: 5px;
-  }
-  .btn-icon { 
-    background: none; 
-    border: none; 
-    cursor: pointer; 
-    padding: 5px; 
-    opacity: 0.6; 
-    transition: 0.2s;
-    font-size: 1.1rem;
-  }
-  .btn-icon:hover { 
-    opacity: 1; 
-    transform: scale(1.1); 
   }
 </style>

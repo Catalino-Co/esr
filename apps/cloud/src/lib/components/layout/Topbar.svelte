@@ -26,54 +26,11 @@
 </header>
 
 <style>
-	.topbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--sp-4);
-		padding: var(--sp-4) var(--sp-6);
-		background: var(--bg-surface);
-		border-bottom: 1px solid var(--border);
-		flex-shrink: 0;
-	}
+	/* `.topbar`, `.topbar-left`, `.topbar-titles`, `.topbar-right` y
+	   `.company-pill` viven en @esr/config/theme.css: Cloud y Desktop deben
+	   tener la cabecera identica. Aqui solo queda lo propio de Cloud. */
 
-	.topbar-left {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-3);
-		min-width: 0;
-	}
-
-	.topbar-titles h1 {
-		margin: 0;
-		font-size: var(--font-xl);
-		font-weight: 700;
-		color: var(--text-primary);
-		line-height: 1.2;
-	}
-
-	.topbar-titles p {
-		margin: 2px 0 0;
-		font-size: var(--font-sm);
-		color: var(--text-muted);
-	}
-
-	.topbar-right {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-3);
-	}
-
-	.company-pill {
-		padding: var(--sp-1) var(--sp-3);
-		border-radius: 999px;
-		background: var(--bg-elevated);
-		color: var(--text-secondary);
-		font-size: var(--font-xs);
-		font-weight: 600;
-		white-space: nowrap;
-	}
-
+	/* El boton de menu solo existe en Cloud: Desktop no tiene caso movil. */
 	.mobile-menu-btn {
 		display: none;
 		background: none;

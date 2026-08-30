@@ -68,6 +68,20 @@
       color: '#e83e8c'
     },
     {
+      title: 'Sectores Comerciales',
+      description: 'A qué se dedica el cliente. Campo opcional de su ficha, útil para segmentar la cartera.',
+      icon: '🏭',
+      path: '/settings/sectors',
+      color: '#0d9488'
+    },
+    {
+      title: 'Tipos de Dirección',
+      description: 'Clasifican las direcciones de servicio del cliente: sucursal, almacén, obra…',
+      icon: '📍',
+      path: '/settings/address-types',
+      color: '#d97706'
+    },
+    {
       title: 'Agenda de Suplidores',
       description: 'Directorio de empresas de transporte, personal de apoyo y otros servicios subcontratados.',
       icon: '🤝',

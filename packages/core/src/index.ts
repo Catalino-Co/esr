@@ -10,6 +10,8 @@ export * from './authorization/permissions';
 export * from './members/repositories';
 
 export * from './customers/repositories';
+export * from './customers/addresses';
+export * from './customers/commercial-terms';
 
 export * from './events/repositories';
 export * from './events/use-cases';

@@ -13,9 +13,12 @@ module.exports = {
   getSingleQuery: sqlite.getSingleQuery,
   withTransaction: sqlite.withTransaction,
   createLocalSqliteBackup: sqlite.createLocalSqliteBackup,
+  // `customers` no esta aqui a proposito: el modulo de clientes va por
+  // `window.api.db` con SQL crudo, igual que los catalogos de Ajustes. Su
+  // repositorio existia sin que nadie lo llamara —y escribia cadena vacia
+  // donde ahora NULL significa «hereda»— asi que se borro en vez de revivirlo.
   repositories: {
     categories: new sqlite.SqliteCategoryRepository(),
-    customers: new sqlite.SqliteCustomerRepository(),
     conduces: new sqlite.SqliteConduceRepository(),
     events: new sqlite.SqliteEventRepository(),
     checklists: new sqlite.SqliteChecklistRepository(),

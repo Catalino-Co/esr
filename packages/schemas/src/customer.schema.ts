@@ -10,6 +10,17 @@ export type Customer = {
 	address?: string;
 	contact_person?: string;
 	notes?: string;
+	/**
+	 * Los tres campos comerciales son OPCIONALES a proposito.
+	 *
+	 * `TenantCreateCustomerInput` se deriva de este tipo, asi que uno
+	 * obligatorio romperia la compilacion de Desktop y de todo el codigo que
+	 * hoy crea clientes con solo el nombre. Y ademas serian falsos: los
+	 * clientes que ya existen no tienen ninguno de los tres.
+	 */
+	document_type?: string | null;
+	payment_terms?: string | null;
+	sector_id?: number | string | null;
 	is_active?: number;
 };
 

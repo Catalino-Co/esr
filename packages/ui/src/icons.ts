@@ -34,6 +34,8 @@ export const ICONS = {
 	eventTypes: '📅',
 	suppliers: '🚚',
 	collaborators: '👷',
+	sectors: '🏭',
+	addressTypes: '📍',
 	members: '🪪',
 	roles: '🛡️',
 

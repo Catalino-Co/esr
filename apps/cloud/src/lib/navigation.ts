@@ -144,6 +144,8 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/settings/event-types', title: 'Tipos de evento', subtitle: 'Clasifican los eventos de la empresa y aparecen en los reportes.' },
 	{ prefix: '/settings/suppliers', title: 'Proveedores', subtitle: 'Empresas y personas a las que se subcontrata equipo o servicios.' },
 	{ prefix: '/settings/collaborators', title: 'Colaboradores', subtitle: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.' },
+	{ prefix: '/settings/sectors', title: 'Sectores comerciales', subtitle: 'A qué se dedica el cliente. Campo opcional de su ficha.' },
+	{ prefix: '/settings/address-types', title: 'Tipos de dirección', subtitle: 'Clasifican las direcciones de servicio del cliente.' },
 	{ prefix: '/settings', title: 'Configuración', subtitle: 'Ajustes de la empresa activa' },
 	{ prefix: '/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
 	{ prefix: '/docs', title: 'Documentación', subtitle: 'Manual de usuario de ESR Cloud' }

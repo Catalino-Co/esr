@@ -162,6 +162,30 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 		[companyId]
 	);
 
+	// Sectores comerciales y tipos de direccion. Van sembrados por el mismo
+	// motivo que los de arriba: un desplegable vacio parece una pantalla rota, y
+	// el alta de una empresa es el unico sitio donde se puede dejar listo.
+	// La migracion 016 hace lo propio con las empresas que ya existian.
+	for (const name of [
+		'Eventos', 'Restaurantes', 'Hoteles', 'Manufactura', 'Retail', 'Servicios', 'Educación'
+	]) {
+		await client.query(
+			`INSERT INTO commercial_sectors (company_id, name, is_active)
+			 VALUES ($1, $2, 1)
+			 ON CONFLICT DO NOTHING`,
+			[companyId, name]
+		);
+	}
+
+	for (const name of ['Sucursal', 'Almacén', 'Oficina', 'Salón', 'Domicilio', 'Obra']) {
+		await client.query(
+			`INSERT INTO client_address_types (company_id, name, is_active)
+			 VALUES ($1, $2, 1)
+			 ON CONFLICT DO NOTHING`,
+			[companyId, name]
+		);
+	}
+
 	await client.query(
 		`INSERT INTO company_info (company_id, id, name, rnc, phone, email, address)
 		 VALUES ($1, 1, $2, '000-00000-0', '809-000-0000', $3, 'Santo Domingo, Republica Dominicana')

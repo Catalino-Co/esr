@@ -3,12 +3,14 @@ const baseline = require('./versioned/0001_initial_schema.cjs');
 const operationalExtensions = require('./versioned/0002_operational_extensions.cjs');
 const invoicesAndPayments = require('./versioned/0003_invoices_and_payments.cjs');
 const reservationsPerConduce = require('./versioned/0004_reservations_per_conduce.cjs');
+const clientDirectory = require('./versioned/0005_client_directory.cjs');
 
 const MIGRATIONS = [
   baseline,
   operationalExtensions,
   invoicesAndPayments,
-  reservationsPerConduce
+  reservationsPerConduce,
+  clientDirectory
 ];
 
 async function initDatabase() {

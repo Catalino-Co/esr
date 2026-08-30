@@ -72,6 +72,20 @@ export const settingsSections: SettingsSection[] = [
 		permission: 'settings.catalogs.manage'
 	},
 	{
+		href: '/settings/sectors',
+		title: 'Sectores comerciales',
+		icon: ICONS.sectors,
+		description: 'A qué se dedica el cliente. Es opcional en su ficha y sirve para segmentar.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
+		href: '/settings/address-types',
+		title: 'Tipos de dirección',
+		icon: ICONS.addressTypes,
+		description: 'Clasifican las direcciones de servicio del cliente: sucursal, almacén, obra…',
+		permission: 'settings.catalogs.manage'
+	},
+	{
 		href: '/settings/users',
 		title: 'Usuarios',
 		icon: ICONS.members,

@@ -1,9 +1,10 @@
 import { fail } from '@sveltejs/kit';
-import { RECORD_STATE, SELECTABLE_STATES } from '@esr/core';
+import { parseRecordState } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	isValidEmail,
 	optionalText,
+	recordStateField,
 	saveCatalogEntry,
 	text,
 	toggleCatalogEntry,
@@ -19,11 +20,12 @@ const NAMES: CatalogAuditNames = {
 	label: 'Proveedor'
 };
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
-	// Sin selector de estado: la pantalla muestra activos e inactivos a la vez,
-	// porque reactivar solo se puede desde la propia fila.
-	const state = SELECTABLE_STATES;
+	// Un estado a la vez, como el resto de listados. Antes se mostraban activos
+	// e inactivos juntos porque no habia forma de llegar a los inactivos; ahora
+	// el filtro es el camino, y ademas da acceso a los archivados.
+	const state = parseRecordState(url.searchParams.get('state'));
 	const entries = await getSupplierRepository().list(toTenantContext(companyId), { state });
 	return { entries, state };
 };
@@ -60,7 +62,9 @@ export const actions: Actions = {
 		const { companyId } = requirePermission(event.locals, 'settings.catalogs.manage');
 		const form = await event.request.formData();
 		const id = text(form, 'id');
+		const isActive = recordStateField(form);
 		if (!id) return fail(400, { error: 'Falta el identificador.' });
+		if (isActive === null) return fail(400, { error: 'Estado no válido.' });
 
 		return toggleCatalogEntry({
 			event,
@@ -68,7 +72,7 @@ export const actions: Actions = {
 			repo: getSupplierRepository(),
 			names: NAMES,
 			id,
-			isActive: text(form, 'is_active') === '1' ? RECORD_STATE.ACTIVE : RECORD_STATE.INACTIVE
+			isActive
 		});
 	}
 };

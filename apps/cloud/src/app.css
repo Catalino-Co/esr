@@ -79,6 +79,61 @@ h1 {
 	line-height: 1.15;
 }
 
+/* ── Rescates de cascada ──────────────────────────────────────────────────
+   Las tres reglas de elemento de arriba —`a { color: inherit }`,
+   `button { font: inherit }` y `h1 { font-size: 2rem }`— van SIN capa, y lo
+   no-capado gana siempre a theme.css sin importar la especificidad. Mientras
+   las clases de las acciones de fila y de `.page-header` vivian en este mismo
+   archivo, ganaban por especificidad; desde que estan en la hoja compartida,
+   pierden. Estas lineas les devuelven lo que les quita cada reset.
+
+   No es duplicacion: es el precio de tener aqui tres resets de elemento. Si
+   algun dia se estrechan, este bloque entero se borra. */
+
+/* Contra `a { color: inherit }`: sin esto, `<a class="btn-edit">` sale con
+   caja ambar y letra azul marino. */
+a.btn-edit {
+	color: var(--warning-text);
+}
+
+a.btn-view {
+	color: var(--text-secondary);
+}
+
+/* Contra `button { font: inherit }`, que es un shorthand y resetea tambien el
+   peso y el interlineado. El tamaño no se nota —`.data-table` ya fija
+   `--font-sm`— pero el peso caia de 600 a 400, que es de lo que no se ve en
+   una captura. */
+button.btn-edit,
+button.btn-view {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+/* Contra `h1 { font-size: 2rem }`: los titulos de las 19 rutas con <h1>
+   dentro de `.page-header` saltarian de 1.6rem a 2rem, y el de la cabecera de
+   20px a 32px. Medido: los dos. */
+.page-header h1 {
+	font-size: 1.6rem;
+}
+
+.topbar-titles h1 {
+	font-size: var(--font-xl);
+	line-height: 1.2;
+}
+
+/* Contra `input, select { font: inherit }`, que ademas del tamaño resetea la
+   familia y el interlineado. El buscador de los listados pasaba de 13px a
+   16px y descuadraba la altura de la barra entera. */
+.filters-search input,
+.filters-control--date input,
+.status-select select,
+.filters-submit:focus-visible {
+	font-family: inherit;
+	font-size: var(--font-sm);
+}
+
 p {
 	color: var(--text-muted);
 	line-height: 1.6;
@@ -118,27 +173,15 @@ p {
 	font-size: var(--font-sm);
 }
 
-/* Delta sobre `.page-header`: Cloud necesita wrap y margen inferior
-   porque sus paginas no estan envueltas en `.page`, que es de donde
-   Workshop saca el espaciado. */
-.page-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--sp-3);
-	margin-bottom: var(--sp-5);
-}
-
-.page-header h1 {
-	margin: 0;
-	font-size: 1.6rem;
-}
-
 /* El titulo vive en el topbar, asi que en los listados el header solo lleva
-   la accion primaria. Con un unico hijo, el `space-between` de arriba lo
+   la accion primaria. Con un unico hijo, el `space-between` de theme.css lo
    empuja a la IZQUIERDA en vez de dejarlo donde estaba: este margen lo
-   devuelve a la derecha sin depender de cuantos hijos haya. */
+   devuelve a la derecha sin depender de cuantos hijos haya.
+
+   NO se promueve con el resto de `.page-header`: es una compensacion del
+   layout de Cloud —donde el titulo vive en el topbar—, no vocabulario. En
+   Desktop moveria al borde derecho los dos titulos de `docs/[slug]`, que son
+   los unicos `.page-header` de hijo unico con un <h1> dentro. */
 .page-header > :first-child:last-child {
 	margin-left: auto;
 }
@@ -159,13 +202,12 @@ p {
 	margin-bottom: var(--sp-4);
 }
 
-/* Cloud estiliza sus inputs por selector de elemento, no con
-   `.form-control` (que no usa en ninguna parte). */
+/* Estos dos selectores eran el mismo bloque que los de `.form-grid`, que se
+   fueron a theme.css. No se promueven con ellos: `.filter-bar` es la barra
+   VIEJA, que solo usan las tres pantallas de reportes, y compartirla con
+   Desktop seria exportar algo que estamos retirando. */
 .filter-bar input,
-.filter-bar select,
-.form-grid input,
-.form-grid select,
-.form-grid textarea {
+.filter-bar select {
 	width: 100%;
 	padding: var(--sp-2) var(--sp-3);
 	border: 1px solid var(--border);
@@ -175,152 +217,10 @@ p {
 }
 
 .filter-bar input:focus,
-.filter-bar select:focus,
-.form-grid input:focus,
-.form-grid select:focus,
-.form-grid textarea:focus {
+.filter-bar select:focus {
 	outline: none;
 	border-color: var(--border-focus);
 	box-shadow: var(--focus-ring);
-}
-
-/* El auto-fit no tiene equivalente en Workshop: sin esto, todos los
-   formularios de Cloud colapsan a una sola columna. */
-.form-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-	gap: var(--sp-4);
-}
-
-.form-field {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.form-field label,
-.form-field-label {
-	font-size: var(--font-sm);
-	font-weight: 600;
-}
-
-.form-field.full {
-	grid-column: 1 / -1;
-}
-
-/* Boton que va EN LINEA con los campos, en su propia celda del grid (las
-   altas de una fila: «Articulo · Cantidad · Agregar»). No puede ir en
-   `.form-actions` porque no es un pie: se quedaria solo en una fila aparte.
-   `align-items: flex-start` corta el estirado horizontal —el eje transversal
-   de un flex en columna es el horizontal— y `justify-content: flex-end` lo
-   baja al pie de la celda, que es lo que antes se conseguia con un
-   `<span class="form-field-label">&nbsp;</span>` de relleno. */
-.form-field--action {
-	align-items: flex-start;
-	justify-content: flex-end;
-}
-
-/* Pie de formulario. NO es un `.form-field`: ese es `flex-direction: column`
-   sin `align-items`, y el `normal` inicial se comporta como `stretch`, asi que
-   estiraba el boton a lo ancho de la linea entera. Aqui el eje principal es
-   horizontal, con lo que el boton vuelve a medir lo que su texto.
-   Misma forma que `.modal-footer` de theme.css y que los pies de ESR Pro. */
-/* Accion de editar de una fila. Antes era un `.btn-link`, o sea texto suelto
-   del color de los enlaces: en una columna de acciones no se distingue de un
-   enlace cualquiera ni se ve donde se puede pulsar. Aqui lleva caja, borde y
-   el ambar de --warning-text (#b45309), que es el color que el sistema ya
-   reserva para «esto modifica algo».
-   El lapiz va en `::before`, como el `+` de `.btn-new`: es decorativo, el
-   texto ya dice Editar, y asi hereda `currentColor` sin ensuciar el marcado. */
-/* Geometria comun de las acciones de fila. Solo cambia el color: ambar el que
-   modifica, neutro el que solo lleva a mirar. */
-.btn-edit,
-.btn-view {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: var(--sp-1) var(--sp-3);
-	border-radius: var(--border-radius-sm);
-	background: var(--surface);
-	font-size: var(--font-sm);
-	font-weight: 600;
-	line-height: 1.4;
-	white-space: nowrap;
-	cursor: pointer;
-	text-decoration: none;
-	border: 1px solid;
-	transition: all var(--transition-fast);
-}
-
-/* El borde de los dos va del color de SU texto, no de un gris: --border-strong
-   da 1.48:1 sobre blanco y a esa distancia no se ve que haya una caja, que es
-   justo el problema que estos botones vienen a resolver. Ningun gris del
-   sistema llega a 3:1 en los dos temas. */
-.btn-edit {
-	border-color: var(--warning-text);
-	color: var(--warning-text);
-}
-
-.btn-edit::before {
-	content: '✎';
-	font-size: 1.05em;
-	line-height: 1;
-}
-
-.btn-edit:hover,
-.btn-edit:focus-visible {
-	background: var(--warning-bg);
-}
-
-/* Ver solo lleva a mirar: va en gris, no en el acento. El acento se reserva a
-   una accion por pantalla —la primaria de la barra— y repartirlo por cada fila
-   lo dejaria sin significar nada. */
-.btn-view {
-	border-color: var(--text-muted);
-	color: var(--text-secondary);
-}
-
-/* La flecha va DETRAS y apunta adelante: estos botones navegan a un detalle. */
-.btn-view::after {
-	content: '→';
-	font-size: 1.05em;
-	line-height: 1;
-}
-
-.btn-view:hover,
-.btn-view:focus-visible {
-	background: var(--surface-sunken);
-	border-color: var(--text-secondary);
-}
-
-.btn-edit:focus-visible,
-.btn-view:focus-visible {
-	outline: none;
-	box-shadow: var(--focus-ring);
-}
-
-/* Boton que ABRE un alta: lleva un `+` delante. Va en `::before` y no en el
-   marcado porque es decorativo —el texto ya dice que se crea algo— y asi no
-   llega a los lectores de pantalla ni hay que importarlo en ocho archivos.
-   El `gap` de `.btn-*` en theme.css ya lo separa del texto. */
-.btn-new::before {
-	content: '+';
-	font-size: 1.15em;
-	line-height: 1;
-}
-
-.form-actions {
-	grid-column: 1 / -1;
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	align-items: center;
-	gap: var(--sp-3);
-}
-
-.form-error {
-	color: var(--brand-danger);
-	font-size: var(--font-sm);
 }
 
 /* Deltas sobre las alertas compartidas: Cloud las usa como banda
@@ -329,18 +229,4 @@ p {
 .alert-success {
 	display: block;
 	margin-bottom: var(--sp-4);
-}
-
-.panel-hint {
-	color: var(--text-muted);
-	font-size: var(--font-sm);
-	margin: 0 0 var(--sp-4);
-}
-
-/* Se conserva la version de Cloud: 22 usos, algunos dentro de <td>,
-   que el flex-column de Workshop reflowearia. */
-.empty-state {
-	color: var(--text-muted);
-	padding: var(--sp-6);
-	text-align: center;
 }

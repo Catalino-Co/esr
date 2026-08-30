@@ -136,6 +136,33 @@ boton de `theme.css`, asi que todo `<a class="btn-primary">` salia con el color
 de letra del body encima del acento, a 2.8:1. Se arreglo devolviendoles el color
 en el `app.css`, que es donde manda.
 
+#### Los cinco resets que anulan la hoja compartida
+
+Al mover vocabulario de un `app.css` a `theme.css`, esas reglas pasan de ganar a
+perder contra **cualquier selector de elemento sin capa**. Estos son los que hay
+hoy, y lo que se comen. Todos estan medidos, no supuestos:
+
+| Reset | Donde | Que anula |
+| --- | --- | --- |
+| `a { color: inherit }` | los dos `app.css` | el color de letra de `.btn-*`, `.btn-edit`, `.btn-view` |
+| `button, input, select, textarea { font: inherit }` | `cloud/app.css` | tamaño, PESO y interlineado de cualquier `.btn-*` |
+| `h1 { font-size: 2rem }` | `cloud/app.css` | `.page-header h1` y `.topbar-titles h1` |
+| `h1 { margin: 0 }` | `cloud/app.css` | `.page-header > :first-child:last-child` |
+| `* { margin: 0; padding: 0 }` | `desktop/app.css` | **todo** el espaciado de `theme.css` |
+
+Los cuatro primeros se compensan con un bloque de rescates al final de los
+resets de `cloud/app.css`. El quinto no se compensa: se **encapsulo el reset
+dentro de `@layer esr.base`**, que es la solucion de fondo.
+
+Y ese quinto es el mas caro de los cinco. Un `* { padding: 0 }` sin capa gana a
+TODA la hoja compartida: durante meses, en ESR Pro, `.card` no tenia padding,
+las celdas de `.table` iban pegadas y los `.badge` no tenian caja. La conclusion
+no era «Desktop tiene otro sistema visual» —comparte el mismo archivo— sino que
+**tres declaraciones de un reset estaban anulandolo entero**.
+
+La regla que queda: **un reset va dentro de una capa.** Su trabajo es anular los
+valores por defecto del navegador, no pelearse con el sistema de diseño.
+
 ### 2. El ciclo de alias
 
 El vocabulario historico (`--brand-primary`, `--bg-surface`, `--primary`…) vive
@@ -184,6 +211,11 @@ Franja única dividida por hairlines, no tarjetas individuales. Label 12px arrib
 
 ### Estado vacío
 Icono outline `--text-muted` 24px + título + una línea de explicación + botón de la acción que lo resuelve. Nunca una frase suelta flotando.
+
+`.empty-state` es la caja de texto centrado, y va en un `<p>`. Dentro de una
+tabla, el `<p>` va **dentro** de la celda, nunca sobre ella: en la misma capa,
+`.data-table td` (0,1,1) le gana a `.empty-state` (0,1,0) y se come el padding
+y el color.
 
 ### Grids
 Nunca dejar una tarjeta huérfana. 6 elementos → 3×2. Paneles de una fila con `align-items: stretch` y misma altura. Un tercer panel va full-width abajo.

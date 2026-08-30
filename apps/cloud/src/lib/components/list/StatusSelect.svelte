@@ -48,68 +48,8 @@
 </label>
 
 <style>
-	.status-select {
-		position: relative;
-		display: inline-flex;
-		align-items: center;
-		gap: var(--sp-2);
-		padding: 0 var(--sp-3);
-		border: 1px solid var(--border);
-		border-radius: var(--border-radius-sm);
-		background: var(--bg-surface);
-		transition:
-			border-color var(--transition-fast),
-			box-shadow var(--transition-fast);
-	}
-
-	.status-select:hover {
-		border-color: var(--border-light);
-	}
-
-	/* El foco vive en el label, no en el select, porque el select es
-	   transparente y su anillo quedaría por dentro del borde. */
-	.status-select:focus-within {
-		border-color: var(--border-focus);
-		box-shadow: var(--focus-ring);
-	}
-
-	select {
-		appearance: none;
-		-webkit-appearance: none;
-		border: none;
-		background: transparent;
-		color: var(--text-primary);
-		font: inherit;
-		font-size: var(--font-sm);
-		/* Sitio para el chevron, que va superpuesto. */
-		padding: var(--sp-2) var(--sp-5) var(--sp-2) 0;
-		width: 100%;
-		cursor: pointer;
-		outline: none;
-	}
-
-	.dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.dot--ok {
-		background: var(--brand-success);
-	}
-	.dot--warn {
-		background: var(--brand-warning);
-	}
-	.dot--off {
-		background: var(--text-muted);
-	}
-
-	.chevron {
-		position: absolute;
-		right: var(--sp-3);
-		display: flex;
-		color: var(--text-muted);
-		pointer-events: none;
-	}
+	/* `.filters*` y `.status-select` viven en @esr/config/theme.css: Cloud y
+	   Desktop comparten la barra de filtros. Este componente ya no declara
+	   estilos propios; una regla local aqui iria sin capa y dejaria inerte la
+	   version compartida. */
 </style>

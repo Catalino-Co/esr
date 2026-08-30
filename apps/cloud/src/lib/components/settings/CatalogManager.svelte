@@ -1,5 +1,13 @@
 <script>
 	import { enhance } from '$app/forms';
+	import {
+		RECORD_STATE,
+		RECORD_STATE_FILTER_LABELS,
+		RECORD_STATES,
+		recordStateBadgeClass,
+		recordStateLabel
+	} from '@esr/core';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 
 	/**
@@ -18,9 +26,59 @@
 		form = null,
 		/** Columnas de la tabla: { field, label, kind? } */
 		columns,
+		/**
+		 * Estado que se esta viendo, para el filtro.
+		 *
+		 * NO se puede llamar `state`: un binding local con ese nombre convierte
+		 * `$state(...)` de mas abajo en una suscripcion a un store, y la pantalla
+		 * revienta en el servidor con `store_invalid_shape`. El compilador solo
+		 * lo avisa; `vite build` pasa igual.
+		 */
+		currentState = RECORD_STATE.ACTIVE,
 		/** Ancho del dialogo: 'sm' una columna, 'md' dos. */
 		size = 'md'
 	} = $props();
+
+	const TONES = {
+		[RECORD_STATE.ACTIVE]: 'ok',
+		[RECORD_STATE.INACTIVE]: 'warn',
+		[RECORD_STATE.ARCHIVED]: 'off'
+	};
+
+	const stateOptions = RECORD_STATES.map((value) => ({
+		value,
+		label: RECORD_STATE_FILTER_LABELS[value],
+		tone: TONES[value]
+	}));
+
+	/**
+	 * `?/save` a secas BORRA el resto de la query, asi que al guardar desde
+	 * «Inactivos» la pantalla saltaba a «Activos». El nombre de la action tiene
+	 * que ir el ultimo; lo de delante son parametros normales.
+	 */
+	const saveAction = $derived(`?state=${currentState}&/save`);
+	const toggleAction = $derived(`?state=${currentState}&/toggle`);
+
+	/**
+	 * A donde puede ir cada entrada desde donde esta. Se listan los DESTINOS, no
+	 * un interruptor: con tres estados «alternar» no significa nada.
+	 */
+	function transiciones(current) {
+		if (current === RECORD_STATE.ACTIVE) {
+			return [
+				{ to: RECORD_STATE.INACTIVE, label: 'Desactivar', variant: 'btn-secondary' },
+				{ to: RECORD_STATE.ARCHIVED, label: 'Archivar', variant: 'btn-danger' }
+			];
+		}
+		if (current === RECORD_STATE.INACTIVE) {
+			return [
+				{ to: RECORD_STATE.ACTIVE, label: 'Reactivar', variant: 'btn-secondary' },
+				{ to: RECORD_STATE.ARCHIVED, label: 'Archivar', variant: 'btn-danger' }
+			];
+		}
+		// Archivada: solo se puede sacar del archivo.
+		return [{ to: RECORD_STATE.ACTIVE, label: 'Reactivar', variant: 'btn-secondary' }];
+	}
 
 	// El dialogo sirve para alta y edicion: al editar se precarga la fila.
 	let open = $state(false);
@@ -71,9 +129,21 @@
 </script>
 
 <section class="panel">
-	<div class="page-header">
-		<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva entrada</button>
-	</div>
+	<FilterBar
+		selects={[
+			{
+				name: 'state',
+				label: 'Estado',
+				value: String(currentState),
+				options: stateOptions,
+				width: '11rem'
+			}
+		]}
+	>
+		{#snippet actions()}
+			<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva entrada</button>
+		{/snippet}
+	</FilterBar>
 
 	{#if hint}
 		<p class="panel-hint">{hint}</p>
@@ -91,7 +161,13 @@
 	{/if}
 
 	{#if entries.length === 0}
-		<p class="empty-state">Todavía no hay entradas. Agrega la primera con «Nueva entrada».</p>
+		<p class="empty-state">
+			{#if currentState === RECORD_STATE.ACTIVE}
+				Todavía no hay entradas. Agrega la primera con «Nueva entrada».
+			{:else}
+				No hay entradas en este estado.
+			{/if}
+		</p>
 	{:else}
 		<table class="data-table">
 			<thead>
@@ -105,8 +181,12 @@
 			</thead>
 			<tbody>
 				{#each entries as entry (entry.id)}
-					{@const active = entry.is_active === 1}
-					<tr class:row-inactive={!active}>
+					{@const current = Number(entry.is_active)}
+					<!-- Sin atenuar la fila. `opacity` sobre el `<tr>` hundia el badge de
+					     estado a 2.65:1 y el boton «Archivar» a 2.98:1, los dos por debajo
+					     de AA: se difuminaba justo lo que anuncia el estado. El badge ya lo
+					     dice, y asi lo dice legible. -->
+					<tr>
 						{#each columns as column (column.field)}
 							<td>
 								{#if column.kind === 'color'}
@@ -119,21 +199,19 @@
 							</td>
 						{/each}
 						<td>
-							<span class="badge" class:badge-active={active} class:badge-inactive={!active}>
-								{active ? 'Activa' : 'Inactiva'}
-							</span>
+							<span class="badge {recordStateBadgeClass(current)}">{recordStateLabel(current)}</span>
 						</td>
 						<td class="row-actions">
 							<button type="button" class="btn-edit" onclick={() => abrirEdicion(entry)}>
 								Editar
 							</button>
-							<form method="POST" action="?/toggle" use:enhance>
-								<input type="hidden" name="id" value={entry.id} />
-								<input type="hidden" name="is_active" value={active ? '2' : '1'} />
-								<button type="submit" class={active ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
-									{active ? 'Desactivar' : 'Reactivar'}
-								</button>
-							</form>
+							{#each transiciones(current) as paso (paso.to)}
+								<form method="POST" action={toggleAction} use:enhance>
+									<input type="hidden" name="id" value={entry.id} />
+									<input type="hidden" name="is_active" value={paso.to} />
+									<button type="submit" class="{paso.variant} btn-sm">{paso.label}</button>
+								</form>
+							{/each}
 						</td>
 					</tr>
 				{/each}
@@ -147,7 +225,7 @@
 		<div class="alert-error" role="alert">{errorGuardar}</div>
 	{/if}
 
-	<form id="catalog-form" method="POST" action="?/save" class="form-grid" use:enhance={alGuardar}>
+	<form id="catalog-form" method="POST" action={saveAction} class="form-grid" use:enhance={alGuardar}>
 		{#if isEditing}
 			<input type="hidden" name="id" value={editingId} />
 		{/if}
@@ -216,10 +294,6 @@
 		display: flex;
 		align-items: center;
 		gap: var(--sp-3);
-	}
-
-	.row-inactive td {
-		opacity: 0.65;
 	}
 
 	.btn-sm {
