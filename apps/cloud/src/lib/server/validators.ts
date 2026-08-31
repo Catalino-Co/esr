@@ -81,6 +81,63 @@ export function validateCloudCompanySettingsInput(data: {
 	return errors;
 }
 
+/**
+ * Tope de lo que se acepta como logotipo, en caracteres del data URL.
+ *
+ * Algo mas alto que el que aplica el cliente (300 KB): asi un margen de
+ * codificacion no rechaza un logo legitimo, pero sigue acotando el disparate.
+ */
+const MAX_LOGO_CHARS = 400_000;
+
+/** Los dos unicos prefijos que se admiten, exactos. */
+const LOGO_PREFIJOS = ['data:image/png;base64,', 'data:image/jpeg;base64,'] as const;
+
+/** Firmas de archivo, para comprobar que los bytes son lo que la etiqueta dice. */
+const FIRMAS: Record<string, number[]> = {
+	'data:image/png;base64,': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+	'data:image/jpeg;base64,': [0xff, 0xd8, 0xff]
+};
+
+/**
+ * El logotipo que llega por el formulario.
+ *
+ * Una action es un endpoint publico: el `<input type="file">` y el reescalado
+ * del navegador no protegen nada. Aqui esta autenticado y con permiso de
+ * configuracion, asi que el atacante no es internet, pero el techo sigue
+ * haciendo falta: `getCompanySettingsRepository().get()` trae esta columna, y la
+ * llaman las pantallas de cotizacion y de inventario solo para leer la tasa de
+ * impuesto. Un pegote de 50 MB ahi se arrastra a memoria en cada una.
+ *
+ * Las comprobaciones van de la mas barata a la mas cara: no se le pasa una
+ * expresion regular a una cadena de 50 MB si la longitud ya la descarta.
+ */
+export function validateCloudLogoDataUrl(valor: string): ValidationError[] {
+	const error = (message: string) => [{ field: 'logo_base64', message }];
+
+	if (valor.length > MAX_LOGO_CHARS) return error('El logotipo pesa demasiado.');
+
+	const prefijo = LOGO_PREFIJOS.find((p) => valor.startsWith(p));
+	// Lista blanca y no lista negra. Esto es lo que corta `javascript:`,
+	// `data:text/html` y sobre todo `data:image/svg+xml`: un SVG puede llevar
+	// script dentro, y jsPDF ademas no sabe dibujarlo —entraria en su `catch`
+	// mudo y el documento saldria sin logo y sin avisar.
+	if (!prefijo) return error('El logotipo tiene que ser un PNG o un JPG.');
+
+	const datos = valor.slice(prefijo.length);
+	if (!/^[A-Za-z0-9+/]+={0,2}$/.test(datos)) return error('El logotipo está mal codificado.');
+
+	// Bytes magicos: que la firma case con el tipo DECLARADO. Sin esto, un PNG
+	// etiquetado como JPEG pasaria, y es justo el caso que hace que el generador
+	// de PDF acierte la etiqueta y falle los bytes.
+	const firma = FIRMAS[prefijo];
+	const cabeza = Buffer.from(datos.slice(0, 24), 'base64');
+	if (firma.some((byte, i) => cabeza[i] !== byte)) {
+		return error('El archivo no es la imagen que dice ser.');
+	}
+
+	return [];
+}
+
 export function validateCloudMemberInput(data: {
 	email?: string;
 	role?: string;

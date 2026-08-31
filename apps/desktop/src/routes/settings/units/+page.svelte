@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { Modal } from '@esr/ui';
+  import { BackLink, Modal } from '@esr/ui';
 
   /**
    * Unidades de medida. Como se cuenta cada articulo.
@@ -83,7 +83,7 @@
 <div class="card">
   <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
     <div style="display: flex; gap: 15px; align-items: center;">
-      <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+      <BackLink href="/settings" label="Volver a Ajustes" />
       <span>Unidades de Medida</span>
       <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left: 10px;">
         <option value="1">🟢 Activos</option>

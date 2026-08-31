@@ -1,14 +1,23 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { BackLink } from '@esr/ui';
 
 	let { data, form } = $props();
 	const values = form?.values ?? {};
 </script>
 
 <section class="panel">
+	<!-- Vuelve a la LISTA de artículos, no a Configuración: es de donde se
+	     viene. El layout de Configuración solo pone el suyo en la raíz de cada
+	     sección, para que aquí no salgan dos flechas a sitios distintos. -->
 	<div class="page-header">
-		<h1>Nuevo artículo</h1>
-		<a class="btn-secondary" href="/settings/articles">Volver</a>
+		<!-- Agrupados: `.page-header` reparte a los extremos con
+		     `space-between`, y sueltos el icono y el título se irían cada uno a
+		     una punta. -->
+		<div class="titulo">
+			<BackLink href="/settings/articles" label="Volver al catálogo de artículos" />
+			<h1>Nuevo artículo</h1>
+		</div>
 	</div>
 
 	{#if form?.error}
@@ -63,3 +72,11 @@
 		</div>
 	</form>
 </section>
+
+<style>
+	.titulo {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+</style>

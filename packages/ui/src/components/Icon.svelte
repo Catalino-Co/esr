@@ -21,6 +21,10 @@
    * lenguaje visual —trazo de 2, extremos redondeados— en las dos apps.
    */
   const PATHS = {
+    // Volver: una flecha a la izquierda. Sustituye al emoji ⬅️ que las diez
+    // pantallas de Ajustes de ESR Pro repetian a mano, y que cada sistema
+    // operativo dibuja distinto y en color.
+    back: ['M19 12H5', 'M12 19l-7-7 7-7'],
     edit: [
       'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7',
       'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'

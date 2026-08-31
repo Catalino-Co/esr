@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { validateCompanySettingsInput } from '@esr/schemas';
+  import { BackLink } from '@esr/ui';
 
   let currentCompany = {
     id: 1,
@@ -71,9 +72,9 @@
   }
 </script>
 
-<div class="card" style="max-width: 800px; margin: 0 auto;">
+<div class="card" style="max-width: 800px;">
   <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+    <BackLink href="/settings" label="Volver a Ajustes" />
     <span>Datos de la Empresa</span>
   </div>
 
@@ -157,8 +158,6 @@
   .form-control { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; font-size: 0.95rem; box-sizing: border-box;}
   .form-control:focus { border-color: var(--primary); }
   label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
-  .btn-icon { background: none; border: none; cursor: pointer; opacity: 0.6; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
-  .btn-icon:hover { opacity: 1; transform: scale(1.1); }
   
   .logo-preview {
     width: 200px;

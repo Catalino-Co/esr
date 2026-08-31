@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { validateUserInput } from '@esr/schemas';
-  import { Modal } from '@esr/ui';
+  import { BackLink, Modal } from '@esr/ui';
 
   let viewState = "1";
   let users = [];
@@ -75,7 +75,7 @@
 
 <div class="card">
   <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+    <BackLink href="/settings" label="Volver a Ajustes" />
     <span>Gestión de Usuarios</span>
     
     <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left: 20px;">

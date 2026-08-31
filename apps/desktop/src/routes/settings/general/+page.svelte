@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { BackLink } from '@esr/ui';
 
   /**
    * Configuración › Generales.
@@ -72,7 +72,7 @@
 
 <div class="record-header">
   <div class="record-titulo">
-    <button class="btn btn-secondary btn-sm" on:click={() => goto('/settings')}>← Ajustes</button>
+    <BackLink href="/settings" label="Volver a Ajustes" />
     <h1>Generales</h1>
   </div>
 </div>

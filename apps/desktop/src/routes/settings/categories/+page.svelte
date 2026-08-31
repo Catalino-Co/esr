@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { BackLink } from '@esr/ui';
 
   let categories = [];
   let subcategories = [];
@@ -170,7 +171,7 @@
   <div class="card" style="flex: 1;">
     <div class="card-title" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <a href="/settings" class="btn-icon" style="font-size: 1.2rem; text-decoration: none;" title="Volver a Ajustes">⬅️</a>
+        <BackLink href="/settings" label="Volver a Ajustes" />
         <span>Categorías Principales</span>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">

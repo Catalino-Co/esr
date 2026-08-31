@@ -86,6 +86,12 @@ export type CompanyDocumentInfo = {
 	phone?: string | null;
 	email?: string | null;
 	address?: string | null;
+	/**
+	 * El membrete. `pdf-generator.js` lo dibuja en la cabecera de la cotizacion
+	 * —`if (companyInfo.logo_base64)`— y hasta ahora esa rama nunca entraba en
+	 * Cloud, no porque no hubiera logo, sino porque esta consulta no lo traia.
+	 */
+	logo_base64?: string | null;
 };
 
 export async function getCompanyDocumentInfo(
@@ -94,7 +100,8 @@ export async function getCompanyDocumentInfo(
 ): Promise<CompanyDocumentInfo> {
 	const companyId = requireCompanyId(ctx);
 	const result = await pool.query<CompanyDocumentInfo>(
-		`SELECT COALESCE(ci.name, c.name) AS name, ci.rnc, ci.phone, ci.email, ci.address
+		`SELECT COALESCE(ci.name, c.name) AS name, ci.rnc, ci.phone, ci.email, ci.address,
+		        ci.logo_base64
 		 FROM companies c
 		 LEFT JOIN company_info ci ON ci.company_id = c.id AND ci.id = 1
 		 WHERE c.id = $1`,

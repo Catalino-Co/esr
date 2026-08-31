@@ -1,5 +1,6 @@
 <script>
 	import RecordStateControl from '$lib/components/list/RecordStateControl.svelte';
+	import { BackLink } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 
@@ -9,13 +10,18 @@
 
 <section class="panel">
 	<div class="page-header">
-		<h1>{item.name}</h1>
+		<!-- Vuelve a la LISTA de artículos, no a Configuración: es de donde se
+		     viene. El layout de Configuración solo pone el suyo en la raíz de
+		     cada sección, para que aquí no salgan dos flechas. -->
+		<div class="titulo">
+			<BackLink href="/settings/articles" label="Volver al catálogo de artículos" />
+			<h1>{item.name}</h1>
+		</div>
 		<div class="page-actions">
 			<!-- Un enlace, no datos: desde aquí se va a ver cuánto hay. -->
 			<a class="btn-secondary" href="/inventory?search={encodeURIComponent(item.internal_code || item.name)}">
 				Ver en Inventario
 			</a>
-			<a class="btn-secondary" href="/settings/articles">Volver al listado</a>
 		</div>
 	</div>
 
@@ -220,6 +226,15 @@
 {/if}
 
 <style>
+	/* El icono de volver y el título, como una sola unidad a la izquierda: si
+	   fueran hermanos sueltos de `.page-header`, su `space-between` los
+	   separaría a los dos extremos. */
+	.titulo {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
 	/* Separa los dos precios del resto de la ficha sin encerrarlos en otra
 	   tarjeta: son campos del mismo formulario, no una seccion aparte. */
 	.precios-titulo {

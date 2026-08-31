@@ -17,7 +17,7 @@
     validateSerialCatalogInput
   } from '@esr/core';
   import { validateInventoryItemInput } from '@esr/schemas';
-  import { Modal } from '@esr/ui';
+  import { BackLink, Modal } from '@esr/ui';
   import { fmt } from '@esr/reports';
 
   let viewState = "1";
@@ -236,6 +236,9 @@
 <div class="card">
   <div class="card-title" style="align-items: center;">
     <div style="display: flex; gap: 15px; align-items: center;">
+      <!-- No lo tenia, siendo subpantalla de Ajustes: era la unica de las doce
+           sin forma de volver. -->
+      <BackLink href="/settings" label="Volver a Ajustes" />
       <span>Catálogo de artículos</span>
       <select bind:value={viewState} on:change={loadItems} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
         <option value="1">🟢 Activos</option>

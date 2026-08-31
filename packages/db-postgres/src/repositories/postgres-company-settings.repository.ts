@@ -29,7 +29,22 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 		return result.rows[0] ?? null;
 	}
 
+	/**
+	 * Los datos que se IMPRIMEN en cada documento.
+	 *
+	 * El logo solo se escribe si el llamador TRAE la clave. Antes iba siempre
+	 * como `data.logo_base64 ?? null`, y como la pantalla de Cloud armaba su
+	 * objeto con cinco campos y sin logo, **cada guardado lo ponia a NULL**: se
+	 * podia perder el membrete de la empresa por corregir una errata en el
+	 * telefono. No se veia porque no habia forma de subirlo todavia.
+	 *
+	 * Se arregla aqui y no en la pantalla a proposito: asi ningun llamador
+	 * futuro puede borrar un dato que ni siquiera menciono. Es el mismo patron
+	 * que `saveInventory`.
+	 */
 	async upsert(ctx: RepositoryContext, data: TenantCompanySettingsInput): Promise<CompanySettings> {
+		const tocaLogo = 'logo_base64' in data;
+
 		const result = await this.pool.query<CompanySettings>(
 			`INSERT INTO company_info (company_id, id, name, rnc, phone, email, address, logo_base64)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -38,8 +53,7 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 				rnc = EXCLUDED.rnc,
 				phone = EXCLUDED.phone,
 				email = EXCLUDED.email,
-				address = EXCLUDED.address,
-				logo_base64 = EXCLUDED.logo_base64
+				address = EXCLUDED.address${tocaLogo ? ',\n\t\t\t\tlogo_base64 = EXCLUDED.logo_base64' : ''}
 			 RETURNING id, company_id, name, rnc, phone, email, address, logo_base64`,
 			[
 				requireCompanyId(ctx),
@@ -49,7 +63,9 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 				data.phone ?? null,
 				data.email ?? null,
 				data.address ?? null,
-				data.logo_base64 ?? null
+				// En el INSERT si va siempre: una fila nueva no tiene nada que
+				// conservar, y `''` significa «sin logo» igual que NULL.
+				data.logo_base64 || null
 			]
 		);
 		return result.rows[0];
