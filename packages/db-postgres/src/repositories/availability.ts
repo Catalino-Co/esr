@@ -33,8 +33,9 @@ export const AVAILABILITY_ORDER_STATUSES = [...ACTIVE_INVENTORY_ORDER_STATUSES];
  * mismo error que se esta corrigiendo.
  *
  * En uno DE CANTIDAD la existencia dejo de ser `items.total_quantity` y pasa a
- * ser la suma de `item_stock`, que es una fila por almacen. `total_quantity`
- * sigue en la tabla y ya no se lee: se conserva para poder volver atras.
+ * ser la suma de `item_stock`, que es una fila por almacen. Aquella columna se
+ * conservo sin leerse desde la 019 y la borro la 022, una vez comprobado que
+ * esta cuenta la sustituia del todo.
  *
  * ESTE ES EL UNICO PUNTO donde el reparto por almacenes toca el motor. El
  * almacen INFORMA y NO RESERVA: `committedQuantitySql` —lo que las ordenes

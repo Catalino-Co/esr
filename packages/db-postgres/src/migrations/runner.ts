@@ -13,7 +13,30 @@ export type MigrationRecord = {
 const migrationsDirectory = fileURLToPath(new URL('.', import.meta.url));
 const lockKey = 'esr_cloud_schema_migrations';
 
+/**
+ * La huella de una migracion, NORMALIZANDO los finales de linea.
+ *
+ * El checksum existe para detectar que alguien EDITO una migracion ya aplicada,
+ * porque entonces la base y el archivo dejan de contar la misma historia. Un
+ * CRLF donde habia un LF no es esa clase de cambio: el SQL es identico.
+ *
+ * Y pasa solo: en Windows, con `core.autocrlf` en `true` y sin `.gitattributes`,
+ * cualquier checkout —un `git stash`, un cambio de rama, un clon reciente—
+ * reescribe los archivos con CRLF. El runner los veia distintos y se negaba a
+ * arrancar contra una base ya migrada, que es lo peor que puede hacer: no es que
+ * fallara la migracion nueva, es que ninguna corria.
+ */
 function checksum(content: string): string {
+	return createHash('sha256').update(normalizeEol(content), 'utf8').digest('hex');
+}
+
+/** CRLF a LF. Lo unico que hace falta normalizar para que dos checkouts coincidan. */
+function normalizeEol(content: string): string {
+	return content.split('\r\n').join('\n');
+}
+
+/** La huella SIN normalizar: la que grabaron las instalaciones anteriores. */
+function legacyChecksum(content: string): string {
 	return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
@@ -55,6 +78,18 @@ export async function runMigrations(): Promise<void> {
 
 			if (previousChecksum) {
 				if (previousChecksum !== currentChecksum) {
+					// Antes de dar el aviso: ¿es la huella vieja, la de antes de
+					// normalizar? Entonces el archivo no cambio, cambio como se mide.
+					// Se reescribe y se sigue, en vez de obligar a cirugia manual sobre
+					// `schema_migrations` en cada instalacion que exista.
+					if (previousChecksum === legacyChecksum(sql)) {
+						await client.query(
+							'UPDATE schema_migrations SET checksum = $2 WHERE filename = $1',
+							[filename, currentChecksum]
+						);
+						console.log(`[db-postgres] REHASH ${filename}`);
+						continue;
+					}
 					throw new Error(
 						`Migration ${filename} was modified after execution. ` +
 						`Expected checksum ${previousChecksum}, received ${currentChecksum}.`

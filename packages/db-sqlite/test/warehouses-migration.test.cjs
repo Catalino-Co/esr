@@ -8,33 +8,14 @@ const sqlite = require('../src/index.cjs');
 const migracion = require('../src/migrations/versioned/0009_warehouses_and_stock.cjs');
 
 /**
- * Los mismos ayudantes que el runner pasa a cada migracion. El runner no los
- * exporta, asi que se reconstruyen aqui con el MISMO comportamiento: son cuatro
- * lineas y duplicar el runner entero para probar una migracion seria peor.
- */
-const helpers = {
-	getQuery: sqlite.getQuery,
-	runQuery: sqlite.runQuery,
-	async columnExists(tabla, columna) {
-		const filas = await sqlite.getQuery(`PRAGMA table_info(${tabla})`);
-		return filas.some((f) => f.name === columna);
-	},
-	async addColumnIfMissing(tabla, columna, definicion) {
-		if (await helpers.columnExists(tabla, columna)) return;
-		await sqlite.runQuery(`ALTER TABLE ${tabla} ADD COLUMN ${columna} ${definicion}`);
-	},
-	async createIndexIfMissing(nombre, sql) {
-		const filas = await sqlite.getQuery(
-			"SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
-			[nombre]
-		);
-		if (!filas.length) await sqlite.runQuery(sql);
-	}
-};
-
-/**
- * La migracion 0009 —almacenes, unidades y existencias por almacen— sobre una
- * base migrada desde cero.
+ * La migracion 0009 —almacenes, unidades y existencias por almacen— sobre el
+ * CAMINO REAL de actualizacion: una base con el esquema anterior, que se migra.
+ *
+ * Antes esta prueba sembraba sobre una base ya migrada del todo y volvia a pasar
+ * la 0009 encima. Funcionaba, pero probaba la idempotencia y no el paso: no
+ * habia forma de que la base tuviera de verdad el esquema de antes. Con
+ * `initDatabase({ upTo })` si la hay, y ademas es lo unico que sigue siendo
+ * posible desde que la 0011 borra las columnas viejas.
  *
  * Lo que se demuestra es que es NEUTRA: reparte lo que ya habia y no mueve el
  * total de ningun articulo. Es la unica propiedad que no se puede comprobar
@@ -49,13 +30,17 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esr-almacenes-'));
 /** Lo que la base tenia ANTES de 0009, medido con el modelo viejo. */
 let antes;
 
-test('se siembra una base con las dos clases de articulo', async () => {
+test('se siembra una base con el esquema ANTERIOR a 0009', async () => {
 	sqlite.connectSqliteDatabase({ dbPath: path.join(dir, 'prueba.sqlite') });
 
-	// Se aplica el esquema SIN la 0009 para poder medir el antes. `initDatabase`
-	// las aplica todas, asi que primero se siembra y luego se comprueba que el
-	// reparto respeto lo sembrado.
-	await sqlite.initDatabase();
+	// Hasta la 0008, ni una mas: aqui `items.total_quantity` todavia es EL total
+	// y no existe `item_stock` donde repartirlo.
+	await sqlite.initDatabase({ upTo: '0008' });
+
+	const tablas = await sqlite.getQuery(
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'item_stock'"
+	);
+	assert.equal(tablas.length, 0, 'antes de 0009 no puede existir `item_stock`');
 
 	await sqlite.runQuery(
 		`INSERT INTO items (internal_code, name, item_type, total_quantity, available_quantity, is_active)
@@ -85,6 +70,9 @@ test('0009 crea las tablas, el almacen principal y las unidades', async () => {
 		'la migracion debe exportar `up` y su version'
 	);
 
+	// AHORA se aplica, sobre la base ya sembrada con el modelo viejo.
+	await sqlite.initDatabase({ upTo: '0009' });
+
 	const versiones = await sqlite.getQuery('SELECT version FROM schema_migrations');
 	assert.ok(
 		versiones.some((v) => v.version === '0009'),
@@ -101,11 +89,6 @@ test('0009 crea las tablas, el almacen principal y las unidades', async () => {
 });
 
 test('el reparto es NEUTRO: ningun total se mueve', async () => {
-	// Se vuelve a ejecutar para repartir los articulos sembrados despues de
-	// migrar. Es idempotente por diseño —`INSERT OR IGNORE`, `WHERE ... IS
-	// NULL`, `code = 'PRIN'`— y volver a pasarla es justo lo que lo demuestra.
-	await migracion.up(helpers);
-
 	for (const item of antes) {
 		if (item.item_type === 'serializado') {
 			// Su existencia son sus seriales: NO lleva fila en `item_stock`, o
@@ -132,11 +115,9 @@ test('el reparto es NEUTRO: ningun total se mueve', async () => {
 		);
 	}
 
-	// Y `items.total_quantity` sigue intacto: en ESR Pro es el total, y ademas
-	// es la unica forma de volver atras.
-	const despues = await sqlite.getQuery(
-		'SELECT id, total_quantity FROM items ORDER BY id'
-	);
+	// Y `items.total_quantity` sigue intacto: en ESR Pro es el total, y la 0011
+	// tampoco lo borra —alli es el motor de reservas, no un espejo—.
+	const despues = await sqlite.getQuery('SELECT id, total_quantity FROM items ORDER BY id');
 	for (const [i, fila] of despues.entries()) {
 		assert.equal(Number(fila.total_quantity), Number(antes[i].total_quantity));
 	}

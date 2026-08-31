@@ -11,12 +11,11 @@ import { withTransaction } from '../transaction';
 /**
  * Las columnas del ARTICULO, enumeradas a mano en vez de `i.*`.
  *
- * No es pedanteria: `items` todavia guarda `total_quantity`, `status`, `min_stock`
- * y `location`, que se mudaron a `item_stock` y a `item_inventory` y solo siguen
- * ahi para poder volver atras. Un `SELECT i.*` las traeria de vuelta y cualquier
- * pantalla las pintaria tan tranquila, enseñando un dato congelado en el dia de
- * la migracion. Enumerar es lo que hace que el error se vea como `undefined` y
- * no como un numero plausible y falso.
+ * `total_quantity`, `status`, `min_stock` y `location` YA NO EXISTEN en `items`:
+ * se mudaron a `item_stock` y a `item_inventory`, y la migracion 022 las borro.
+ * Enumerar dejo de ser una defensa contra leerlas por descuido —ya no se puede—
+ * y pasa a ser lo que dice QUE ES el catalogo: si mañana alguien añade a `items`
+ * una columna de existencias, no se cuela sola en cada consulta.
  */
 const ITEM_FIELDS = [
 	'id', 'company_id', 'internal_code', 'name', 'category_id', 'subcategory_id',
@@ -107,9 +106,10 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		const current = await this.findById(ctx, id);
 		if (!current) throw new Error(`Inventory item ${id} not found in company.`);
 		const next = { ...current, ...data };
-		// Ni `total_quantity`, ni `status`, ni `min_stock`: editar la ficha de un
-		// articulo NO puede mover ni una unidad. Esa es la regla entera de esta
-		// separacion, y aqui es donde se cumple o se rompe.
+		// Editar la ficha de un articulo NO puede mover ni una unidad. Desde la 022
+		// eso lo garantiza el esquema y no este UPDATE: las columnas de existencias
+		// ya no estan en `items`, asi que no hay forma de tocarlas desde aqui
+		// aunque alguien lo intente.
 		const result = await this.pool.query<InventoryItem>(
 			`UPDATE items SET internal_code = $3, name = $4, category_id = $5, subcategory_id = $6,
 				description = $7, item_type = $8, uses_serial = $9,

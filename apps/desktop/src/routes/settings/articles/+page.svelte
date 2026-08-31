@@ -69,9 +69,11 @@
   }
 
   async function loadItems() {
-    // Columnas del CATALOGO, enumeradas en vez de `i.*`. `items` todavia guarda
-    // `total_quantity`, `min_stock`, `status` y `location`; traerlas aqui las
-    // pondria a un `bind:value` de distancia de escribirse sin querer.
+    // Columnas del CATALOGO, enumeradas en vez de `i.*`. `min_stock`, `status` y
+    // `location` ya no existen —la 0011 las borro—, pero `total_quantity` y
+    // `available_quantity` SI siguen ahi, porque en ESR Pro son el motor de
+    // reservas. Traerlas aqui las pondria a un `bind:value` de distancia de
+    // escribirse sin querer desde una pantalla que no debe tocarlas.
     let query = `
       SELECT i.id, i.internal_code, i.name, i.category_id, i.subcategory_id,
              i.description, i.item_type, i.uses_serial, i.rental_price,

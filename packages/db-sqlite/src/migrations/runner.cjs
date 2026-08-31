@@ -9,6 +9,7 @@ const quoteLineTaxes = require('./versioned/0007_quote_line_taxes.cjs');
 const companyDefaultTaxRate = require('./versioned/0008_company_default_tax_rate.cjs');
 const warehousesAndStock = require('./versioned/0009_warehouses_and_stock.cjs');
 const itemInventory = require('./versioned/0010_item_inventory.cjs');
+const dropLegacyItemColumns = require('./versioned/0011_drop_legacy_item_columns.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -20,16 +21,26 @@ const MIGRATIONS = [
   quoteLineTaxes,
   companyDefaultTaxRate,
   warehousesAndStock,
-  itemInventory
+  itemInventory,
+  dropLegacyItemColumns
 ];
 
-async function initDatabase() {
+/**
+ * Aplica las migraciones que falten, en orden.
+ *
+ * `upTo` para en esa version, incluida. Existe para poder probar el CAMINO de
+ * actualizacion —sembrar el esquema viejo, aplicar la siguiente, comparar—, que
+ * es lo unico que demuestra que una migracion respeta lo que habia. En
+ * produccion no se pasa nunca: la app quiere el esquema entero.
+ */
+async function initDatabase({ upTo } = {}) {
   await ensureMigrationsTable();
 
   const appliedRows = await getQuery('SELECT version FROM schema_migrations');
   const applied = new Set(appliedRows.map((row) => row.version));
 
   for (const migration of MIGRATIONS) {
+    if (upTo && migration.version > upTo) break;
     if (applied.has(migration.version)) continue;
     await applyMigration(migration);
   }

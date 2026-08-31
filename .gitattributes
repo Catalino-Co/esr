@@ -1,0 +1,18 @@
+# Finales de linea de las MIGRACIONES, fijados a proposito.
+#
+# En Windows, `core.autocrlf` reescribe los archivos con CRLF al hacer checkout.
+# Para casi todo da igual, pero el runner de Postgres guarda un checksum de cada
+# `.sql` aplicado para detectar que alguien la edito despues de correrla. Un
+# cambio de LF a CRLF le parecia una edicion, y entonces NO fallaba la migracion
+# nueva: se negaba a arrancar del todo contra una base ya migrada.
+#
+# El runner ya normaliza los finales de linea antes de medir, asi que esto es la
+# segunda linea de defensa: que los archivos no cambien de forma segun quien los
+# saque del repositorio.
+#
+# Acotado a las migraciones a proposito. Un `* text=auto eol=lf` para todo el
+# repositorio arreglaria lo mismo, pero obligaria a renormalizar el arbol entero
+# —un diff enorme de puro final de linea— y cambiaria como se hace checkout de
+# cada archivo para todo el que trabaje aqui. Es una decision aparte de esta.
+packages/db-postgres/src/migrations/*.sql text eol=lf
+packages/db-sqlite/src/migrations/**/*.cjs text eol=lf

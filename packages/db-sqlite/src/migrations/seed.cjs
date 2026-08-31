@@ -21,11 +21,14 @@ async function ensureItem(item) {
   if (rows.length > 0) return rows[0].id;
 
   const result = await runQuery(
+    // Ni `status` ni `location`: se fueron a `item_inventory` en la 0010 y la
+    // 0011 las borro. `total_quantity` y `available_quantity` se quedan porque
+    // en ESR Pro son el motor de reservas, no un espejo del stock.
     `INSERT INTO items (
       internal_code, name, category_id, subcategory_id, description,
       item_type, uses_serial, total_quantity, available_quantity,
-      rental_price, internal_cost, status, location)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rental_price, internal_cost)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.internal_code,
       item.name,
@@ -37,10 +40,28 @@ async function ensureItem(item) {
       item.total_quantity || 0,
       item.available_quantity ?? item.total_quantity ?? 0,
       item.rental_price || 0,
-      item.internal_cost || 0,
-      item.status || 'disponible',
-      item.location || ''
+      item.internal_cost || 0
     ]
+  );
+
+  // La siembra corre DESPUES de migrar, asi que el volcado de la 0009 —que
+  // reparte `total_quantity` en `item_stock`— ya paso de largo cuando estos
+  // articulos nacen. Sin estas dos filas, una instalacion nueva enseñaria cada
+  // articulo con 8 en «Total» y 0 «En almacen», que es justo la contradiccion
+  // que la fase de almacenes vino a quitar.
+  const almacen = await getQuery(
+    "SELECT id FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id LIMIT 1"
+  );
+  if (almacen[0] && (item.item_type || 'cantidad') !== 'serializado') {
+    await runQuery(
+      `INSERT OR IGNORE INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)`,
+      [result.id, almacen[0].id, item.total_quantity || 0]
+    );
+  }
+  await runQuery(
+    `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
+     VALUES (?, 0, 'disponible')`,
+    [result.id]
   );
 
   return result.id;
@@ -71,8 +92,7 @@ async function seedDB() {
       uses_serial: 1,
       total_quantity: 4,
       available_quantity: 4,
-      rental_price: 2500,
-      status: 'disponible'
+      rental_price: 2500
     });
 
     await ensureItem({
@@ -85,8 +105,7 @@ async function seedDB() {
       uses_serial: 0,
       total_quantity: 8,
       available_quantity: 8,
-      rental_price: 350,
-      status: 'disponible'
+      rental_price: 350
     });
 
     await ensureItem({
@@ -99,8 +118,7 @@ async function seedDB() {
       uses_serial: 0,
       total_quantity: 12,
       available_quantity: 12,
-      rental_price: 450,
-      status: 'disponible'
+      rental_price: 450
     });
 
     await ensureItem({
@@ -113,8 +131,7 @@ async function seedDB() {
       uses_serial: 0,
       total_quantity: 100,
       available_quantity: 100,
-      rental_price: 75,
-      status: 'disponible'
+      rental_price: 75
     });
 
     await ensureItem({
@@ -127,8 +144,7 @@ async function seedDB() {
       uses_serial: 0,
       total_quantity: 15,
       available_quantity: 15,
-      rental_price: 400,
-      status: 'disponible'
+      rental_price: 400
     });
 
     for (let i = 1; i <= 4; i += 1) {

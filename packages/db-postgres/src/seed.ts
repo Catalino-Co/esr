@@ -219,13 +219,39 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 		)
 	).rows[0].id;
 
+	// El articulo, sin existencias: desde la 022 no hay `total_quantity` ni
+	// `status` en `items`. Lo que hay y en que condicion esta se siembra aparte,
+	// que es exactamente lo que hace la aplicacion.
 	await client.query(
 		`INSERT INTO items
-			(company_id, internal_code, name, category_id, item_type, total_quantity,
-			 rental_price, status, is_active)
-		 SELECT $1, $2, $3, $4, 'cantidad', 10, 100, 'disponible', 1
+			(company_id, internal_code, name, category_id, item_type, rental_price, is_active)
+		 SELECT $1, $2, $3, $4, 'cantidad', 100, 1
 		 WHERE NOT EXISTS (SELECT 1 FROM items WHERE company_id = $1 AND internal_code = $2)`,
 		[companyId, tenant.itemCode, tenant.itemName, categoryId]
+	);
+
+	// Su ficha de existencias y sus diez unidades en el almacen principal. El
+	// almacen puede no existir todavia si la 019 corrio sobre una base sin
+	// empresas: por eso el `INSERT ... SELECT` y no un valor a pelo.
+	await client.query(
+		`INSERT INTO item_inventory (company_id, item_id, min_stock, physical_status)
+		 SELECT $1, i.id, 0, 'disponible'
+		   FROM items i
+		  WHERE i.company_id = $1 AND i.internal_code = $2
+		 ON CONFLICT (company_id, item_id) DO NOTHING`,
+		[companyId, tenant.itemCode]
+	);
+
+	await client.query(
+		`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
+		 SELECT $1, i.id, w.id, 10
+		   FROM items i
+		   JOIN warehouses w ON w.company_id = i.company_id AND w.is_active = 1
+		  WHERE i.company_id = $1 AND i.internal_code = $2
+		  ORDER BY CASE WHEN w.code = 'PRIN' THEN 0 ELSE 1 END, w.id
+		  LIMIT 1
+		 ON CONFLICT (company_id, item_id, warehouse_id) DO NOTHING`,
+		[companyId, tenant.itemCode]
 	);
 
 	await client.query(
