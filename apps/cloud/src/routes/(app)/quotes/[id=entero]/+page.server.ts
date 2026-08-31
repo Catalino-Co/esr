@@ -21,17 +21,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'quotes.view');
 	const ctx = toTenantContext(companyId);
 
-	// El id tiene que ser NUMERICO antes de tocar el repositorio.
-	//
-	// `quotations.id` es BIGSERIAL, asi que un id que no lo sea no vuelve como
-	// «no encontrada»: revienta en el driver con un `22P02` que nadie captura, y
-	// eso es un 500 donde tocaba un 404.
-	//
-	// Se nota desde que `/quotes/new` es un dialogo y ya no existe como ruta: un
-	// marcador viejo a esa direccion cae aqui, con `new` de id. Misma guarda que
-	// `leerIds` en el listado, y por la misma razon.
-	if (!/^\d+$/.test(params.id)) error(404, 'Cotización no encontrada');
-
+	// Aqui habia una guarda `/^\d+$/` sobre `params.id`. Se fue al router: la
+	// ruta es `[id=entero]` y el matcher de `src/params/entero.js` rechaza lo que
+	// no sea numerico antes de resolverla, asi que a este `load` —y a las actions
+	// de abajo, que no pasaban por la guarda por ser POST— ya no llega basura.
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
