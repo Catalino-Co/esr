@@ -25,6 +25,8 @@
       'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7',
       'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'
     ],
+    // Historial: un reloj con la aguja marcando.
+    history: ['M12 21a9 9 0 1 0-9-9', 'M3 12l-.5-3M3 12l3-.5', 'M12 7v5l3 2'],
     // Movimiento de existencias: una flecha que entra y otra que sale.
     stock: [
       'M12 3v18',

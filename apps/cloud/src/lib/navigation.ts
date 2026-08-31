@@ -116,7 +116,8 @@ export const navItems: NavItemConfig[] = [
 const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/dashboard', title: 'Dashboard', subtitle: 'Gestión general de operaciones' },
 	{ prefix: '/customers', title: 'Clientes', subtitle: 'Directorio de clientes de la empresa' },
-	{ prefix: '/inventory', title: 'Inventario', subtitle: 'Artículos y disponibilidad' },
+	{ prefix: '/inventory', title: 'Inventario', subtitle: 'Existencias por almacén' },
+	{ prefix: '/movements', title: 'Movimientos', subtitle: 'Qué entró, qué salió y quién lo movió' },
 	{ prefix: '/events', title: 'Eventos', subtitle: 'Calendario y reservas' },
 	{ prefix: '/quotes', title: 'Cotizaciones', subtitle: 'Propuestas comerciales' },
 	{ prefix: '/work-orders', title: 'Órdenes', subtitle: 'Operación y entregas' },

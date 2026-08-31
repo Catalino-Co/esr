@@ -13,7 +13,7 @@ export const navItems = [
 	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices, subtitle: 'Documentos de cobro y estado de cuenta' },
 	{ path: '/events', label: 'Eventos', icon: ICONS.events, subtitle: 'Calendario y reservas' },
 	{ path: '/clients', label: 'Clientes', icon: ICONS.customers, subtitle: 'Directorio de clientes de la empresa' },
-	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Artículos y disponibilidad' },
+	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Existencias por almacén' },
 	// Paquetes no existe en Cloud; va junto a Inventario, que es lo que agrupa.
 	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages, subtitle: 'Artículos que se alquilan juntos' },
 	{ path: '/reports', label: 'Reportes', icon: ICONS.reports, subtitle: 'Consultas operativas básicas' },
@@ -32,6 +32,8 @@ export const navItems = [
  * generico.
  */
 const hiddenTitles = [
+	// Se llega desde Inventario, con el botón de la fila o el enlace de arriba.
+	{ path: '/movements', label: 'Movimientos', subtitle: 'Qué entró, qué salió y quién lo movió' },
 	{ path: '/conduces', label: 'Conduces', subtitle: 'Notas de entrega de la operación' },
 	{ path: '/checklist', label: 'Checklist', subtitle: 'Verificación de salida y retorno' }
 ];

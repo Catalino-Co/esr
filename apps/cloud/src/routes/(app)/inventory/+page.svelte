@@ -104,6 +104,7 @@
 				/>
 				<span>Solo stock bajo</span>
 			</label>
+			<a class="btn-secondary" href="/movements">Movimientos</a>
 			<a class="btn-secondary" href="/settings/articles">Catálogo de artículos</a>
 		{/snippet}
 	</FilterBar>
@@ -183,6 +184,17 @@
 										title="Editar en el catálogo"
 									>
 										<Icon name="edit" />
+									</a>
+									<!-- Abre la pantalla de movimientos YA FILTRADA por este
+									     artículo; quitando el filtro allí se ve el almacén
+									     entero. -->
+									<a
+										class="row-action"
+										href="/movements?item={item.id}"
+										aria-label="Historial de {item.name}"
+										title="Historial de movimientos"
+									>
+										<Icon name="history" />
 									</a>
 								</div>
 							</td>

@@ -190,7 +190,10 @@
 <div class="card">
   <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
     <span>Inventario</span>
-    <a href="/settings/articles" class="btn btn-secondary btn-sm">Catálogo de artículos</a>
+    <span style="display: flex; gap: 8px;">
+      <a href="/movements" class="btn btn-secondary btn-sm">Movimientos</a>
+      <a href="/settings/articles" class="btn btn-secondary btn-sm">Catálogo de artículos</a>
+    </span>
   </div>
 
   <div class="filtros">
@@ -287,6 +290,16 @@
                     title="Editar en el catálogo"
                   >
                     <Icon name="edit" />
+                  </a>
+                  <!-- Abre la pantalla de movimientos YA FILTRADA por este
+                       artículo; quitando el filtro allí se ve el almacén entero. -->
+                  <a
+                    class="row-action"
+                    href="/movements?item={item.id}"
+                    aria-label="Historial de {item.name}"
+                    title="Historial de movimientos"
+                  >
+                    <Icon name="history" />
                   </a>
                 </div>
               </td>

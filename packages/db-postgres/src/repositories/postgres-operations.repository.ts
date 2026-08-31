@@ -215,6 +215,82 @@ export class PostgresStockMovementRepository {
 		);
 	}
 
+	/**
+	 * El historial de movimientos, con sus filtros.
+	 *
+	 * Conviven DOS familias y las dos se listan a proposito:
+	 *
+	 *   - las MANUALES —`entrada`, `salida`, `ajuste`— que escribe la pantalla
+	 *     de Inventario;
+	 *   - las OPERATIVAS —`delivered`, `returned`, `damaged`, `lost`,
+	 *     `reverso_*`— que llevan escribiendo conduces y ordenes desde antes.
+	 *
+	 * Separarlas seria mentir sobre por que se movio el stock: al almacenero le
+	 * da igual quien lo escribio, quiere saber que entro y que salio.
+	 * `statusLabel` de `@esr/core` ya traduce los dos vocabularios.
+	 *
+	 * `user_id` es NULL en todo lo anterior a la fase 1 —no se guardaba—, y la
+	 * pantalla lo enseña como «Sistema». Inventar un responsable seria peor.
+	 */
+	async list(
+		ctx: RepositoryContext,
+		filters: {
+			item_id?: ESRId | null;
+			warehouse_id?: ESRId | null;
+			/** `YYYY-MM-DD`, ambos inclusive. */
+			from?: string;
+			to?: string;
+			type?: string;
+			limit?: number;
+		} = {}
+	): Promise<Array<Record<string, unknown>>> {
+		const params: unknown[] = [requireCompanyId(ctx)];
+		const where = ['m.company_id = $1'];
+
+		if (filters.item_id) {
+			params.push(filters.item_id);
+			where.push(`m.item_id = $${params.length}`);
+		}
+		if (filters.warehouse_id) {
+			params.push(filters.warehouse_id);
+			where.push(`m.warehouse_id = $${params.length}`);
+		}
+		if (filters.type) {
+			params.push(filters.type);
+			where.push(`m.type = $${params.length}`);
+		}
+		if (filters.from) {
+			params.push(filters.from);
+			where.push(`m.created_at >= $${params.length}::date`);
+		}
+		if (filters.to) {
+			// `< to + 1 dia` y no `<= to`: `created_at` es TIMESTAMPTZ y el filtro
+			// llega como fecha, asi que con `<=` se perderia todo lo del ultimo dia
+			// despues de medianoche.
+			params.push(filters.to);
+			where.push(`m.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+		}
+
+		params.push(Math.min(500, Math.max(1, Number(filters.limit) || 200)));
+		const limitParam = params.length;
+
+		const result = await this.pool.query(
+			`SELECT m.id, m.type, m.quantity, m.notes, m.created_at,
+			        i.name AS item_name, i.internal_code AS item_code,
+			        w.name AS warehouse_name,
+			        u.name AS user_name
+			   FROM stock_movements m
+			   LEFT JOIN items i ON i.id = m.item_id AND i.company_id = m.company_id
+			   LEFT JOIN warehouses w ON w.id = m.warehouse_id AND w.company_id = m.company_id
+			   LEFT JOIN users u ON u.id = m.user_id
+			  WHERE ${where.join(' AND ')}
+			  ORDER BY m.created_at DESC, m.id DESC
+			  LIMIT $${limitParam}`,
+			params
+		);
+		return result.rows;
+	}
+
 	async listByWorkOrder(ctx: RepositoryContext, workOrderId: ESRId): Promise<Array<Record<string, unknown>>> {
 		const result = await this.pool.query(
 			`SELECT * FROM stock_movements WHERE company_id = $1 AND work_order_id = $2 ORDER BY created_at DESC`,
