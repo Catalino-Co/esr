@@ -29,6 +29,28 @@
       'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7',
       'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'
     ],
+    // Seleccion multiple: una lista con las dos primeras marcadas. Es el
+    // `list-checks` de Lucide, y dice lo que el modo hace —marcar filas de una
+    // lista— mejor que una casilla suelta, que se confundiria con un campo.
+    listChecks: [
+      'M3 17l2 2 4-4',
+      'M3 7l2 2 4-4',
+      'M13 6h8',
+      'M13 12h8',
+      'M13 18h8'
+    ],
+    // Confirmar. El visto de Lucide, un solo trazo.
+    check: ['M20 6 9 17l-5-5'],
+    // Descartar. La equis, para lo que cancela o cierra.
+    x: ['M18 6 6 18', 'M6 6l12 12'],
+    // Recargar: las dos flechas en circulo. Se dibuja con arcos y no con un
+    // circulo entero porque hacen falta los huecos donde van las puntas.
+    refresh: [
+      'M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 8',
+      'M21 3v5h-5',
+      'M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.36-2.64L3 16',
+      'M3 21v-5h5'
+    ],
     // Historial: un reloj con la aguja marcando.
     history: ['M12 21a9 9 0 1 0-9-9', 'M3 12l-.5-3M3 12l3-.5', 'M12 7v5l3 2'],
     // Movimiento de existencias: una flecha que entra y otra que sale.
