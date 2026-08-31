@@ -5,6 +5,7 @@
 	import { Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
 
 	let { data, form } = $props();
@@ -33,6 +34,88 @@
 		}
 		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
 	}
+
+	/* ── El alta, en un diálogo con URL propia ─────────────────────────────
+	 *
+	 * `?nueva=1` y no una variable suelta: así el diálogo sobrevive a un
+	 * refresco, se puede enlazar —desde el Dashboard y desde la ficha del
+	 * evento— y el botón «atrás» del navegador lo cierra en vez de abandonar la
+	 * pantalla.
+	 *
+	 * NO se usa `irCon()`: aquel navega con `replaceState: true`, y con eso
+	 * «atrás» se saltaría el diálogo entero.
+	 *
+	 * Y sin `invalidateAll`: el `load` solo declara `search` y `status`, así que
+	 * tocar `nueva` no dispara ni una consulta. Abrir esto cuesta cero.
+	 */
+	const abierto = $derived(page.url.searchParams.get('nueva') === '1');
+
+	/** @param {string | null} valor */
+	function nueva(valor) {
+		const url = new URL(page.url);
+		if (valor === null) url.searchParams.delete('nueva');
+		else url.searchParams.set('nueva', valor);
+		goto(url, { noScroll: true, keepFocus: true });
+	}
+
+	/**
+	 * Lo tecleado en el diálogo.
+	 *
+	 * Al fallar, el servidor devuelve `values` y de ahí se repuebla: un error no
+	 * puede borrar lo escrito. En éxito no hay nada que hacer —la action
+	 * redirige a la ficha y el diálogo se va con la página—.
+	 */
+	let borrador = $state(/** @type {Record<string, string>} */ ({}));
+	/**
+	 * Error del alta, en estado PROPIO y no leído de `form`.
+	 *
+	 * `form` es único por página: `approveMany` y `cancelMany` escriben en el
+	 * mismo objeto, así que mirarlo aquí haría que el parte de un lote se
+	 * pintase dentro del diálogo.
+	 */
+	let errorCrear = $state(/** @type {string | null} */ (null));
+
+	/**
+	 * El evento que llega por `?eventId=`, desde la ficha del evento.
+	 *
+	 * Se resuelve en cliente sobre `data.events` —que ya viene cargada y con la
+	 * fila entera, `client_id` incluido—, en vez del `findById` que hacía el
+	 * `load` de la pantalla vieja.
+	 *
+	 * Si el evento no está entre los cargados no se preselecciona nada. Tampoco
+	 * podría elegirse en el select, que se puebla de esa misma lista.
+	 */
+	const eventoPrevio = $derived.by(() => {
+		const id = page.url.searchParams.get('eventId')?.trim();
+		if (!id) return null;
+		return data.events.find((e) => String(e.id) === id) ?? null;
+	});
+
+	const eventoElegido = $derived(borrador.event_id ?? (eventoPrevio ? String(eventoPrevio.id) : ''));
+	const clienteElegido = $derived(
+		borrador.client_id ?? (eventoPrevio?.client_id ? String(eventoPrevio.client_id) : '')
+	);
+
+	function abrirAlta() {
+		borrador = {};
+		errorCrear = null;
+		nueva('1');
+	}
+
+	function cerrarAlta() {
+		errorCrear = null;
+		// Solo si sigue abierto: `onclose` también se dispara cuando el diálogo se
+		// desmonta por la redirección, y ahí no hay nada que cerrar.
+		if (abierto) nueva(null);
+	}
+
+	const alCrear = () => async (/** @type {{ update: Function, result: any }} */ { update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			if (result.data?.values) borrador = result.data.values;
+			errorCrear = result.data?.error ?? 'No se pudo crear la cotización.';
+		}
+	};
 
 	let recargando = $state(false);
 
@@ -166,7 +249,9 @@
 				irCon({ status: e.currentTarget.value })}
 		/>
 		{#if can('quotes.create')}
-			<a class="btn-primary btn-new" href="/quotes/new">Nueva cotización</a>
+			<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>
+				Nueva cotización
+			</button>
 		{/if}
 	</div>
 </div>
@@ -179,7 +264,9 @@
 		search={{ name: 'search', placeholder: 'Número, cliente o evento', value: data.search }}
 	/>
 
-	{#if form?.error}
+	<!-- Callado mientras el diálogo está abierto: su error se pinta DENTRO, y
+	     detrás no debe quedar el mismo texto repetido. -->
+	{#if form?.error && !abierto}
 		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}
 
@@ -301,6 +388,84 @@
 		</form>
 	{/if}
 </section>
+
+<!-- ── Alta de cotización ──────────────────────────────────────────────────
+	Solo la cabecera: evento, cliente, vigencia y los dos textos que salen en el
+	PDF. Las líneas se cargan en la ficha, que es donde está el catálogo y la
+	comprobación de disponibilidad.
+
+	Quien manda es la URL, no una variable, así que el diálogo va MONTADO bajo un
+	`{#if}` en vez de con `bind:open`: no se puede enlazar un `$derived`, y
+	dejarle a `Modal` su propio `open` sin atar dejaría los dos estados
+	discrepando. Montándolo así, cada apertura nace limpia y el cierre pasa
+	siempre por `onclose`, que cubre las tres vías (✕, backdrop y Escape).
+-->
+{#if abierto}
+<Modal open title="Nueva cotización" onclose={cerrarAlta}>
+	{#if errorCrear}
+		<div class="alert-error" role="alert">{errorCrear}</div>
+	{/if}
+
+	<form id="alta-cotizacion" method="POST" action="?/create" class="form-grid" use:enhance={alCrear}>
+		<div class="form-field">
+			<label for="alta-evento">Evento *</label>
+			<select id="alta-evento" name="event_id" required>
+				<option value="">Seleccione evento</option>
+				{#each data.events as evento (evento.id)}
+					<option value={evento.id} selected={eventoElegido === String(evento.id)}>
+						{evento.name} ({evento.date || 'sin fecha'})
+					</option>
+				{/each}
+			</select>
+		</div>
+
+		<div class="form-field">
+			<label for="alta-cliente">Cliente *</label>
+			<select id="alta-cliente" name="client_id" required>
+				<option value="">Seleccione cliente</option>
+				{#each data.customers as cliente (cliente.id)}
+					<option value={cliente.id} selected={clienteElegido === String(cliente.id)}>
+						{cliente.name}
+					</option>
+				{/each}
+			</select>
+		</div>
+
+		<div class="form-field">
+			<label for="alta-vigencia">Válida hasta</label>
+			<input
+				id="alta-vigencia"
+				name="valid_until"
+				type="date"
+				value={borrador.valid_until ?? ''}
+			/>
+		</div>
+
+		<div class="form-field full">
+			<label for="alta-notas">Notas</label>
+			<textarea id="alta-notas" name="notes" rows="2">{borrador.notes ?? ''}</textarea>
+		</div>
+
+		<div class="form-field full">
+			<label for="alta-condiciones">Condiciones</label>
+			<textarea id="alta-condiciones" name="conditions" rows="3">{borrador.conditions ?? ''}</textarea>
+		</div>
+	</form>
+
+	<!--
+		Dicho una vez, para los dos campos, y dicho de verdad: el generador recorre
+		`notes` y `conditions` en el MISMO bucle y los imprime los dos, bajo
+		«Notas:» y «Condiciones:». En ESR Pro esto se llamaba «Observaciones
+		internas», que invitaba a escribir justo lo que el cliente no debe ver.
+	-->
+	<p class="panel-hint">Las dos aparecen impresas en la cotización que ve el cliente.</p>
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={cerrarAlta}>Cancelar</button>
+		<button type="submit" form="alta-cotizacion" class="btn-primary">Crear cotización</button>
+	{/snippet}
+</Modal>
+{/if}
 
 <style>
 	/* ── La fila de herramientas ────────────────────────────────────────── */

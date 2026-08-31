@@ -21,6 +21,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'quotes.view');
 	const ctx = toTenantContext(companyId);
 
+	// El id tiene que ser NUMERICO antes de tocar el repositorio.
+	//
+	// `quotations.id` es BIGSERIAL, asi que un id que no lo sea no vuelve como
+	// «no encontrada»: revienta en el driver con un `22P02` que nadie captura, y
+	// eso es un 500 donde tocaba un 404.
+	//
+	// Se nota desde que `/quotes/new` es un dialogo y ya no existe como ruta: un
+	// marcador viejo a esa direccion cae aqui, con `new` de id. Misma guarda que
+	// `leerIds` en el listado, y por la misma razon.
+	if (!/^\d+$/.test(params.id)) error(404, 'Cotización no encontrada');
+
 	const quote = await getQuoteRepository().findById(ctx, params.id);
 	if (!quote) error(404, 'Cotización no encontrada');
 
@@ -241,13 +252,14 @@ export const actions: Actions = {
 		if (!editCheck.ok) return fail(400, { error: editCheck.error });
 
 		const form = await request.formData();
-		// Solo las notas. `discount` y `tax_amount` dejaron de ser dato de
+		// Solo los dos textos. `discount` y `tax_amount` dejaron de ser dato de
 		// entrada: ahora salen de las tasas de cada linea y los escribe
 		// `syncTotals`. Si esta action siguiera aceptandolos, un POST a mano
 		// podria fijar un impuesto que no sale de ninguna linea.
 		const notes = String(form.get('notes') ?? '').trim();
+		const conditions = String(form.get('conditions') ?? '').trim();
 
-		await getQuoteRepository().update(ctx, params.id, { notes });
+		await getQuoteRepository().update(ctx, params.id, { notes, conditions });
 		await getQuoteRepository().syncTotals(ctx, params.id);
 		return { success: true };
 	},

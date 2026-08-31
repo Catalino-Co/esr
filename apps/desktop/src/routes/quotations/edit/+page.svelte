@@ -612,15 +612,29 @@
           <input id="cot-validez" type="number" min="1" bind:value={cotizacion.validity_days} />
         </div>
 
+        <!--
+          Esto se llamaba «Observaciones internas», y era MENTIRA: el generador
+          recorre `notes` y `conditions` en el mismo bucle
+          (packages/reports/src/templates/pdf-generator.js) y los imprime los
+          dos, a ancho completo y encima de la firma de aceptacion. La etiqueta
+          invitaba a escribir margenes y avisos sobre el cliente justo en el
+          campo que el cliente acaba leyendo.
+
+          El aviso se dice UNA vez para los dos, porque vale para los dos.
+        -->
         <div class="form-field full">
-          <label for="cot-notas">Observaciones internas</label>
+          <label for="cot-notas">Notas</label>
           <textarea id="cot-notas" rows="2" bind:value={cotizacion.notes}></textarea>
         </div>
 
         <div class="form-field full">
-          <label for="cot-condiciones">Condiciones (aparecen en el PDF)</label>
+          <label for="cot-condiciones">Condiciones</label>
           <textarea id="cot-condiciones" rows="3" bind:value={cotizacion.conditions}></textarea>
         </div>
+
+        <p class="form-hint aviso-impresion">
+          Las dos aparecen impresas en la cotización que ve el cliente.
+        </p>
       </div>
     </div>
 
@@ -1055,6 +1069,14 @@
     /* `app.css:187` pone `margin-bottom: 15px` a `.card-title`, que sumaria al
        margen del propio `.card-header`. */
     margin-bottom: 0;
+  }
+
+  /* El aviso va debajo de Notas y Condiciones, a lo ancho de la rejilla. No se
+     reutiliza `.full` porque en theme.css eso es `.form-field.full`, y esto es
+     un <p> suelto, no un campo. */
+  .aviso-impresion {
+    grid-column: 1 / -1;
+    margin: 0;
   }
 
   /* ── Cabecera del registro ───────────────────────────────────────────── */

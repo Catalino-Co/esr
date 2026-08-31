@@ -103,7 +103,7 @@
 					title="Sin cotizaciones"
 					description="Prepara una propuesta y aparecerá aquí."
 					actionLabel="Nueva cotización"
-					actionHref="/quotes/new"
+					actionHref="/quotes?nueva=1"
 				/>
 			{:else}
 				<ul class="lineas">

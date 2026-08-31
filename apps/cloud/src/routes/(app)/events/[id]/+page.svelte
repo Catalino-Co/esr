@@ -83,7 +83,7 @@
 	<h2 style="margin-top: 28px">Cotizaciones</h2>
 	{#if can('quotes.create')}
 		<div class="page-actions" style="margin-bottom: 12px">
-			<a class="btn-primary btn-new" href="/quotes/new?eventId={event.id}">Crear cotización</a>
+			<a class="btn-primary btn-new" href="/quotes?nueva=1&eventId={event.id}">Crear cotización</a>
 		</div>
 	{/if}
 	{#if data.quotes.length === 0}

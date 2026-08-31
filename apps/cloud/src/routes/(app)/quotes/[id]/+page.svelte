@@ -55,17 +55,24 @@
 	/**
 	 * Borrador de la cabecera. Se re-siembra solo cuando cambia el registro.
 	 *
-	 * Solo las NOTAS. El descuento y el impuesto salieron de aqui: eran dos
+	 * Los dos TEXTOS. El descuento y el impuesto salieron de aqui: eran dos
 	 * importes tecleados a mano que no guardaban relacion con lo cotizado.
 	 * Ahora cada linea lleva su tasa y la cabecera enseña la suma.
+	 *
+	 * `conditions` es nuevo aqui. La columna existia desde el esquema inicial y
+	 * el PDF ya la dibujaba, pero en Cloud no habia donde escribirla: siempre
+	 * valia NULL y el bloque «Condiciones:» no salia nunca.
 	 */
-	let borrador = $state({ notes: '' });
+	let borrador = $state({ notes: '', conditions: '' });
 
 	$effect(() => {
 		// Dependencia explícita del id: SvelteKit reutiliza el componente entre
 		// /quotes/3 y /quotes/4 y el borrador del anterior sobreviviría.
 		void data.quote.id;
-		borrador = { notes: data.quote.notes ?? '' };
+		borrador = {
+			notes: data.quote.notes ?? '',
+			conditions: data.quote.conditions ?? ''
+		};
 	});
 
 	/**
@@ -543,6 +550,25 @@
 						></textarea>
 					</span>
 				</div>
+				<div class="info-row">
+					<label class="info-label" for="conditions">Condiciones</label>
+					<span class="info-value">
+						<textarea
+							id="conditions"
+							name="conditions"
+							class="form-control"
+							form="cabecera-cotizacion"
+							rows="3"
+							disabled={!mayEdit}
+							bind:value={borrador.conditions}
+							oninput={() => programar(formularios.cabecera)}
+							onblur={() => programar(formularios.cabecera, true)}
+						></textarea>
+					</span>
+				</div>
+				<!-- Dicho donde se escribe el texto: el generador recorre `notes` y
+				     `conditions` en el mismo bucle y los imprime los dos. -->
+				<p class="panel-hint">Notas y condiciones aparecen impresas en la cotización.</p>
 			</div>
 		</section>
 

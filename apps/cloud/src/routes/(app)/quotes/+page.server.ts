@@ -1,7 +1,8 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { validateQuoteCanApprove } from '@esr/core';
+import { SELECTABLE_STATES, validateQuoteCanApprove } from '@esr/core';
 import type { Quote } from '@esr/schemas';
+import { validateCreateQuoteInput } from '@esr/schemas';
 import {
 	getCustomerRepository,
 	getEventRepository,
@@ -22,7 +23,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// `appendStateFilter` del repositorio cae en `DEFAULT_RECORD_STATE`, que es
 	// «activas». La columna sigue en la tabla y la usan los reportes.
 	const quotes = await getQuoteRepository().list(ctx, { search, status, limit: 100, offset: 0 });
-	const customers = await getCustomerRepository().list(ctx, { limit: 500, offset: 0 });
+
+	// Estas dos listas hacen DOS trabajos: los mapas de nombres de la tabla y los
+	// selects del dialogo de alta. Ya se cargaban para lo primero, asi que el
+	// dialogo no cuesta ni una consulta mas.
+	//
+	// `SELECTABLE_STATES` —activos e inactivos, no archivados— es el mismo filtro
+	// que usaba la pantalla `/quotes/new` que este dialogo sustituye. Sin el, el
+	// repositorio cae en `DEFAULT_RECORD_STATE` y solo trae activos: la
+	// cotizacion de un cliente inactivo enseñaba «—» en la columna Cliente.
+	const customers = await getCustomerRepository().list(ctx, {
+		state: SELECTABLE_STATES,
+		limit: 500,
+		offset: 0
+	});
 	const events = await getEventRepository().list(ctx, { limit: 500, offset: 0 });
 
 	const customerMap = new Map(customers.map((c) => [c.id, c.name]));
@@ -34,6 +48,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			client_name: quote.client_id ? customerMap.get(quote.client_id) ?? '—' : '—',
 			event_name: quote.event_id ? eventMap.get(quote.event_id) ?? '—' : '—'
 		})),
+		customers,
+		events,
 		search: search ?? '',
 		status: status ?? ''
 	};
@@ -78,6 +94,76 @@ function etiqueta(quote: Quote): string {
 }
 
 export const actions: Actions = {
+	/**
+	 * Alta de cotizacion, desde el dialogo de esta misma pantalla.
+	 *
+	 * Era la action `default` de `/quotes/new`, que ya no existe: aquel
+	 * formulario de cuatro campos no justificaba abandonar el listado y volver
+	 * por redireccion. Las tres guardas se conservan tal cual —el validador, que
+	 * el evento sea de la empresa y que el cliente tambien lo sea—.
+	 *
+	 * Dos cosas cambian respecto al original:
+	 *
+	 * 1. Se acepta `conditions`. La columna existe desde el esquema inicial, el
+	 *    repositorio la inserta y el generador de PDF la dibuja, pero en Cloud no
+	 *    habia ni un campo donde escribirla: siempre valia NULL.
+	 * 2. Todo `fail` devuelve `values`. Aqui no es un adorno: al fallar, el
+	 *    dialogo se re-renderiza y sin esto se quedaria en blanco, que es lo que
+	 *    hacia la pantalla vieja.
+	 *
+	 * Termina en `redirect`, asi que el exito nunca vuelve al cliente: el modal
+	 * se va con la pagina y no hay que cerrarlo a mano.
+	 */
+	create: async ({ request, locals, getClientAddress }) => {
+		// Mas estricto que el `load`, que se conforma con `quotes.view`.
+		const { companyId } = requirePermission(locals, 'quotes.create');
+		const ctx = toTenantContext(companyId);
+		const form = await request.formData();
+
+		const event_id = String(form.get('event_id') ?? '').trim();
+		const client_id = String(form.get('client_id') ?? '').trim();
+		const valid_until = String(form.get('valid_until') ?? '').trim();
+		const notes = String(form.get('notes') ?? '').trim();
+		const conditions = String(form.get('conditions') ?? '').trim();
+		const values = { event_id, client_id, valid_until, notes, conditions };
+
+		const validation = validateCreateQuoteInput({ client_id, event_id });
+		if (!validation.valid) {
+			return fail(400, { error: 'Evento y cliente son obligatorios.', values });
+		}
+
+		const event = await getEventRepository().findById(ctx, event_id);
+		if (!event) return fail(404, { error: 'Evento no encontrado en su empresa.', values });
+
+		const resolvedClientId = client_id || String(event.client_id || '');
+		const customer = await getCustomerRepository().findById(ctx, resolvedClientId);
+		if (!customer) return fail(400, { error: 'Cliente no pertenece a su empresa.', values });
+
+		const quote = await getQuoteRepository().create(ctx, {
+			client_id: resolvedClientId,
+			event_id,
+			notes: notes || undefined,
+			conditions: conditions || undefined,
+			valid_until: valid_until || undefined,
+			date: event.date || new Date().toISOString().slice(0, 10),
+			status: 'borrador',
+			items: [],
+			is_active: 1
+		});
+
+		await recordAuditLog(
+			{ locals, request, getClientAddress },
+			{
+				action: 'quote.created',
+				entity_type: 'quote',
+				entity_id: String(quote.id),
+				description: `Cotización creada ${quote.quote_number || quote.id}`
+			}
+		);
+
+		throw redirect(303, `/quotes/${quote.id}`);
+	},
+
 	/**
 	 * Aprobar varias cotizaciones de una vez.
 	 *
