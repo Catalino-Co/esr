@@ -5,21 +5,32 @@
   import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
 
-  let viewState = "1";
   let quotations = [];
   let showPdfPreview = false;
   let pdfPreviewUrl = "";
   let pdfPreviewFilename = "";
 
+  /**
+   * Las cotizaciones VIVAS.
+   *
+   * `is_active = 1` fijo, y no un filtro: una cotizacion tiene UN ciclo de vida
+   * —borrador, aprobada, convertida, cancelada— y ese es el que el cliente
+   * entiende. El eje de circulacion que habia encima —activa, inactiva,
+   * archivada— era un segundo estado paralelo que no significaba nada aqui: se
+   * retira una cotizacion cancelandola.
+   *
+   * La columna se queda en la tabla, que la leen los reportes y la pantalla de
+   * eventos.
+   */
   async function loadQuotations() {
     if (!window.api?.db) return;
     quotations = await window.api.db.get(`
       SELECT q.*, c.name as client_name
       FROM quotations q
       LEFT JOIN clients c ON q.client_id = c.id
-      WHERE q.is_active = ?
+      WHERE q.is_active = 1
       ORDER BY q.id DESC
-    `, [parseInt(viewState)]);
+    `);
   }
 
   onMount(() => loadQuotations());
@@ -38,16 +49,6 @@
   async function changeStatus(id, newStatus) {
     await window.api.db.run("UPDATE quotations SET status = ? WHERE id = ?", [newStatus, id]);
     loadQuotations();
-  }
-
-  async function changeState(id, newState) {
-    const msg = newState === 0 ? "¿Archivar esta cotización?"
-              : newState === 1 ? "¿Restaurar esta cotización?"
-              : "¿Marcar cotización como inactiva?";
-    if (confirm(msg)) {
-      await window.api.db.run("UPDATE quotations SET is_active = ? WHERE id = ?", [newState, id]);
-      loadQuotations();
-    }
   }
 
   async function generatePDF(quote) {
@@ -86,15 +87,7 @@
 
 <div class="card">
   <div class="card-title" style="align-items: center;">
-    <div style="display: flex; gap: 15px; align-items: center;">
-      <span>Historial de Cotizaciones</span>
-      <select bind:value={viewState} on:change={loadQuotations}
-        style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
-        <option value="1">🟢 Activas</option>
-        <option value="2">🟠 Inactivas</option>
-        <option value="0">📁 Archivadas</option>
-      </select>
-    </div>
+    <span>Historial de Cotizaciones</span>
     <button class="btn btn-primary" on:click={() => goto('/quotations/edit')}>+ Crear Cotización</button>
   </div>
 
@@ -131,23 +124,13 @@
                       on:click={() => goto(`/quotations/edit?id=${quote.id}`)}>✏️</button>
               <button class="btn-icon" title="Generar PDF"
                       on:click={() => generatePDF(quote)}>🖨️</button>
-              {#if quote.status === 'borrador' && viewState === '1'}
+              <!-- Aprobar es la unica accion de estado que queda, y es de
+                   NEGOCIO. Inactivar, Archivar, Activar y Restaurar se fueron
+                   con el select: sin el, archivar una cotizacion la habria
+                   hecho desaparecer sin forma de recuperarla. -->
+              {#if quote.status === 'borrador'}
                 <button class="btn-icon text-success" title="Aprobar"
                         on:click={() => changeStatus(quote.id, 'aprobada')}>✔️</button>
-              {/if}
-              {#if viewState === '1'}
-                <button class="btn-icon text-warning" title="Inactivar"
-                        on:click={() => changeState(quote.id, 2)}>⏸️</button>
-                <button class="btn-icon text-danger"  title="Archivar"
-                        on:click={() => changeState(quote.id, 0)}>📁</button>
-              {:else if viewState === '2'}
-                <button class="btn-icon text-success" title="Activar"
-                        on:click={() => changeState(quote.id, 1)}>▶️</button>
-                <button class="btn-icon text-danger"  title="Archivar"
-                        on:click={() => changeState(quote.id, 0)}>📁</button>
-              {:else}
-                <button class="btn-icon" title="Restaurar"
-                        on:click={() => changeState(quote.id, 1)}>🔄</button>
               {/if}
             </td>
           </tr>
@@ -169,8 +152,6 @@
 <style>
   .btn-icon { background:none; border:none; cursor:pointer; padding:4px 5px; opacity:0.6; transition:0.2s; }
   .btn-icon:hover { opacity:1; transform:scale(1.1); }
-  .text-danger  { color: var(--danger); }
-  .text-warning { color: var(--warning); }
   .text-success { color: var(--success); }
   .badge { padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; text-transform:uppercase; }
   .badge-success   { background:rgba(40,167,69,.1);   color:var(--success); }

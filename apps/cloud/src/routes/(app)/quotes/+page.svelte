@@ -1,11 +1,20 @@
 <script>
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
-	import { businessSelect, stateSelect } from '$lib/list-filters';
+	import { businessSelect } from '$lib/list-filters';
 	import { can } from '$lib/can';
 	let { data } = $props();
 </script>
 
 <section class="panel">
+	<!--
+		Un solo eje de estado, y es el de NEGOCIO.
+
+		Aquí había además el select de circulación —Activos, Inactivos,
+		Archivados— y no significaba nada: ninguna pantalla de Cloud cambia el
+		`is_active` de una cotización, así que solo podía valer 1 y el filtro no
+		filtraba nada. Y aunque hubiera funcionado, sobraría igual: una cotización
+		se retira cancelándola, que es el vocabulario que el cliente entiende.
+	-->
 	<FilterBar
 		search={{ name: 'search', placeholder: 'Número, cliente o evento', value: data.search }}
 		selects={[
@@ -14,8 +23,7 @@
 				{ value: 'aprobada', label: 'Aprobada' },
 				{ value: 'cancelada', label: 'Cancelada' },
 				{ value: 'convertida', label: 'Convertida' }
-			]),
-			stateSelect(data.state)
+			])
 		]}
 	>
 		{#snippet actions()}
