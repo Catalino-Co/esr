@@ -6,7 +6,7 @@ export type CreateRentalOrderInput = Omit<RentalOrder, 'id'> & { items: RentalOr
 export type TenantCreateRentalOrderInput = Omit<CreateRentalOrderInput, 'company_id'>;
 export type RentalOrderListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
-	state?: RecordStateFilter; search?: string; status?: string; date?: string; limit?: number; offset?: number };
+	state?: RecordStateFilter; search?: string; status?: string; date?: string; event_id?: ESRId; limit?: number; offset?: number };
 
 export interface RentalOrderRepository {
 	findById(id: ESRId): Promise<RentalOrder | null>;
@@ -19,6 +19,13 @@ export interface RentalOrderRepository {
 export interface TenantRentalOrderRepository {
 	findById(ctx: RepositoryContext, id: ESRId): Promise<RentalOrder | null>;
 	list(ctx: RepositoryContext, filters?: RentalOrderListFilters): Promise<RentalOrder[]>;
+	/**
+	 * Las ordenes de un evento.
+	 *
+	 * Gemelo del `findByEventId` que el repositorio de cotizaciones ya tenia.
+	 * Faltaba aqui, y sin el la ficha del evento no puede enseñar su orden.
+	 */
+	findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<RentalOrder[]>;
 	create(ctx: RepositoryContext, data: TenantCreateRentalOrderInput): Promise<RentalOrder>;
 	update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateRentalOrderInput>): Promise<RentalOrder>;
 	/**

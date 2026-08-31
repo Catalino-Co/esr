@@ -581,3 +581,170 @@ export function generateConducePDF(wo, items, action = 'save', companyInfo = nul
 
   return createPdfResult(doc, filename, action);
 }
+
+/**
+ * La hoja del evento: sus datos de logistica y el resumen de lo que cuelga de
+ * el.
+ *
+ * Es el unico documento del sistema que combina varias entidades en una hoja, y
+ * por eso sigue el molde de la COTIZACION y no el de la orden: es la unica de
+ * las cuatro que usa `hueco()` y `paginar()`. Las otras tres llevan numeros
+ * magicos y no saltan de pagina, que aqui reventaria en cuanto las notas fueran
+ * largas.
+ *
+ * Las dos tarjetas de resumen son DELIBERADAMENTE escuetas —de la cotizacion,
+ * su numero, su total y si esta aprobada; de la orden, su numero y su estado—.
+ * Quien quiera el detalle imprime ese documento, que ya existe.
+ *
+ * SIN enlaces: un PDF no navega a la aplicacion, y en Electron menos. Los
+ * botones «Ver» viven en las tarjetas de la PANTALLA.
+ *
+ * Los tipos van a `any` a proposito y no a `object`: este archivo es JS sin
+ * tipar y las filas llegan crudas de dos bases distintas. `object` no declara
+ * ninguna propiedad, asi que cada acceso seria un error.
+ *
+ * @param {any} evento       La fila de `events`, con `client_name` resuelto.
+ * @param {any} extras       `{ quote, order }`, cualquiera de los dos nulo.
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateEventPDF(evento, extras = {}, action = 'save', companyInfo = null) {
+  const doc = new jsPDF();
+  const { quote = null, order = null } = extras || {};
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('EVENTO', COL_ETIQUETA, 20);
+
+  doc.setFontSize(10);
+  doc.text(`Nº: ${eventDocumentNumber(evento)}`, COL_ETIQUETA, 26);
+  doc.text(`Fecha: ${evento.date || '—'}`, COL_ETIQUETA, 31);
+  if (evento.status) doc.text(`Estado: ${evento.status}`, COL_ETIQUETA, 36);
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(evento.name || 'Sin nombre'), MARGEN_X, 55);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(90);
+  let y = 61;
+  if (evento.event_type) { doc.text(`Tipo: ${evento.event_type}`, MARGEN_X, y); y += 5; }
+  doc.text(`Cliente: ${evento.client_name || '—'}`, MARGEN_X, y); y += 5;
+  if (evento.location) {
+    const lineas = doc.splitTextToSize(`Lugar: ${evento.location}`, 110);
+    doc.text(lineas, MARGEN_X, y);
+    y += lineas.length * 5;
+  }
+  if (evento.responsible_person) {
+    doc.text(`Responsable: ${evento.responsible_person}`, MARGEN_X, y);
+    y += 5;
+  }
+
+  // ── Logistica ───────────────────────────────────────────────────────────
+  //
+  // En tabla y no en parrafo: son cuatro pares hora/fecha que el montador lee
+  // de un vistazo el dia del evento, y una lista corrida se lee fatal.
+  const logistica = [
+    ['Salida de almacén', evento.departure_time],
+    ['Montaje', evento.setup_time],
+    ['Recogida / desmontaje', evento.pickup_date],
+    ['Hora de recogida', evento.pickup_time]
+  ].filter(([, valor]) => String(valor || '').trim());
+
+  if (logistica.length) {
+    y = hueco(doc, y + 6, 12 + logistica.length * 8);
+    autoTable(doc, {
+      startY: y,
+      head: [['Logística', 'Hora / fecha']],
+      body: logistica,
+      theme: 'grid',
+      headStyles: { fillColor: [67, 94, 190] },
+      styles: { fontSize: 9 },
+      margin: { left: MARGEN_X, right: MARGEN_X },
+      columnStyles: { 1: { halign: 'right', cellWidth: 45 } }
+    });
+    y = tablaFinalY(doc, y);
+  }
+
+  // ── Los dos resumenes ───────────────────────────────────────────────────
+  const resumen = [];
+  resumen.push(
+    quote
+      ? ['Cotización', quoteDocumentNumber(quote), quote.status || '—', fmtMoney(quote.total || 0)]
+      : ['Cotización', '—', 'Sin cotización', '']
+  );
+  resumen.push(
+    order
+      ? ['Orden de trabajo', orderDocumentNumber(order), order.status || '—', '']
+      : ['Orden de trabajo', '—', 'Sin orden', '']
+  );
+
+  y = hueco(doc, y + 8, 30);
+  autoTable(doc, {
+    startY: y,
+    head: [['Documento', 'Número', 'Estado', 'Total']],
+    body: resumen,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { left: MARGEN_X, right: MARGEN_X },
+    columnStyles: { 3: { halign: 'right', cellWidth: 35 } }
+  });
+  y = tablaFinalY(doc, y);
+
+  // ── Notas ───────────────────────────────────────────────────────────────
+  const notas = String(evento.notes || '').trim();
+  if (notas) {
+    const anchoTexto = anchoPagina(doc) - MARGEN_X * 2;
+    const lineas = doc.splitTextToSize(notas, anchoTexto);
+    y = hueco(doc, y + 8, 6 + lineas.length * 4);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100);
+    doc.text('Condiciones o notas del evento:', MARGEN_X, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lineas, MARGEN_X, y + 5);
+  }
+
+  paginar(doc);
+
+  return createPdfResult(doc, `Evento_${eventFilenamePart(evento)}.pdf`, action);
+}
+
+/**
+ * Donde acabo la ultima tabla.
+ *
+ * `lastAutoTable` lo cuelga `jspdf-autotable` en tiempo de ejecucion y no esta
+ * en los tipos de `jsPDF`, de ahi el cast. Con reserva por si faltara.
+ * @param {any} doc
+ * @param {number} porDefecto
+ */
+function tablaFinalY(doc, porDefecto) {
+  return doc.lastAutoTable?.finalY ?? porDefecto;
+}
+
+/**
+ * `EV-000007`, o el id pelado si no hubiera nada mejor.
+ * @param {any} evento
+ */
+function eventDocumentNumber(evento) {
+  return `EV-${String(evento?.id ?? '').padStart(6, '0')}`;
+}
+
+/** @param {any} evento */
+function eventFilenamePart(evento) {
+  return eventDocumentNumber(evento).replace(/[^\w-]/g, '') || 'sin-numero';
+}
+
+/**
+ * `WO-00007`, el mismo formato que ya usan la orden y el conduce.
+ * @param {any} order
+ */
+function orderDocumentNumber(order) {
+  const numero = String(order?.order_number ?? '').trim();
+  if (numero) return numero;
+  return `WO-${String(order?.id ?? '').padStart(5, '0')}`;
+}

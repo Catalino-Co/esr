@@ -1,11 +1,18 @@
-import { error, fail, redirect } from '@sveltejs/kit';
-import { RECORD_STATE_LABELS, SELECTABLE_STATES, isRecordState } from '@esr/core';
+import { error, fail } from '@sveltejs/kit';
+import { SELECTABLE_STATES } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
-import { getCustomerRepository, getEventRepository, getQuoteRepository } from '$lib/server/repositories';
+import {
+	getCustomerRepository,
+	getEventRepository,
+	getEventTypeRepository,
+	getQuoteRepository,
+	getRentalRepository
+} from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$lib/server/validators';
+import { leerEvento, vincularDocumentos } from '../evento-form';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'events.view');
@@ -13,105 +20,84 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const event = await getEventRepository().findById(ctx, params.id);
 	if (!event) error(404, 'Evento no encontrado');
 
-	const customers = await getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 500, offset: 0 });
+	const [customers, eventTypes, quotes, orders, quotesTodas, ordersTodas] = await Promise.all([
+		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 500, offset: 0 }),
+		getEventTypeRepository().list(ctx, { state: SELECTABLE_STATES }),
+		// El vinculo REAL: `quotations.event_id` / `work_orders.event_id`, no las
+		// columnas del evento. De aqui salen las dos tarjetas de resumen.
+		getQuoteRepository().findByEventId(ctx, params.id),
+		getRentalRepository().findByEventId(ctx, params.id),
+		getQuoteRepository().list(ctx, { limit: 200, offset: 0 }),
+		getRentalRepository().list(ctx, { limit: 200, offset: 0 })
+	]);
+
 	const client = event.client_id
 		? await getCustomerRepository().findById(ctx, event.client_id)
 		: null;
-	const quotes = await getQuoteRepository().findByEventId(ctx, params.id);
 
-	return { event, customers, client, quotes };
+	return {
+		event,
+		customers,
+		eventTypes,
+		client,
+		quotes,
+		orders,
+		// Solo las huerfanas: enganchar una que ya es de otro evento seria
+		// robarsela sin avisar.
+		quotesLibres: quotesTodas.filter((q) => !q.event_id),
+		ordersLibres: ordersTodas.filter((o) => !o.event_id)
+	};
 };
 
-async function validateClientInCompany(
-	companyId: string,
-	clientId: string | number | null | undefined
-): Promise<string | null> {
-	if (clientId == null || clientId === '') return null;
-	const customer = await getCustomerRepository().findById(toTenantContext(companyId), clientId);
-	if (!customer) return 'El cliente seleccionado no pertenece a su empresa.';
-	return null;
-}
-
 export const actions: Actions = {
-	update: async ({ request, locals, params, getClientAddress }) => {
-		const { companyId } = requirePermission(locals, 'events.update');
+	update: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'events.update');
 		const ctx = toTenantContext(companyId);
-		const form = await request.formData();
+		const values = leerEvento(await event.request.formData());
 
-		const values = {
-			name: String(form.get('name') ?? '').trim(),
-			client_id: String(form.get('client_id') ?? '').trim(),
-			location: String(form.get('location') ?? '').trim(),
-			date: String(form.get('date') ?? '').trim(),
-			pickup_date: String(form.get('pickup_date') ?? '').trim(),
-			notes: String(form.get('notes') ?? '').trim(),
-			status: String(form.get('status') ?? 'tentativo').trim()
-		};
-
-		const validationErrors = validateCloudEventInput(values);
-		if (validationErrors.length) {
-			return fail(400, { error: firstFormError(validationErrors), fieldErrors: formErrorsToObject(validationErrors) });
+		const errors = validateCloudEventInput(values);
+		if (errors.length) {
+			return fail(400, {
+				error: firstFormError(errors),
+				fieldErrors: formErrorsToObject(errors),
+				values
+			});
 		}
 
-		const clientError = await validateClientInCompany(companyId, values.client_id);
-		if (clientError) return fail(400, { error: clientError });
+		if (values.client_id) {
+			const customer = await getCustomerRepository().findById(ctx, values.client_id);
+			if (!customer) {
+				return fail(400, { error: 'El cliente seleccionado no pertenece a su empresa.', values });
+			}
+		}
 
-		const current = await getEventRepository().findById(ctx, params.id);
+		const current = await getEventRepository().findById(ctx, event.params.id);
 		if (!current) error(404, 'Evento no encontrado');
 
-		await getEventRepository().update(ctx, params.id, {
+		await getEventRepository().update(ctx, event.params.id, {
 			name: values.name,
 			client_id: values.client_id || '',
-			location: values.location || undefined,
+			event_type: values.event_type || undefined,
 			date: values.date,
+			departure_time: values.departure_time || undefined,
+			setup_time: values.setup_time || undefined,
 			pickup_date: values.pickup_date || values.date,
+			pickup_time: values.pickup_time || undefined,
+			location: values.location || undefined,
+			responsible_person: values.responsible_person || undefined,
 			notes: values.notes || undefined,
 			status: values.status
 		});
 
-		await recordAuditLog({ locals, request, getClientAddress }, {
+		await vincularDocumentos(ctx, event.params.id, values);
+
+		await recordAuditLog(event, {
 			action: 'event.updated',
 			entity_type: 'event',
-			entity_id: String(params.id),
+			entity_id: String(event.params.id),
 			description: `Evento actualizado: ${values.name}`
 		});
 
 		return { success: true };
-	},
-	cancel: async ({ locals, params, request, getClientAddress }) => {
-		const { companyId } = requirePermission(locals, 'events.cancel');
-		const ctx = toTenantContext(companyId);
-		const event = await getEventRepository().findById(ctx, params.id);
-		if (!event) error(404, 'Evento no encontrado');
-		await getEventRepository().cancel(ctx, params.id);
-		await recordAuditLog({ locals, request, getClientAddress }, {
-			action: 'event.cancelled',
-			entity_type: 'event',
-			entity_id: String(params.id),
-			description: `Evento cancelado: ${event.name}`
-		});
-		throw redirect(303, `/events/${params.id}`);
-	},
-	setState: async (event) => {
-		const { companyId } = requirePermission(event.locals, 'events.archive');
-		const ctx = toTenantContext(companyId);
-		const form = await event.request.formData();
-
-		const state = Number(form.get('state'));
-		if (!isRecordState(state)) return fail(400, { error: 'Estado no válido.' });
-
-		const record = await getEventRepository().findById(ctx, event.params.id);
-		if (!record) error(404, 'Evento no encontrado');
-
-		await getEventRepository().setState(ctx, event.params.id, state);
-
-		await recordAuditLog(event, {
-			action: 'record.state_changed',
-			entity_type: 'event',
-			entity_id: String(event.params.id),
-			description: `Evento «${record.name}» → ${RECORD_STATE_LABELS[state]}`
-		});
-
-		return { success: `«${record.name}» ahora está ${RECORD_STATE_LABELS[state].toLowerCase()}.` };
 	}
 };

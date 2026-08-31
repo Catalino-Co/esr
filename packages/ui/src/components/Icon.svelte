@@ -59,6 +59,14 @@
       'M8 7l4-4 4 4',
       'M16 17l-4 4-4-4'
     ],
+    // Calendario: la hoja del mes con las dos anillas. Es el interruptor entre
+    // la tabla y la vista de calendario en la agenda de eventos.
+    calendar: [
+      'M8 2v4',
+      'M16 2v4',
+      'M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+      'M3 10h18'
+    ],
     // Imprimir: la bandeja, el cuerpo y el papel saliendo. Sustituye al emoji
     // 🖨️ de la lista de cotizaciones de ESR Pro.
     printer: [

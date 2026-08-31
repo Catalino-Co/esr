@@ -76,7 +76,7 @@
 					title="Sin eventos programados"
 					description="Agenda el primero para verlo aquí."
 					actionLabel="Crear evento"
-					actionHref="/events/new"
+					actionHref="/events?nueva=1"
 				/>
 			{:else}
 				<ul class="lineas">

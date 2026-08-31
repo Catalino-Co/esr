@@ -154,12 +154,24 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		appendStateFilter(params, where, filters.state, 'wo.');
 		if (filters.status) { params.push(filters.status); where.push(`wo.status = $${params.length}`); }
 		if (filters.date) { params.push(filters.date); where.push(`wo.date = $${params.length}`); }
+		if (filters.event_id) { params.push(filters.event_id); where.push(`wo.event_id = $${params.length}`); }
 		const result = await this.pool.query<RentalOrder>(
 			`SELECT wo.* FROM work_orders wo
 			 LEFT JOIN clients c ON c.id = wo.client_id AND c.company_id = wo.company_id
 			 WHERE ${where.join(' AND ')} ORDER BY wo.date DESC, wo.id DESC${appendPagination(params, filters)}`, params
 		);
 		return result.rows;
+	}
+
+	/**
+	 * Las ordenes de un evento.
+	 *
+	 * Calcado del `findByEventId` de cotizaciones, que ya existia. Sin `state`,
+	 * asi que cae en el por defecto del repositorio —solo activas—: la ficha del
+	 * evento resume lo que esta vivo, no el historico.
+	 */
+	async findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<RentalOrder[]> {
+		return this.list(ctx, { event_id: eventId, limit: 100, offset: 0 });
 	}
 
 	/**

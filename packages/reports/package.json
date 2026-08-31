@@ -8,6 +8,7 @@
 		".": "./src/index.js",
 		"./quotes": "./src/quotes/index.js",
 		"./contracts": "./src/contracts/index.js",
+		"./events": "./src/events/index.js",
 		"./inventory": "./src/inventory/index.js",
 		"./rentals": "./src/rentals/index.js",
 		"./formatters": "./src/formatters/index.js",
