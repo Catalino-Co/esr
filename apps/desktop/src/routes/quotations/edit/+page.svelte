@@ -7,7 +7,8 @@
     calculateQuoteTotals,
     formatMoney,
     statusBadgeClass,
-    statusLabel
+    statusLabel,
+    QUOTE_STATUSES
   } from '@esr/core';
   import { validateQuoteInput } from '@esr/schemas';
   import { generateQuotationPDF, quoteItemLabel } from '@esr/reports';
@@ -27,7 +28,15 @@
    * Desktop.
    */
 
-  const ESTADOS = ['borrador', 'enviada', 'aprobada', 'rechazada', 'vencida'];
+  /**
+   * Los estados salen de `@esr/core`, ya no se escriben aqui.
+   *
+   * La lista local era `borrador, enviada, aprobada, rechazada, vencida`: no
+   * coincidia con la de Cloud y, sobre todo, NO INCLUIA `cancelada` ni
+   * `convertida`, que son los dos estados que el negocio si usa. Desde el
+   * escritorio no habia forma de cancelar una cotizacion.
+   */
+  const ESTADOS = QUOTE_STATUSES;
 
   // `preload.cjs` solo se lee al arrancar Electron: el HMR no lo recarga. Sin
   // reiniciar, `window.api.quotes` es `undefined` y el guardado fallaria en
@@ -232,7 +241,13 @@
   //
   // La tabla es de SOLO LECTURA: cinco columnas editables a la vez se leen mal
   // y se tocan sin querer. Editar es un gesto explicito.
-  let editando = false;
+  //
+  // Se llama `editandoLinea` y NO `editando` a secas. Se llamaba asi, y era la
+  // MISMA variable que el `$: editando = !!cotizacion.id` de arriba: abrir una
+  // cotizacion existente ponia `editando = true` y el dialogo de linea se abria
+  // solo, encima de la ficha, cada vez. Y al cerrarlo la cabecera pasaba a decir
+  // «Nueva cotizacion» sobre una cotizacion que ya existia.
+  let editandoLinea = false;
   let edicionIndice = -1;
   // Copia, NO referencia: cancelar tiene que dejar la fila como estaba.
   let edicion = { name: '', quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 };
@@ -249,7 +264,7 @@
       discount_rate: linea.discount_rate,
       tax_rate: linea.tax_rate
     };
-    editando = true;
+    editandoLinea = true;
   }
 
   function confirmarEdicion() {
@@ -264,7 +279,7 @@
           }
         : linea
     );
-    editando = false;
+    editandoLinea = false;
   }
 
   // ── Dialogo: agregar articulo ────────────────────────────────────────────
@@ -528,8 +543,11 @@
     <button class="btn btn-secondary btn-sm" on:click={() => goto('/quotations')}>
       ← Cotizaciones
     </button>
+    <!-- El numero de verdad, desde la migracion 0012. El `#00001` de antes era
+         el id disfrazado: cambiaba si se borraba algo y no era el que imprimia
+         el PDF. -->
     <h1>
-      {editando ? `Cotización #${String(cotizacion.id).padStart(5, '0')}` : 'Nueva cotización'}
+      {editando ? `Cotización ${cotizacion.quote_number || '#' + cotizacion.id}` : 'Nueva cotización'}
     </h1>
     {#if editando}
       <span class="badge {statusBadgeClass(cotizacion.status)}">
@@ -768,7 +786,7 @@
 </div>
 
 <!-- ── Dialogo: editar linea ───────────────────────────────────────────── -->
-<Modal bind:show={editando} title="Editar línea" maxWidth="480px">
+<Modal bind:show={editandoLinea} title="Editar línea" maxWidth="480px">
   <p class="panel-hint">{edicion.name}</p>
 
   <div class="form-grid">
@@ -815,7 +833,7 @@
   </p>
 
   <svelte:fragment slot="footer">
-    <button class="btn btn-secondary" on:click={() => (editando = false)}>Cancelar</button>
+    <button class="btn btn-secondary" on:click={() => (editandoLinea = false)}>Cancelar</button>
     <button class="btn btn-primary" on:click={confirmarEdicion}>Guardar línea</button>
   </svelte:fragment>
 </Modal>

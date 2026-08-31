@@ -90,12 +90,38 @@ class SqliteQuoteRepository {
 		});
 	}
 
+	/**
+	 * Siguiente numero libre.
+	 *
+	 * Lee el maximo y suma uno, igual que el de Postgres. Aqui la carrera es
+	 * mucho mas improbable —ESR Pro es un solo proceso y un solo usuario— pero
+	 * la llamada va DENTRO de la transaccion de `save`, asi que entre leer el
+	 * maximo e insertar no se cuela nadie. Y si algo se colara, el indice unico
+	 * de la migracion 0012 lo convierte en un error en vez de en dos
+	 * cotizaciones con el mismo numero.
+	 *
+	 * `ORDER BY id DESC` y no `MAX(quote_number)`: el numero es texto, asi que
+	 * ordenarlo alfabeticamente daria la respuesta correcta solo hasta que
+	 * cambie el ancho del relleno.
+	 */
+	async nextQuoteNumber() {
+		const filas = await getQuery(
+			`SELECT quote_number FROM quotations
+			 WHERE quote_number IS NOT NULL AND quote_number <> ''
+			 ORDER BY id DESC LIMIT 1`
+		);
+		const ultimo = filas[0]?.quote_number;
+		const siguiente = ultimo ? Number(String(ultimo).replace(/\D/g, '')) + 1 : 1;
+		return `COT-${String(siguiente).padStart(6, '0')}`;
+	}
+
 	async txInsert(input, totales) {
+		const quoteNumber = await this.nextQuoteNumber();
 		const result = await runQuery(
 			`INSERT INTO quotations
 			   (client_id, event_id, date, validity_days, subtotal, discount, tax_amount,
-			    total, status, notes, conditions)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			    total, status, notes, conditions, quote_number)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				input.client_id,
 				input.event_id || null,
@@ -107,7 +133,8 @@ class SqliteQuoteRepository {
 				totales.total,
 				input.status || 'borrador',
 				input.notes || '',
-				input.conditions || ''
+				input.conditions || '',
+				quoteNumber
 			]
 		);
 		return result.id;

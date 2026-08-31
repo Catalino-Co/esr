@@ -3,6 +3,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon } from '@esr/ui';
+	import { quoteStatusFilterOptions, statusBadgeClass, statusLabel } from '@esr/core';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -10,13 +11,12 @@
 
 	let { data, form } = $props();
 
-	const ESTADOS = [
-		{ value: '', label: 'Cualquier estado' },
-		{ value: 'borrador', label: 'Borrador' },
-		{ value: 'aprobada', label: 'Aprobada' },
-		{ value: 'cancelada', label: 'Cancelada' },
-		{ value: 'convertida', label: 'Convertida' }
-	];
+	/* La lista sale de `@esr/core` y ya no se escribe aquí: escrita a mano en
+	   cada pantalla, Cloud y ESR Pro habían acabado ofreciendo conjuntos
+	   distintos. `QUOTE_STATUS_ALL` es el centinela de «todas», que no puede ser
+	   la cadena vacía porque `irCon` la borraría de la URL y el `load` volvería
+	   a poner el valor por defecto. */
+	const ESTADOS = quoteStatusFilterOptions();
 
 	/**
 	 * Navega conservando el resto de la query.
@@ -338,7 +338,7 @@
 				</div>
 			{/if}
 
-			<table class="data-table">
+			<table class="data-table data-table--acento">
 				<thead>
 					<tr>
 						{#if modo}
@@ -378,7 +378,12 @@
 							<td>{quote.quote_number || `#${quote.id}`}</td>
 							<td>{quote.client_name}</td>
 							<td>{quote.event_name}</td>
-							<td>{quote.status}</td>
+							<!-- Badge, no el enum crudo. Esta era la única lista de Cloud que
+							     pintaba `{quote.status}` tal cual, teniendo los dos ayudantes
+							     de `@esr/core` a mano en la ficha hermana. -->
+							<td>
+								<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
+							</td>
 							<td>{Number(quote.total || 0).toFixed(2)}</td>
 							<td><a class="btn-view" href="/quotes/{quote.id}">Ver</a></td>
 						</tr>
@@ -468,155 +473,13 @@
 {/if}
 
 <style>
-	/* ── La fila de herramientas ────────────────────────────────────────── */
+	/* La fila de herramientas, el grupo de botones y la cabecera en acento se
+	   promovieron a theme.css: los usa tambien la lista de cotizaciones de ESR
+	   Pro. Aqui abajo queda solo lo que es de ESTA pantalla.
 
-	.herramientas {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--sp-3);
-		margin-bottom: var(--sp-4);
-	}
-
-	.herramientas-datos {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--sp-2);
-	}
-
-	/*
-		Grupo de botones: pegados, con el borde y el radio en el CONTENEDOR.
-
-		Los hijos van sin borde propio y se separan con un `border-right` que se
-		quita en el último. La alternativa —cada botón con su borde y
-		`margin-left: -1px`— deja bordes dobles a medio pintar en cuanto uno
-		cambia de color, que es justo lo que pasa aquí con el encendido.
-
-		Sin `overflow: hidden`, que recortaría el anillo de foco del botón del
-		medio: el radio se pone a mano en el primero y el último.
-	*/
-	.grupo {
-		display: inline-flex;
-		border: 1px solid var(--border);
-		border-radius: var(--border-radius-sm);
-		background: var(--surface);
-	}
-
-	.grupo-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 2.25rem;
-		height: 2.25rem;
-		flex-shrink: 0;
-		border: none;
-		border-right: 1px solid var(--border);
-		border-radius: 0;
-		background: none;
-		/* `color` explícito: el `a { color: inherit }` que el `app.css` trae sin
-		   capa dejaría el icono del enlace en el color del texto del cuerpo. */
-		color: var(--text-secondary);
-		cursor: pointer;
-		transition: background var(--transition-fast), color var(--transition-fast);
-	}
-
-	.grupo-btn:first-child {
-		border-top-left-radius: calc(var(--border-radius-sm) - 1px);
-		border-bottom-left-radius: calc(var(--border-radius-sm) - 1px);
-	}
-
-	.grupo-btn:last-child {
-		border-right: none;
-		border-top-right-radius: calc(var(--border-radius-sm) - 1px);
-		border-bottom-right-radius: calc(var(--border-radius-sm) - 1px);
-	}
-
-	.grupo-btn:hover:not(:disabled) {
-		background: var(--bg-hover);
-		color: var(--text-primary);
-	}
-
-	.grupo-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* El anillo por encima de los vecinos, o el borde del de al lado lo corta. */
-	.grupo-btn:focus-visible {
-		outline: none;
-		box-shadow: var(--focus-ring);
-		position: relative;
-		z-index: 1;
-	}
-
-	/*
-		El interruptor encendido.
-
-		Relleno de acento y letra blanca: sin texto, un cambio de borde no se ve.
-		Aquí sí va el acento sólido y no el par suave de los badges, porque es el
-		estado de un modo que cambia la tabla entera y tiene que cantar.
-	*/
-	.grupo-btn.encendido {
-		background: var(--accent);
-		color: var(--text-on-accent);
-	}
-
-	.grupo-btn.encendido:hover:not(:disabled) {
-		background: var(--accent-hover);
-		color: var(--text-on-accent);
-	}
-
-	/* El icono de recargar gira mientras se recarga. Un `span` intermedio y no
-	   el propio botón: girar el botón giraría también su anillo de foco. */
-	.girando {
-		display: inline-flex;
-		animation: girar 0.9s linear infinite;
-	}
-
-	@keyframes girar {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.girando {
-			animation: none;
-		}
-	}
-
-	/* ── La tabla ───────────────────────────────────────────────────────── */
-
-	/*
-		EXCEPCIÓN DELIBERADA, y solo de esta pantalla.
-
-		El sistema dice dos cosas que esto rompe: la regla 1 —«`--accent` sólido
-		solo en el botón primario»— y el patrón de tabla —«`thead` sin fondo
-		gris»—. Se hace porque se pidió así, a sabiendas, y queda acotado a este
-		archivo: no es el patrón, y copiarlo a otra tabla sería extender la
-		excepción.
-
-		Medido antes de escribirlo: blanco sobre el acento da 6,29:1 en claro y
-		4,75:1 en oscuro, y los dos pasan AA para texto normal, que es lo que es
-		un `th` de 12 px. `--text-on-accent` es blanco fijo y no cambia con el
-		tema; `--text-muted`, que es lo que la hoja compartida le pone, sería
-		ilegible sobre este fondo.
-	*/
-	.data-table th {
-		background: var(--accent);
-		color: var(--text-on-accent);
-		border-bottom-color: var(--accent);
-	}
-
-	.data-table th:first-child {
-		border-top-left-radius: var(--border-radius-sm);
-	}
-
-	.data-table th:last-child {
-		border-top-right-radius: var(--border-radius-sm);
-	}
+	   No basta con no repetirlos: mientras la copia local siguiera aqui ganaria
+	   ella, porque un <style> de componente va sin capa y lo no-capado gana a
+	   theme.css sin importar la especificidad. */
 
 	.check {
 		width: 2.5rem;

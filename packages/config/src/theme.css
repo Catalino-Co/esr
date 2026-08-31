@@ -860,6 +860,35 @@
 		white-space: nowrap;
 	}
 
+	/* Cabecera en acento. MODIFICADOR, nunca la regla general.
+
+	   Es una EXCEPCION declarada: rompe la regla 1 —«`--accent` solido solo en
+	   el boton primario»— y el patron de tabla —«`thead` sin fondo gris»—. Vive
+	   aqui, y no copiada en cada pantalla, porque ya la usan las dos listas de
+	   cotizaciones, la de Cloud y la de ESR Pro. Que este escrita una vez no la
+	   convierte en el patron: una tabla la lleva solo si se pide.
+
+	   Medido: blanco sobre el acento da 6,29:1 en claro y 4,75:1 en oscuro, y
+	   los dos pasan AA para texto normal, que es lo que es un `th` de 12 px.
+	   `--text-on-accent` es blanco fijo y no cambia con el tema; el
+	   `--text-muted` de arriba seria ilegible sobre este fondo. */
+	.table--acento th,
+	.data-table--acento th {
+		background: var(--accent);
+		color: var(--text-on-accent);
+		border-bottom-color: var(--accent);
+	}
+
+	.table--acento th:first-child,
+	.data-table--acento th:first-child {
+		border-top-left-radius: var(--border-radius-sm);
+	}
+
+	.table--acento th:last-child,
+	.data-table--acento th:last-child {
+		border-top-right-radius: var(--border-radius-sm);
+	}
+
 	.table td,
 	.data-table td {
 		padding: var(--sp-3);
@@ -1162,6 +1191,125 @@
 		color: var(--text-muted);
 		padding: var(--sp-6);
 		text-align: center;
+	}
+
+	/* ─── Fila de herramientas y grupo de botones ─────────────────
+	   Las herramientas van FUERA de la tarjeta y el contenido dentro:
+	   navegar la pantalla es un trabajo distinto de filtrar sus datos.
+
+	   Nacio en la lista de cotizaciones de Cloud y se quedo alli, con la
+	   nota de promoverlo «cuando una segunda pantalla lo necesite». Esa
+	   pantalla es la lista de cotizaciones de ESR Pro. */
+	.herramientas {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-4);
+	}
+
+	.herramientas-datos {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
+	/* Grupo de botones: pegados, con el borde y el radio en el CONTENEDOR.
+
+	   Los hijos van sin borde propio y se separan con un `border-right`
+	   que se quita en el ultimo. La alternativa —cada boton con su borde
+	   y `margin-left: -1px`— deja bordes dobles a medio pintar en cuanto
+	   uno cambia de color, que es justo lo que pasa con el encendido.
+
+	   Sin `overflow: hidden`, que recortaria el anillo de foco del boton
+	   del medio: el radio se pone a mano en el primero y el ultimo. */
+	.grupo {
+		display: inline-flex;
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--surface);
+	}
+
+	.grupo-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		flex-shrink: 0;
+		border: none;
+		border-right: 1px solid var(--border);
+		border-radius: 0;
+		background: none;
+		/* `color` explicito: el `a { color: inherit }` que los dos `app.css`
+		   traen sin capa dejaria el icono del enlace en el color del cuerpo. */
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: background var(--transition-fast), color var(--transition-fast);
+	}
+
+	.grupo-btn:first-child {
+		border-top-left-radius: calc(var(--border-radius-sm) - 1px);
+		border-bottom-left-radius: calc(var(--border-radius-sm) - 1px);
+	}
+
+	.grupo-btn:last-child {
+		border-right: none;
+		border-top-right-radius: calc(var(--border-radius-sm) - 1px);
+		border-bottom-right-radius: calc(var(--border-radius-sm) - 1px);
+	}
+
+	.grupo-btn:hover:not(:disabled) {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.grupo-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* El anillo por encima de los vecinos, o el borde del de al lado lo corta. */
+	.grupo-btn:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+		position: relative;
+		z-index: 1;
+	}
+
+	/* El interruptor encendido: relleno de acento y letra blanca. Sin texto,
+	   un cambio de borde no se ve. Aqui si va el acento solido y no el par
+	   suave de los badges, porque es el estado de un modo que cambia la tabla
+	   entera y tiene que cantar. */
+	.grupo-btn.encendido {
+		background: var(--accent);
+		color: var(--text-on-accent);
+	}
+
+	.grupo-btn.encendido:hover:not(:disabled) {
+		background: var(--accent-hover);
+		color: var(--text-on-accent);
+	}
+
+	/* El icono de recargar gira mientras se recarga. Un `span` intermedio y no
+	   el propio boton: girar el boton giraria tambien su anillo de foco. */
+	.girando {
+		display: inline-flex;
+		animation: esr-girar 0.9s linear infinite;
+	}
+
+	@keyframes esr-girar {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.girando {
+			animation: none;
+		}
 	}
 
 	/* ─── Barra de filtros ────────────────────────────────────────

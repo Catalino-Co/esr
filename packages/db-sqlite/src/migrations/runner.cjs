@@ -10,6 +10,7 @@ const companyDefaultTaxRate = require('./versioned/0008_company_default_tax_rate
 const warehousesAndStock = require('./versioned/0009_warehouses_and_stock.cjs');
 const itemInventory = require('./versioned/0010_item_inventory.cjs');
 const dropLegacyItemColumns = require('./versioned/0011_drop_legacy_item_columns.cjs');
+const quoteNumber = require('./versioned/0012_quote_number.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -22,7 +23,8 @@ const MIGRATIONS = [
   companyDefaultTaxRate,
   warehousesAndStock,
   itemInventory,
-  dropLegacyItemColumns
+  dropLegacyItemColumns,
+  quoteNumber
 ];
 
 /**

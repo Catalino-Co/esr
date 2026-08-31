@@ -23,6 +23,7 @@ export * from './rentals/repositories';
 export * from './rentals/use-cases';
 
 export * from './quotes/repositories';
+export * from './quotes/status';
 export * from './quotes/use-cases';
 
 

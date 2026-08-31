@@ -1,6 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { SELECTABLE_STATES, validateQuoteCanApprove } from '@esr/core';
+import {
+	SELECTABLE_STATES,
+	parseQuoteStatus,
+	quoteStatusParam,
+	validateQuoteCanApprove
+} from '@esr/core';
 import type { Quote } from '@esr/schemas';
 import { validateCreateQuoteInput } from '@esr/schemas';
 import {
@@ -17,7 +22,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'quotes.view');
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
-	const status = url.searchParams.get('status')?.trim() || undefined;
+
+	// Sin `status` en la URL se listan los BORRADORES, que es lo que hay que
+	// atender. Para ver el resto se cambia el selector.
+	//
+	// «Todas» viaja como `?status=todos` y NO como vacio: `FilterBar` e `irCon`
+	// borran el parametro cuando el valor es `''`, asi que con un valor por
+	// defecto que no es vacio la opcion «cualquier estado» se anularia a si
+	// misma. `parseQuoteStatus` devuelve `undefined` para el centinela, que es
+	// lo que el repositorio entiende como «sin filtro».
+	const status = parseQuoteStatus(url.searchParams.get('status'));
 
 	// Sin `state`: el listado ya no ofrece el eje de circulacion, y sin el
 	// `appendStateFilter` del repositorio cae en `DEFAULT_RECORD_STATE`, que es
@@ -51,7 +65,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		customers,
 		events,
 		search: search ?? '',
-		status: status ?? ''
+		// El valor que tiene que marcar el selector, no el que fue al SQL: «sin
+		// filtro» es `undefined` abajo y el centinela aqui.
+		status: quoteStatusParam(status)
 	};
 };
 

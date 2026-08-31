@@ -59,6 +59,13 @@
       'M8 7l4-4 4 4',
       'M16 17l-4 4-4-4'
     ],
+    // Imprimir: la bandeja, el cuerpo y el papel saliendo. Sustituye al emoji
+    // 🖨️ de la lista de cotizaciones de ESR Pro.
+    printer: [
+      'M6 9V2h12v7',
+      'M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2',
+      'M6 14h12v8H6z'
+    ],
     trash: [
       'M3 6h18',
       'M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2',
