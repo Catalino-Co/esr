@@ -1,9 +1,17 @@
 <script>
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import { stateSelect } from '$lib/list-filters';
-	import { formatMoney, statusLabel } from '@esr/core';
+	import { formatMoney } from '@esr/core';
 	import { can } from '$lib/can';
 	let { data } = $props();
+
+	/**
+	 * Los tres estados de circulación, escritos aquí y no traídos de
+	 * `RECORD_STATE_LABELS`, porque en esta columna se leen como una propiedad
+	 * del artículo —«¿se puede cotizar?»— y no como el nombre de una acción.
+	 */
+	/** @type {Record<number, string>} */
+	const ESTADOS = { 1: 'Activo', 2: 'Inactivo', 0: 'Archivado' };
 </script>
 
 <section class="panel">
@@ -46,9 +54,11 @@
 					<th>Categoría</th>
 					<th>Unidad</th>
 					<th>Proveedor</th>
-					<th class="num">Mínimo</th>
-					<th class="num">Precio</th>
-					<th>Estado</th>
+					<th class="num">Precio alquiler</th>
+					<!-- «Publicación» y no «Estado»: aquí se decide si el artículo se
+					     puede cotizar, no si la mercancía está sana. Esa otra es la
+					     condición física y vive en Inventario. -->
+					<th>Publicación</th>
 					<th><span class="sr-only">Acciones</span></th>
 				</tr>
 			</thead>
@@ -60,9 +70,8 @@
 						<td>{item.category_name}</td>
 						<td>{item.uom_abbr || '—'}</td>
 						<td>{item.supplier_name}</td>
-						<td class="num">{item.min_stock ?? 0}</td>
 						<td class="num">{formatMoney(item.rental_price ?? 0)}</td>
-						<td>{statusLabel(item.status)}</td>
+						<td>{ESTADOS[item.is_active ?? -1] ?? '—'}</td>
 						<td><a class="btn-edit" href="/settings/articles/{item.id}">Editar</a></td>
 					</tr>
 				{/each}

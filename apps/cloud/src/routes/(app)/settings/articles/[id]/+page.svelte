@@ -10,7 +10,13 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>{item.name}</h1>
-		<a class="btn-secondary" href="/inventory">Volver al listado</a>
+		<div class="page-actions">
+			<!-- Un enlace, no datos: desde aquí se va a ver cuánto hay. -->
+			<a class="btn-secondary" href="/inventory?search={encodeURIComponent(item.internal_code || item.name)}">
+				Ver en Inventario
+			</a>
+			<a class="btn-secondary" href="/settings/articles">Volver al listado</a>
+		</div>
 	</div>
 
 	<RecordStateControl
@@ -26,36 +32,10 @@
 		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}
 
-	{#if data.availability}
-		{@const total = Number(data.availability.total_quantity ?? 0)}
-		{@const comprometida = Number(data.availability.committed_quantity ?? 0)}
-		<div class="grid" style="margin-bottom: 16px">
-			<div class="metric">
-				<strong>{total}</strong>
-				<span>{data.isSerialized ? 'Unidades en circulación' : 'Existencias'}</span>
-			</div>
-			<div class="metric">
-				<strong>{data.availability.available_quantity ?? 0}</strong>
-				<span>Libre para comprometer</span>
-			</div>
-			<div class="metric" class:metric-exceso={comprometida > total}>
-				<strong>{comprometida}</strong>
-				<span>Retenida por órdenes vivas</span>
-			</div>
-		</div>
-
-		{#if comprometida > total}
-			<!-- Antes esto no se veía: la ficha sumaba una tabla de reservas que
-			     nunca se soltaba, así que el número comprometido no guardaba
-			     relación con las existencias y nadie podía compararlos. -->
-			<div class="alert-error" role="status">
-				Hay {comprometida} unidad(es) comprometidas en órdenes vivas y solo {total} en
-				circulación. Revise las órdenes abiertas de este artículo{data.isSerialized
-					? ' o registre los seriales que falten'
-					: ' o corrija las existencias'}.
-			</div>
-		{/if}
-	{/if}
+	<!-- Ni tarjetas de existencias ni aviso de sobrecompromiso: esta pantalla es
+	     el CATÁLOGO. Cuánto hay, cuánto está comprometido y dónde se guarda se ve
+	     en Inventario, y se llega por el enlace de abajo. Repetir aquí esas cifras
+	     acabaría enseñando dos números distintos para lo mismo. -->
 
 	<form method="POST" action="?/update" class="form-grid" use:enhance>
 		<div class="form-field">
@@ -88,25 +68,6 @@
 			</span>
 		</div>
 		<div class="form-field">
-			<label for="total_quantity">Cantidad total *</label>
-			<input
-				id="total_quantity"
-				name="total_quantity"
-				type="number"
-				min="0"
-				value={item.total_quantity ?? 0}
-				readonly={data.isSerialized}
-				title={data.isSerialized ? 'Se calcula a partir de los números de serie registrados' : undefined}
-			/>
-			{#if data.isSerialized}
-				<span class="form-hint">Se deriva de los números de serie registrados.</span>
-			{/if}
-		</div>
-		<div class="form-field">
-			<label for="rental_price">Precio alquiler</label>
-			<input id="rental_price" name="rental_price" type="number" min="0" step="0.01" value={item.rental_price ?? 0} />
-		</div>
-		<div class="form-field">
 			<label for="supplier_id">Proveedor</label>
 			<select id="supplier_id" name="supplier_id">
 				<option value="">(Ninguno)</option>
@@ -128,27 +89,30 @@
 				{/each}
 			</select>
 		</div>
-		<div class="form-field">
-			<label for="min_stock">Mínimo</label>
-			<input
-				id="min_stock"
-				name="min_stock"
-				type="number"
-				min="0"
-				step="1"
-				value={item.min_stock ?? 0}
-			/>
+		<!--
+			Los dos precios VIGENTES, juntos y dichos por su nombre.
+
+			Son valores por defecto: la cotización copia el de alquiler en su línea
+			y la entrada de stock copia el de compra en el movimiento. Cambiarlos
+			aquí no reescribe ninguna de las dos cosas, y esa es justamente la
+			propiedad que la nota explica, porque de otro modo nadie se atrevería a
+			corregir una tarifa.
+		-->
+		<div class="form-field full precios-titulo">
+			<h2 class="sec-title">Precios vigentes</h2>
 			<span class="form-hint">
-				Por debajo de este total, el artículo sale en «Solo stock bajo». Se compara con el
-				total de la empresa, no con lo disponible hoy.
+				Se proponen al cotizar y al registrar una entrada. Cada documento guarda su
+				propia copia, así que cambiarlos aquí no altera nada ya emitido.
 			</span>
 		</div>
 		<div class="form-field">
-			<label for="status">Estado</label>
-			<select id="status" name="status">
-				<option value="disponible" selected={item.status === 'disponible'}>Disponible</option>
-				<option value="mantenimiento" selected={item.status === 'mantenimiento'}>Mantenimiento</option>
-			</select>
+			<label for="rental_price">Precio de alquiler</label>
+			<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} />
+		</div>
+		<div class="form-field">
+			<label for="internal_cost">Precio de compra</label>
+			<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} />
+			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 		</div>
 		<div class="form-field full">
 			<label for="description">Descripción</label>
@@ -256,8 +220,16 @@
 {/if}
 
 <style>
-	.metric-exceso strong {
-		color: var(--danger-text);
+	/* Separa los dos precios del resto de la ficha sin encerrarlos en otra
+	   tarjeta: son campos del mismo formulario, no una seccion aparte. */
+	.precios-titulo {
+		margin-top: var(--sp-3);
+		border-top: 1px solid var(--border);
+		padding-top: var(--sp-4);
+	}
+
+	.precios-titulo .sec-title {
+		margin-bottom: var(--sp-1);
 	}
 
 	.sec-title {

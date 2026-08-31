@@ -19,15 +19,31 @@ export function validateCloudCustomerInput(data: {
 	return errors;
 }
 
+/**
+ * El ARTICULO, que ya no lleva existencias: la cantidad dejo de venir por este
+ * formulario y entra por un movimiento de inventario, que si dice cuando, a que
+ * almacen y quien la puso.
+ *
+ * Se validan los dos precios porque un precio negativo no es una tarifa, es un
+ * error de tecleo que se propagaria a cada cotizacion que copie ese valor.
+ */
 export function validateCloudInventoryInput(data: {
 	name?: string;
-	total_quantity?: number | string;
+	rental_price?: number | string;
+	internal_cost?: number | string;
 }): ValidationError[] {
 	const errors: ValidationError[] = [];
 	if (!data.name?.trim()) errors.push({ field: 'name', message: 'El nombre es obligatorio.' });
-	const qty = Number(data.total_quantity ?? 0);
-	if (Number.isNaN(qty) || qty < 0) {
-		errors.push({ field: 'total_quantity', message: 'La cantidad total debe ser un número mayor o igual a 0.' });
+	for (const [field, label] of [
+		['rental_price', 'El precio de alquiler'],
+		['internal_cost', 'El precio de compra']
+	] as const) {
+		const valor = data[field];
+		if (valor === undefined || valor === '') continue;
+		const n = Number(valor);
+		if (Number.isNaN(n) || n < 0) {
+			errors.push({ field, message: `${label} debe ser un número mayor o igual a 0.` });
+		}
 	}
 	return errors;
 }

@@ -1,6 +1,6 @@
-import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
+import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
 import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
-import type { ESRId, InventoryItem } from '@esr/schemas';
+import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { appendStateFilter } from './state-filter';
@@ -8,12 +8,33 @@ import { appendPagination } from './pagination';
 import { availabilityColumnsSql, AVAILABILITY_ORDER_STATUSES, TOTAL_QUANTITY_SQL } from './availability';
 import { withTransaction } from '../transaction';
 
+/**
+ * Las columnas del ARTICULO, enumeradas a mano en vez de `i.*`.
+ *
+ * No es pedanteria: `items` todavia guarda `total_quantity`, `status`, `min_stock`
+ * y `location`, que se mudaron a `item_stock` y a `item_inventory` y solo siguen
+ * ahi para poder volver atras. Un `SELECT i.*` las traeria de vuelta y cualquier
+ * pantalla las pintaria tan tranquila, enseñando un dato congelado en el dia de
+ * la migracion. Enumerar es lo que hace que el error se vea como `undefined` y
+ * no como un numero plausible y falso.
+ */
+const ITEM_FIELDS = [
+	'id', 'company_id', 'internal_code', 'name', 'category_id', 'subcategory_id',
+	'description', 'item_type', 'uses_serial', 'rental_price', 'internal_cost',
+	'supplier_id', 'uom_id', 'notes', 'is_active'
+] as const;
+
+/** Para un `SELECT` sobre `items i`. */
+const ITEM_COLUMNS = ITEM_FIELDS.map((c) => `i.${c}`).join(', ');
+/** Para un `RETURNING`, donde no hay alias. */
+const ITEM_RETURNING = ITEM_FIELDS.join(', ');
+
 export class PostgresInventoryRepository implements TenantInventoryRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
 
 	async findById(ctx: RepositoryContext, id: ESRId): Promise<InventoryItem | null> {
 		const result = await this.pool.query<InventoryItem>(
-			`SELECT i.*, ${availabilityColumnsSql(3)}
+			`SELECT ${ITEM_COLUMNS}, ${availabilityColumnsSql(3)}
 			 FROM items i WHERE i.company_id = $1 AND i.id = $2`,
 			[requireCompanyId(ctx), id, AVAILABILITY_ORDER_STATUSES]
 		);
@@ -27,7 +48,6 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			params.push(`%${filters.search}%`);
 			where.push(`(i.name ILIKE $${params.length} OR i.internal_code ILIKE $${params.length})`);
 		}
-		if (filters.status) { params.push(filters.status); where.push(`i.status = $${params.length}`); }
 		if (filters.category_id) { params.push(filters.category_id); where.push(`i.category_id = $${params.length}`); }
 		// Sin estado explicito se listan solo los activos.
 		appendStateFilter(params, where, filters.state, 'i.');
@@ -36,7 +56,7 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		// alguien abria la ficha y la reescribia a mano.
 		params.push(AVAILABILITY_ORDER_STATUSES);
 		const result = await this.pool.query<InventoryItem>(
-			`SELECT i.*, ${availabilityColumnsSql(params.length)}
+			`SELECT ${ITEM_COLUMNS}, ${availabilityColumnsSql(params.length)}
 			 FROM items i WHERE ${where.join(' AND ')}
 			 ORDER BY i.name${appendPagination(params, filters)}`,
 			params
@@ -44,39 +64,64 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		return result.rows;
 	}
 
+	/**
+	 * Da de alta un ARTICULO. Nace SIN existencias, a proposito.
+	 *
+	 * El formulario de alta pedia una cantidad inicial y la escribia sin dejar
+	 * rastro: aparecian cien sillas sin que nadie hubiera registrado su entrada.
+	 * Ahora nace en cero y el stock entra por un movimiento, que si dice cuando,
+	 * a que almacen, a que costo y quien lo hizo.
+	 *
+	 * Su fila de `item_inventory` se crea en la misma transaccion: sin ella, el
+	 * articulo no aparece en Inventario hasta que alguien le ponga un minimo, y
+	 * un articulo en cero tiene que verse igual que uno lleno.
+	 */
 	async create(ctx: RepositoryContext, data: TenantCreateInventoryItemInput): Promise<InventoryItem> {
-		const result = await this.pool.query<InventoryItem>(
-			`INSERT INTO items
-				(company_id, internal_code, name, category_id, subcategory_id, description, item_type,
-				 uses_serial, total_quantity, rental_price, status, notes, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-			 RETURNING *`,
-			[
-				requireCompanyId(ctx), data.internal_code || null, data.name, data.category_id || null,
-				data.subcategory_id || null, data.description || null, data.item_type || 'cantidad',
-				data.uses_serial ? 1 : 0, data.total_quantity ?? 0,
-				data.rental_price ?? 0, data.status || 'disponible', data.notes || null, data.is_active ?? 1
-			]
-		);
-		return result.rows[0];
+		const companyId = requireCompanyId(ctx);
+		return withTransaction(async (client) => {
+			const result = await client.query<InventoryItem>(
+				`INSERT INTO items
+					(company_id, internal_code, name, category_id, subcategory_id, description, item_type,
+					 uses_serial, rental_price, internal_cost, supplier_id, uom_id, notes, is_active)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				 RETURNING ${ITEM_RETURNING}`,
+				[
+					companyId, data.internal_code || null, data.name, data.category_id || null,
+					data.subcategory_id || null, data.description || null, data.item_type || 'cantidad',
+					data.uses_serial ? 1 : 0, data.rental_price ?? 0, data.internal_cost ?? 0,
+					data.supplier_id || null, data.uom_id || null, data.notes || null, data.is_active ?? 1
+				]
+			);
+			const item = result.rows[0];
+			await client.query(
+				`INSERT INTO item_inventory (company_id, item_id, min_stock, physical_status)
+				 VALUES ($1, $2, 0, 'disponible')
+				 ON CONFLICT (company_id, item_id) DO NOTHING`,
+				[companyId, item.id]
+			);
+			return item;
+		});
 	}
 
 	async update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateInventoryItemInput>): Promise<InventoryItem> {
 		const current = await this.findById(ctx, id);
 		if (!current) throw new Error(`Inventory item ${id} not found in company.`);
 		const next = { ...current, ...data };
+		// Ni `total_quantity`, ni `status`, ni `min_stock`: editar la ficha de un
+		// articulo NO puede mover ni una unidad. Esa es la regla entera de esta
+		// separacion, y aqui es donde se cumple o se rompe.
 		const result = await this.pool.query<InventoryItem>(
 			`UPDATE items SET internal_code = $3, name = $4, category_id = $5, subcategory_id = $6,
-				description = $7, item_type = $8, uses_serial = $9, total_quantity = $10,
-				rental_price = $11, status = $12, notes = $13, is_active = $14,
-				supplier_id = $15, uom_id = $16, min_stock = $17
-			 WHERE company_id = $1 AND id = $2 RETURNING *`,
+				description = $7, item_type = $8, uses_serial = $9,
+				rental_price = $10, internal_cost = $11, notes = $12, is_active = $13,
+				supplier_id = $14, uom_id = $15
+			 WHERE company_id = $1 AND id = $2 RETURNING ${ITEM_RETURNING}`,
 			[
 				requireCompanyId(ctx), id, next.internal_code || null, next.name, next.category_id || null,
 				next.subcategory_id || null, next.description || null, next.item_type || 'cantidad',
-				next.uses_serial ? 1 : 0, next.total_quantity ?? 0,
-				next.rental_price ?? 0, next.status || 'disponible', next.notes || null, next.is_active ?? 1,
-				next.supplier_id || null, next.uom_id || null, next.min_stock ?? 0
+				next.uses_serial ? 1 : 0,
+				next.rental_price ?? 0, next.internal_cost ?? 0, next.notes || null, next.is_active ?? 1,
+				next.supplier_id || null, next.uom_id || null
 			]
 		);
 		return result.rows[0];
@@ -150,48 +195,15 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	}
 
 
-	/**
-	 * Fija las existencias de un articulo en UN almacen.
+	/*
+	 * `setStock` y `defaultWarehouseId` VIVIAN AQUI y se han ido con la ficha del
+	 * articulo, que era su unico llamador.
 	 *
-	 * Desde la migracion 019 el total de un articulo de cantidad es la SUMA de
-	 * `item_stock`, asi que `items.total_quantity` dejo de moverlo. Este es el
-	 * unico camino que lo cambia.
-	 *
-	 * No aplica a los serializados: alli la existencia son los seriales, y una
-	 * fila aqui seria un segundo numero contradiciendo al primero.
+	 * Eran un camino para cambiar existencias SIN dejar movimiento, que es justo
+	 * lo que esta separacion viene a cerrar. Dejarlos como metodos publicos «por
+	 * si acaso» seria dejar la puerta abierta a que la proxima pantalla vuelva a
+	 * escribir stock sin decir quien ni cuando. El unico camino es `moveStock`.
 	 */
-	async setStock(
-		ctx: RepositoryContext,
-		itemId: ESRId,
-		warehouseId: ESRId,
-		quantity: number
-	): Promise<void> {
-		await this.pool.query(
-			`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
-			 VALUES ($1, $2, $3, $4)
-			 ON CONFLICT (company_id, item_id, warehouse_id)
-			 DO UPDATE SET quantity = EXCLUDED.quantity`,
-			[requireCompanyId(ctx), itemId, warehouseId, Math.max(0, Math.trunc(Number(quantity) || 0))]
-		);
-	}
-
-	/**
-	 * El almacen por defecto de la empresa: el «Principal» que creo la migracion,
-	 * o el primero activo si alguien lo renombro.
-	 *
-	 * Existe para que las pantallas que todavia no eligen almacen —la ficha del
-	 * articulo, hasta la fase 2— tengan donde escribir.
-	 */
-	async defaultWarehouseId(ctx: RepositoryContext): Promise<ESRId | null> {
-		const result = await this.pool.query<{ id: ESRId }>(
-			`SELECT id FROM warehouses
-			 WHERE company_id = $1 AND is_active = 1
-			 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id
-			 LIMIT 1`,
-			[requireCompanyId(ctx)]
-		);
-		return result.rows[0]?.id ?? null;
-	}
 
 	/**
 	 * El inventario TAL COMO SE MIRA: por almacen.
@@ -211,34 +223,44 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	 * una cantidad: por eso la primera rama cuenta `item_serials` y la segunda
 	 * lee `item_stock`. Son dos modelos y mezclarlos daria dos numeros
 	 * contradiciendose.
+	 *
+	 * El minimo, el estado fisico y la ubicacion vienen de `item_inventory` con
+	 * un LEFT JOIN: un articulo dado de alta antes de la migracion 021, o creado
+	 * por una via que no pase por `create`, no tiene fila alli y aun asi tiene
+	 * que verse. Sin fila, minimo cero y «disponible», que es lo que decia su
+	 * ficha en blanco.
 	 */
-	async listByWarehouse(
+	async listStock(
 		ctx: RepositoryContext,
-		options: {
-			warehouse_id?: ESRId | null;
-			search?: string;
-			category_id?: ESRId | null;
-			/** Solo los que estan en cero o por debajo de su minimo. */
-			low_stock?: boolean;
-		} = {}
-	): Promise<Array<InventoryItem & { warehouse_quantity: number; category_name: string | null; supplier_name: string | null; uom_abbr: string | null }>> {
+		filters: InventoryStockFilters = {}
+	): Promise<InventoryStockRow[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
 		const where = ['i.company_id = $1', 'i.is_active = 1'];
 
-		if (options.search) {
-			params.push(`%${options.search}%`);
+		if (filters.search) {
+			params.push(`%${filters.search}%`);
 			where.push(`(i.name ILIKE $${params.length} OR i.internal_code ILIKE $${params.length})`);
 		}
-		if (options.category_id) {
-			params.push(options.category_id);
+		if (filters.category_id) {
+			params.push(filters.category_id);
 			where.push(`i.category_id = $${params.length}`);
+		}
+		if (filters.physical_status) {
+			params.push(filters.physical_status);
+			where.push(`COALESCE(inv.physical_status, 'disponible') = $${params.length}`);
 		}
 
 		params.push(AVAILABILITY_ORDER_STATUSES);
 		const statusParam = params.length;
 
-		params.push(options.warehouse_id ?? null);
+		params.push(filters.warehouse_id ?? null);
 		const warehouseParam = params.length;
+
+		// Cuantas entradas mira la valoracion: 1 con «ultimo», 3 con «promedio3».
+		// La regla viaja como un LIMITE y no como un `CASE`, porque el promedio de
+		// una sola entrada es esa entrada: una consulta sirve para las dos reglas.
+		params.push(filters.valuation_rule === 'promedio3' ? 3 : 1);
+		const ruleParam = params.length;
 
 		// Sin almacen elegido, la columna enseña el total de la empresa: es lo
 		// unico honesto que se puede decir cuando no se ha elegido «donde».
@@ -261,25 +283,102 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		// «Stock bajo» se compara contra el TOTAL de la empresa y no contra lo
 		// disponible hoy: responde «hay que comprar mas», que es una decision de
 		// compra. Un articulo con todo alquilado no es stock bajo, esta ocupado.
-		if (options.low_stock) {
-			where.push(`COALESCE(i.min_stock, 0) > 0 AND (${TOTAL_QUANTITY_SQL}) < COALESCE(i.min_stock, 0)`);
+		if (filters.low_stock) {
+			where.push(
+				`COALESCE(inv.min_stock, 0) > 0 AND (${TOTAL_QUANTITY_SQL}) < COALESCE(inv.min_stock, 0)`
+			);
 		}
 
 		const result = await this.pool.query(
-			`SELECT i.*, ${availabilityColumnsSql(statusParam)},
+			`SELECT ${ITEM_COLUMNS}, ${availabilityColumnsSql(statusParam)},
 			        ${cantidadEnAlmacen} AS warehouse_quantity,
+			        COALESCE(inv.min_stock, 0) AS min_stock,
+			        COALESCE(inv.physical_status, 'disponible') AS physical_status,
+			        inv.location,
+			        val.valuation_cost,
 			        c.name AS category_name,
 			        p.name AS supplier_name,
 			        COALESCE(u.abbr, u.name) AS uom_abbr
 			   FROM items i
+			   LEFT JOIN item_inventory inv ON inv.item_id = i.id AND inv.company_id = i.company_id
 			   LEFT JOIN categories c ON c.id = i.category_id AND c.company_id = i.company_id
 			   LEFT JOIN suppliers p ON p.id = i.supplier_id AND p.company_id = i.company_id
 			   LEFT JOIN units_of_measure u ON u.id = i.uom_id AND u.company_id = i.company_id
+			   LEFT JOIN LATERAL (
+			       SELECT AVG(m.unit_cost)::numeric(14, 2) AS valuation_cost
+			         FROM (
+			           SELECT sm.unit_cost FROM stock_movements sm
+			            WHERE sm.company_id = i.company_id AND sm.item_id = i.id
+			              AND sm.unit_cost IS NOT NULL AND sm.quantity > 0
+			            ORDER BY sm.created_at DESC, sm.id DESC
+			            LIMIT $${ruleParam}
+			         ) m
+			   ) val ON TRUE
 			  WHERE ${where.join(' AND ')}
 			  ORDER BY i.name`,
 			params
 		);
 		return result.rows as never;
+	}
+
+	/**
+	 * Las existencias de un articulo que no son cantidad.
+	 *
+	 * Devuelve valores incluso sin fila: un articulo anterior a la migracion 021
+	 * no la tiene, y el formulario que lo edite tiene que poder abrirse igual.
+	 */
+	async findInventory(ctx: RepositoryContext, itemId: ESRId): Promise<ItemInventory | null> {
+		const result = await this.pool.query<ItemInventory>(
+			`SELECT item_id, company_id, min_stock, physical_status, location
+			   FROM item_inventory WHERE company_id = $1 AND item_id = $2`,
+			[requireCompanyId(ctx), itemId]
+		);
+		return (
+			result.rows[0] ?? {
+				item_id: itemId,
+				min_stock: 0,
+				physical_status: 'disponible',
+				location: null
+			}
+		);
+	}
+
+	/**
+	 * Fija minimo, estado fisico y ubicacion. NO mueve ni una unidad.
+	 *
+	 * `INSERT ... ON CONFLICT` y no un `UPDATE`: el articulo puede no tener fila
+	 * todavia —los anteriores a la migracion 021 no la tienen— y exigirsela
+	 * obligaria a cada pantalla a acordarse de crearla.
+	 *
+	 * El `SET` se arma con los campos que VIENEN en el objeto, y no con todos.
+	 * Un `COALESCE(EXCLUDED.x, ...)` fijo haria imposible borrar la ubicacion,
+	 * porque vaciarla y no tocarla llegarian aqui como el mismo NULL.
+	 */
+	async saveInventory(
+		ctx: RepositoryContext,
+		itemId: ESRId,
+		data: ItemInventoryInput
+	): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		const params: unknown[] = [companyId, itemId];
+		const sets: string[] = [];
+
+		const minStock =
+			data.min_stock === undefined ? 0 : Math.max(0, Math.trunc(Number(data.min_stock) || 0));
+		const estado = data.physical_status ?? 'disponible';
+		const ubicacion = data.location ?? null;
+
+		params.push(minStock, estado, ubicacion);
+		if (data.min_stock !== undefined) sets.push('min_stock = EXCLUDED.min_stock');
+		if (data.physical_status !== undefined) sets.push('physical_status = EXCLUDED.physical_status');
+		if ('location' in data) sets.push('location = EXCLUDED.location');
+
+		await this.pool.query(
+			`INSERT INTO item_inventory (company_id, item_id, min_stock, physical_status, location)
+			 VALUES ($1, $2, $3, $4, $5)
+			 ON CONFLICT (company_id, item_id) DO ${sets.length ? `UPDATE SET ${sets.join(', ')}` : 'NOTHING'}`,
+			params
+		);
 	}
 
 	/**
@@ -306,7 +405,13 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			type: 'entrada' | 'salida' | 'ajuste';
 			quantity: number;
 			notes?: string | null;
-			user_id?: string | null;
+			user_id?: ESRId | null;
+			/**
+			 * Lo que costo la unidad EN ESTA ENTRADA. Copia, igual que el precio de
+			 * una linea de cotizacion: cambiar `items.internal_cost` manana no puede
+			 * reescribir lo que costo una compra de hace tres meses.
+			 */
+			unit_cost?: number | null;
 		}
 	): Promise<{ quantity: number; delta: number }> {
 		const companyId = requireCompanyId(ctx);
@@ -355,10 +460,21 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 				[companyId, input.item_id, input.warehouse_id, despues]
 			);
 
+			// El costo solo tiene sentido en lo que ENTRA: una salida no compra
+			// nada, y un ajuste corrige un recuento. Guardarlo en los tres
+			// ensuciaria la valoracion con numeros que no son precios de compra.
+			//
+			// NULL y no 0 cuando no se sabe: «costo cero» es un dato inventado, y
+			// la valoracion prefiere decir «—» a decir una cifra falsa.
+			const costo =
+				input.type === 'entrada' && input.unit_cost !== null && input.unit_cost !== undefined
+					? Number(input.unit_cost)
+					: null;
+
 			await client.query(
 				`INSERT INTO stock_movements
-					(company_id, item_id, warehouse_id, user_id, type, quantity, notes)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+					(company_id, item_id, warehouse_id, user_id, type, quantity, notes, unit_cost)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 				[
 					companyId,
 					input.item_id,
@@ -366,7 +482,8 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 					input.user_id || null,
 					input.type,
 					despues - antes,
-					input.notes || null
+					input.notes || null,
+					Number.isFinite(costo as number) ? costo : null
 				]
 			);
 

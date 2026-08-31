@@ -36,7 +36,13 @@ class SqliteCompanySettingsRepository {
     // triplicaria el documento. El <input> ya lo impide, pero esto es lo que
     // de verdad escribe.
     const tasa = Math.min(100, Math.max(0, Number(data.default_tax_rate) || 0));
-    await runQuery('UPDATE company_info SET default_tax_rate = ? WHERE id = 1', [tasa]);
+    // Solo dos reglas. Cualquier otra cosa cae en `ultimo`, que es la que ve una
+    // instalacion que nunca abrio esta pantalla.
+    const regla = data.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
+    await runQuery(
+      'UPDATE company_info SET default_tax_rate = ?, default_valuation_rule = ? WHERE id = 1',
+      [tasa, regla]
+    );
     return await this.get();
   }
 }

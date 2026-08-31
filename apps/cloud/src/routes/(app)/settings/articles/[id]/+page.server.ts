@@ -20,11 +20,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const item = await getInventoryRepository().findById(ctx, params.id);
 	if (!item) error(404, 'Artículo no encontrado');
 
-	const [categories, subcategories, availability, serials, suppliers, units] = await Promise.all([
+	// Ni existencias ni disponibilidad: esta pantalla es el CATÁLOGO y responde
+	// «qué es y cuánto vale». Cuánto hay y dónde está se ve en Inventario, al que
+	// se enlaza. Un enlace, y no las cifras repetidas aquí, porque dos sitios que
+	// enseñan el mismo número acaban enseñando dos números distintos.
+	const [categories, subcategories, serials, suppliers, units] = await Promise.all([
 		getCategoryRepository().list(ctx),
 		item.category_id ? getSubcategoryRepository().list(ctx, item.category_id) : Promise.resolve([]),
-		getInventoryRepository().findAvailableByDateRange(ctx, { item_id: item.id }),
-		// Solo tiene sentido pedirlos si el artículo se lleva por unidades.
+		// Los seriales SÍ son del artículo: identifican qué unidad física es cuál,
+		// y darlos de alta es definirlas, no moverlas de sitio.
 		isSerializedInventoryItem(item)
 			? getSerialRepository().findByItem(ctx, params.id)
 			: Promise.resolve([]),
@@ -36,7 +40,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		item,
 		categories,
 		subcategories,
-		availability: availability[0] ?? null,
 		serials,
 		suppliers,
 		units,
@@ -131,7 +134,6 @@ export const actions: Actions = {
 		const { companyId } = requirePermission(locals, 'inventory.update');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
-		const totalQuantity = Number(form.get('total_quantity') ?? 0);
 
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
@@ -140,19 +142,14 @@ export const actions: Actions = {
 			category_id: String(form.get('category_id') ?? '').trim(),
 			subcategory_id: String(form.get('subcategory_id') ?? '').trim(),
 			notes: String(form.get('notes') ?? '').trim(),
-			status: String(form.get('status') ?? 'disponible').trim(),
-			total_quantity: totalQuantity,
+			// Las dos TARIFAS VIGENTES. Son valores por defecto: cada transacción
+			// copia el que necesita cuando se hace, así que cambiarlos aquí no
+			// reescribe ni una cotización emitida ni lo que costó una compra.
 			rental_price: Number(form.get('rental_price') ?? 0),
+			internal_cost: Number(form.get('internal_cost') ?? 0),
 			supplier_id: String(form.get('supplier_id') ?? '').trim(),
-			uom_id: String(form.get('uom_id') ?? '').trim(),
-			// El minimo es UNO POR ARTICULO y se compara contra el total de la
-			// empresa: responde «hay que comprar mas», que es decision de compra
-			// y no de almacen.
-			min_stock: Math.max(0, Math.trunc(Number(form.get('min_stock') ?? 0) || 0))
+			uom_id: String(form.get('uom_id') ?? '').trim()
 		};
-
-		// Pasar a serializado no se puede deshacer a la ligera: si ya hay
-		// unidades registradas, volver a "por cantidad" las dejaría huérfanas.
 
 		const validationErrors = validateCloudInventoryInput(values);
 		if (validationErrors.length) {
@@ -162,19 +159,13 @@ export const actions: Actions = {
 		const current = await getInventoryRepository().findById(ctx, params.id);
 		if (!current) error(404, 'Artículo no encontrado');
 
+		// Pasar a serializado no se puede deshacer a la ligera: si ya hay
+		// unidades registradas, volver a «por cantidad» las dejaría huérfanas.
 		const wantsSerial = String(form.get('item_type') ?? 'cantidad') === 'serializado';
-		const serialCount = wantsSerial
-			? (await getSerialRepository().findByItem(ctx, params.id)).length
-			: 0;
 
-		// En un artículo serializado las existencias son un reflejo de sus
-		// unidades, así que la cantidad tecleada se ignora.
-		//
-		// Lo DISPONIBLE ya no se guarda: se calcula restando a las existencias lo
-		// que retienen las órdenes vivas. La columna que había se tecleaba aquí y
-		// no la actualizaba ninguna entrega ni devolución (migración 015).
-		const effectiveTotal = wantsSerial ? serialCount : totalQuantity;
-
+		// NO se toca ni una existencia. Guardar la ficha de un artículo no puede
+		// mover stock: para eso está el movimiento de Inventario, que además deja
+		// constancia de cuándo, a qué almacén, a qué costo y quién lo hizo.
 		await getInventoryRepository().update(ctx, params.id, {
 			item_type: wantsSerial ? 'serializado' : 'cantidad',
 			uses_serial: wantsSerial ? 1 : 0,
@@ -184,27 +175,11 @@ export const actions: Actions = {
 			category_id: values.category_id || '',
 			subcategory_id: values.subcategory_id || undefined,
 			notes: values.notes || undefined,
-			status: values.status,
-			total_quantity: effectiveTotal,
 			rental_price: values.rental_price,
+			internal_cost: values.internal_cost,
 			supplier_id: values.supplier_id || null,
-			uom_id: values.uom_id || null,
-			min_stock: values.min_stock
+			uom_id: values.uom_id || null
 		});
-
-		// El TOTAL de un articulo de cantidad dejo de salir de
-		// `items.total_quantity` y pasa a ser la suma de `item_stock`. Sin esto,
-		// teclear una cantidad aqui no moveria nada: se guardaria un numero que
-		// ya no lee nadie.
-		//
-		// Se escribe en el almacen por defecto porque esta pantalla todavia no
-		// elige almacen; la de Inventario, que si lo hara, es el paso siguiente.
-		if (!wantsSerial) {
-			const warehouseId = await getInventoryRepository().defaultWarehouseId(ctx);
-			if (warehouseId) {
-				await getInventoryRepository().setStock(ctx, params.id, warehouseId, effectiveTotal);
-			}
-		}
 
 		await recordAuditLog({ locals, request, getClientAddress }, {
 			action: 'inventory.updated',

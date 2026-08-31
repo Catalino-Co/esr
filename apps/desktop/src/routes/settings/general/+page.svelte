@@ -20,6 +20,8 @@
     'Reinicie ESR Pro para activar este ajuste: el puente con la base de datos cambió y no basta con recargar la ventana.';
 
   let tasa = 0;
+  /** `ultimo` | `promedio3`. Con qué costo se valora lo que hay en el almacén. */
+  let regla = 'ultimo';
   let guardando = false;
   let mensaje = '';
   let error = '';
@@ -31,6 +33,7 @@
     }
     const fila = await window.api.settings.getCompany();
     tasa = Number(fila?.default_tax_rate) || 0;
+    regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
   });
 
   async function guardar() {
@@ -52,8 +55,12 @@
     error = '';
     mensaje = '';
     try {
-      const fila = await window.api.settings.updateDefaults({ default_tax_rate: valor });
+      const fila = await window.api.settings.updateDefaults({
+        default_tax_rate: valor,
+        default_valuation_rule: regla
+      });
       tasa = Number(fila?.default_tax_rate) || 0;
+      regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
       mensaje = 'Ajustes generales guardados.';
     } catch (e) {
       error = String(e?.message || 'No se pudo guardar.');
@@ -92,6 +99,18 @@
         puede cambiar en esa línea.
       </span>
     </div>
+
+    <div class="form-field">
+      <label for="valoracion">Valoración del inventario</label>
+      <select id="valoracion" bind:value={regla}>
+        <option value="ultimo">Último precio de compra</option>
+        <option value="promedio3">Promedio de las 3 últimas compras</option>
+      </select>
+      <span class="field-hint">
+        Con qué costo se valora lo que hay en el almacén. El costo sale de las entradas
+        registradas; las que se hicieron sin costo no cuentan.
+      </span>
+    </div>
   </div>
 
   <div class="form-actions">
@@ -100,7 +119,9 @@
     </button>
   </div>
 
-  <p class="panel-hint aviso">Cambiar este valor no toca ninguna cotización ya hecha.</p>
+  <p class="panel-hint aviso">
+    Cambiar estos valores no toca ninguna cotización ya hecha ni ningún costo ya registrado.
+  </p>
 </div>
 
 <style>

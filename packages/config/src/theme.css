@@ -1142,6 +1142,15 @@
 		font-size: 1.6rem;
 	}
 
+	/* Cuando la cabecera lleva mas de una accion. Envuelve en pantalla
+	   estrecha en vez de empujar el titulo fuera. */
+	.page-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
 	/* Texto de apoyo bajo el titulo de un panel. */
 	.panel-hint {
 		color: var(--text-muted);

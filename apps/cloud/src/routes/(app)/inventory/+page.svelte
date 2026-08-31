@@ -22,11 +22,27 @@
 		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
 	}
 
+	/** Las tres condiciones físicas. Sentence case, como el resto del sistema. */
+	/** @type {Record<string, string>} */
+	const CONDICIONES = {
+		disponible: 'Disponible',
+		mantenimiento: 'Mantenimiento',
+		retirado: 'Retirado'
+	};
+
 	/* ── Diálogo: movimiento de stock ──────────────────────────────────────── */
 
 	let moviendo = $state(false);
 	let errorMovimiento = $state(null);
-	let movimiento = $state({ id: null, name: '', tipo: 'entrada', cantidad: 1, notas: '', actual: 0 });
+	let movimiento = $state({
+		id: null,
+		name: '',
+		tipo: 'entrada',
+		cantidad: 1,
+		costo: '',
+		notas: '',
+		actual: 0
+	});
 
 	function abrirMovimiento(item) {
 		movimiento = {
@@ -34,12 +50,47 @@
 			name: item.name,
 			tipo: 'entrada',
 			cantidad: 1,
+			// Se PROPONE el precio de compra del artículo y se guarda la copia que
+			// quede aquí. Sin precio de compra entra vacío y no bloquea: «no lo sé»
+			// es una respuesta válida y se guarda como tal.
+			//
+			// `Number(...)` y no la verdad del valor: Postgres devuelve NUMERIC como
+			// CADENA, y «0.00» es una cadena no vacía. Sin esto, un artículo sin
+			// precio de compra abría el diálogo con un 0.00 tecleado.
+			costo: Number(item.internal_cost) > 0 ? String(item.internal_cost) : '',
 			notas: '',
 			actual: Number(item.warehouse_quantity) || 0
 		};
 		errorMovimiento = null;
 		moviendo = true;
 	}
+
+	/* ── Diálogo: existencias del artículo ─────────────────────────────────── */
+
+	let editando = $state(false);
+	let errorExistencias = $state(null);
+	let existencias = $state({ id: null, name: '', minimo: 0, condicion: 'disponible', ubicacion: '' });
+
+	function abrirExistencias(item) {
+		existencias = {
+			id: item.id,
+			name: item.name,
+			minimo: Number(item.min_stock) || 0,
+			condicion: item.physical_status || 'disponible',
+			ubicacion: item.location ?? ''
+		};
+		errorExistencias = null;
+		editando = true;
+	}
+
+	const alGuardarExistencias = () => async ({ update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			errorExistencias = result.data?.error ?? 'No se pudieron guardar las existencias.';
+			return;
+		}
+		editando = false;
+	};
 
 	/**
 	 * Lo que quedará en el almacén, calculado al teclear.
@@ -85,6 +136,16 @@
 				options: [
 					{ value: '', label: 'Cualquier categoría' },
 					...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
+				]
+			},
+			{
+				name: 'condicion',
+				label: 'Cualquier condición',
+				value: data.physicalStatus,
+				width: '11rem',
+				options: [
+					{ value: '', label: 'Cualquier condición' },
+					...Object.entries(CONDICIONES).map(([value, label]) => ({ value, label }))
 				]
 			}
 		]}
@@ -138,7 +199,8 @@
 					<th class="num">Total</th>
 					<th class="num">Disponible</th>
 					<th class="num">Mínimo</th>
-					<th class="num">Precio</th>
+					<th>Condición</th>
+					<th class="num">Valor</th>
 					<th>Proveedor</th>
 					{#if puedeMover}<th><span class="sr-only">Acciones</span></th>{/if}
 				</tr>
@@ -160,7 +222,19 @@
 							{#if item.uom_abbr}<span class="uom">{item.uom_abbr}</span>{/if}
 						</td>
 						<td class="num">{item.min_stock ?? 0}</td>
-						<td class="num">{formatMoney(item.rental_price ?? 0)}</td>
+						<td class:atencion={item.physical_status !== 'disponible'}>
+							{CONDICIONES[item.physical_status ?? ''] ?? '—'}
+						</td>
+						<!--
+							Existencias × costo, con el costo que diga la regla de la
+							empresa. «—» y no cero cuando no lo hay: las entradas anteriores
+							a esta reforma no guardaban costo, y un cero sería inventárselo.
+						-->
+						<td class="num">
+							{item.valuation_cost == null
+								? '—'
+								: formatMoney(Number(item.valuation_cost) * Number(item.warehouse_quantity ?? 0))}
+						</td>
 						<td>{item.supplier_name || '—'}</td>
 						{#if puedeMover}
 							<td>
@@ -177,14 +251,18 @@
 									>
 										<Icon name="stock" />
 									</button>
-									<a
+									<!-- Edita las EXISTENCIAS, no la ficha: mínimo, condición y
+									     ubicación. Lo que el artículo es y cuánto vale se cambia en
+									     el catálogo, y desde aquí no se llega por descuido. -->
+									<button
+										type="button"
 										class="row-action"
-										href="/settings/articles/{item.id}"
-										aria-label="Editar {item.name}"
-										title="Editar en el catálogo"
+										onclick={() => abrirExistencias(item)}
+										aria-label="Existencias de {item.name}"
+										title="Mínimo, condición y ubicación"
 									>
 										<Icon name="edit" />
-									</a>
+									</button>
 									<!-- Abre la pantalla de movimientos YA FILTRADA por este
 									     artículo; quitando el filtro allí se ve el almacén
 									     entero. -->
@@ -242,6 +320,29 @@
 				bind:value={movimiento.cantidad}
 			/>
 		</div>
+		<!--
+			Solo en la ENTRADA: una salida no compra nada y un ajuste corrige un
+			recuento. Pedir el costo en los tres ensuciaría la valoración con números
+			que no son precios de compra.
+
+			No es obligatorio: vacío significa «no lo sé» y se guarda como tal, para
+			que la valoración pueda decir «—» en vez de una cifra inventada.
+		-->
+		{#if movimiento.tipo === 'entrada'}
+			<div class="form-field">
+				<label for="mov_costo">Costo unitario</label>
+				<input
+					id="mov_costo"
+					name="unit_cost"
+					type="number"
+					min="0"
+					step="any"
+					placeholder="Sin costo"
+					bind:value={movimiento.costo}
+				/>
+				<span class="form-hint">Se guarda en este movimiento; no cambia el artículo.</span>
+			</div>
+		{/if}
 		<div class="form-field full">
 			<label for="mov_notas">Observaciones</label>
 			<input id="mov_notas" name="notes" placeholder="Motivo del movimiento" bind:value={movimiento.notas} />
@@ -264,6 +365,57 @@
 	{/snippet}
 </Modal>
 
+<!-- ── Existencias del artículo ────────────────────────────────────────── -->
+<Modal bind:open={editando} size="sm" title="Existencias del artículo">
+	{#if errorExistencias}<div class="alert-error" role="alert">{errorExistencias}</div>{/if}
+
+	<p class="panel-hint">{existencias.name}</p>
+
+	<form
+		id="guardar-existencias"
+		method="POST"
+		action="?/saveInventory"
+		class="form-grid"
+		use:enhance={alGuardarExistencias}
+	>
+		<input type="hidden" name="item_id" value={existencias.id} />
+
+		<div class="form-field">
+			<label for="inv_min">Mínimo</label>
+			<input id="inv_min" name="min_stock" type="number" min="0" step="1" required bind:value={existencias.minimo} />
+			<span class="form-hint">
+				Por debajo de este total el artículo sale en «Solo stock bajo». Se compara con el
+				total de la empresa, no con lo disponible hoy.
+			</span>
+		</div>
+		<div class="form-field">
+			<label for="inv_cond">Condición física</label>
+			<select id="inv_cond" name="physical_status" bind:value={existencias.condicion}>
+				{#each Object.entries(CONDICIONES) as [valor, etiqueta] (valor)}
+					<option value={valor}>{etiqueta}</option>
+				{/each}
+			</select>
+			<span class="form-hint">
+				En qué estado está la mercancía. Si se puede cotizar o no es otra cosa, y se
+				decide en el <a href="/settings/articles/{existencias.id}">catálogo</a>.
+			</span>
+		</div>
+		<div class="form-field full">
+			<label for="inv_ubic">Ubicación</label>
+			<input id="inv_ubic" name="location" placeholder="Pasillo, estante, contenedor…" bind:value={existencias.ubicacion} />
+		</div>
+	</form>
+
+	<p class="panel-hint resultado">
+		Guardar esto no mueve ni una unidad. Para cambiar cuánto hay, use el movimiento de stock.
+	</p>
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={() => (editando = false)}>Cancelar</button>
+		<button type="submit" form="guardar-existencias" class="btn-primary">Guardar</button>
+	{/snippet}
+</Modal>
+
 <style>
 	.num {
 		text-align: right;
@@ -279,6 +431,13 @@
 	/* El aviso va en el TOTAL, que es contra lo que se compara el mínimo. */
 	.bajo {
 		color: var(--danger-text);
+		font-weight: 600;
+	}
+
+	/* Una condición que no es «disponible» se marca, pero sin el rojo del stock
+	   bajo: que algo esté en mantenimiento es una situación, no un problema. */
+	.atencion {
+		color: var(--warning-text);
 		font-weight: 600;
 	}
 

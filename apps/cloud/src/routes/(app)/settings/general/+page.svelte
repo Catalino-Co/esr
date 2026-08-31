@@ -3,7 +3,12 @@
 
 	let { data, form } = $props();
 
-	const values = $derived(form?.values ?? { default_tax_rate: String(data.defaults.default_tax_rate) });
+	const values = $derived(
+		form?.values ?? {
+			default_tax_rate: String(data.defaults.default_tax_rate),
+			default_valuation_rule: data.defaults.default_valuation_rule
+		}
+	);
 </script>
 
 <section class="panel">
@@ -42,13 +47,28 @@
 				se puede cambiar en esa línea.
 			</span>
 		</div>
+		<div class="form-field">
+			<label for="default_valuation_rule">Valoración del inventario</label>
+			<select id="default_valuation_rule" name="default_valuation_rule">
+				<option value="ultimo" selected={values.default_valuation_rule !== 'promedio3'}>
+					Último precio de compra
+				</option>
+				<option value="promedio3" selected={values.default_valuation_rule === 'promedio3'}>
+					Promedio de las 3 últimas compras
+				</option>
+			</select>
+			<span class="field-hint">
+				Con qué costo se valora lo que hay en el almacén. El costo sale de las entradas
+				registradas; las que se hicieron sin costo no cuentan.
+			</span>
+		</div>
 		<div class="form-actions">
 			<button type="submit" class="btn-primary">Guardar cambios</button>
 		</div>
 	</form>
 
 	<p class="panel-hint aviso">
-		Cambiar este valor no toca ninguna cotización ya hecha.
+		Cambiar estos valores no toca ninguna cotización ya hecha ni ningún costo ya registrado.
 	</p>
 </section>
 

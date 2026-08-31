@@ -8,12 +8,18 @@
 <section class="panel">
 	<div class="page-header">
 		<h1>Nuevo artículo</h1>
-		<a class="btn-secondary" href="/inventory">Volver</a>
+		<a class="btn-secondary" href="/settings/articles">Volver</a>
 	</div>
 
 	{#if form?.error}
 		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}
+
+	<p class="panel-hint">
+		Nace sin existencias. Para darle stock, regístrele una entrada en
+		<a href="/inventory">Inventario</a>: así queda constancia de a qué almacén entró, a
+		qué costo y quién la registró.
+	</p>
 
 	<form method="POST" class="form-grid" use:enhance>
 		<div class="form-field">
@@ -35,20 +41,14 @@
 				{/each}
 			</select>
 		</div>
+		<!-- Las dos tarifas VIGENTES: cada transacción copiará la suya. -->
 		<div class="form-field">
-			<label for="total_quantity">Cantidad total *</label>
-			<input id="total_quantity" name="total_quantity" type="number" min="0" value={values.total_quantity ?? 0} />
+			<label for="rental_price">Precio de alquiler</label>
+			<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={values.rental_price ?? 0} />
 		</div>
 		<div class="form-field">
-			<label for="rental_price">Precio alquiler</label>
-			<input id="rental_price" name="rental_price" type="number" min="0" step="0.01" value={values.rental_price ?? 0} />
-		</div>
-		<div class="form-field">
-			<label for="status">Estado</label>
-			<select id="status" name="status">
-				<option value="disponible">Disponible</option>
-				<option value="mantenimiento">Mantenimiento</option>
-			</select>
+			<label for="internal_cost">Precio de compra</label>
+			<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={values.internal_cost ?? 0} />
 		</div>
 		<div class="form-field full">
 			<label for="description">Descripción</label>

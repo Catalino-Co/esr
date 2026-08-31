@@ -19,7 +19,9 @@ export const actions: Actions = {
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
 
-		const totalQuantity = Number(form.get('total_quantity') ?? 0);
+		// Sin cantidad inicial: un artículo NACE EN CERO y el stock entra por un
+		// movimiento. El campo que había escribía cien sillas sin dejar rastro de
+		// quién ni cuándo, y ese es justo el rastro que hace auditable un almacén.
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
 			internal_code: String(form.get('internal_code') ?? '').trim(),
@@ -27,9 +29,8 @@ export const actions: Actions = {
 			category_id: String(form.get('category_id') ?? '').trim(),
 			subcategory_id: String(form.get('subcategory_id') ?? '').trim(),
 			notes: String(form.get('notes') ?? '').trim(),
-			status: String(form.get('status') ?? 'disponible').trim(),
-			total_quantity: totalQuantity,
-			rental_price: Number(form.get('rental_price') ?? 0)
+			rental_price: Number(form.get('rental_price') ?? 0),
+			internal_cost: Number(form.get('internal_cost') ?? 0)
 		};
 
 		const errors = validateCloudInventoryInput(values);
@@ -44,9 +45,8 @@ export const actions: Actions = {
 			category_id: values.category_id || '',
 			subcategory_id: values.subcategory_id || undefined,
 			notes: values.notes || undefined,
-			status: values.status,
-			total_quantity: totalQuantity,
 			rental_price: values.rental_price,
+			internal_cost: values.internal_cost,
 			is_active: 1
 		});
 
@@ -57,6 +57,6 @@ export const actions: Actions = {
 			description: `Artículo creado: ${item.name}`
 		});
 
-		throw redirect(303, `/inventory/${item.id}`);
+		throw redirect(303, `/settings/articles/${item.id}`);
 	}
 };

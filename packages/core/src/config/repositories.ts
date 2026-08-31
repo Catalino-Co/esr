@@ -24,4 +24,8 @@ export interface TenantCompanySettingsRepository {
 }
 
 export type TenantCompanySettingsInput = Omit<CompanySettings, 'id' | 'company_id'>;
-export type TenantCompanyDefaultsInput = { default_tax_rate: number };
+export type TenantCompanyDefaultsInput = {
+	default_tax_rate: number;
+	/** `ultimo` | `promedio3`. Ver `CompanySettings.default_valuation_rule`. */
+	default_valuation_rule?: string;
+};

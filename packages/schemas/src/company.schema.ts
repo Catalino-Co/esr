@@ -18,6 +18,12 @@ export type CompanySettings = {
 	 * escribe es `updateDefaults`.
 	 */
 	default_tax_rate?: number;
+	/**
+	 * Como se valora el stock: `ultimo` (el costo de la ultima entrada) o
+	 * `promedio3` (la media de las tres ultimas). Solo afecta a la columna Valor
+	 * del inventario; no toca precios ni documentos.
+	 */
+	default_valuation_rule?: string;
 };
 
 export function validateCompanySettingsInput(company: Pick<CompanySettings, 'name'>): ValidationResult {

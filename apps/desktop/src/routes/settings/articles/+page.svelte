@@ -18,7 +18,7 @@
   } from '@esr/core';
   import { validateInventoryItemInput } from '@esr/schemas';
   import { Modal } from '@esr/ui';
-  import { fmt, fmtN } from '@esr/reports';
+  import { fmt } from '@esr/reports';
 
   let viewState = "1";
   let items = [];
@@ -26,19 +26,21 @@
   let subcategories = [];
   let suppliers = [];
   let units = [];
-  /**
-   * El almacen donde escribe esta pantalla mientras no elija almacen.
-   *
-   * Desde la migracion 0009 las existencias se reparten en `item_stock`, y la
-   * pantalla de Inventario por almacen es el paso siguiente.
-   */
-  let almacenPorDefecto = null;
   let filterCategory = '';
   
   let showModal = false;
   let isEditing = false;
   let serialLines = '';
   
+  /**
+   * La ficha del articulo: QUE ES y CUANTO VALE. Ni cantidad ni minimo ni
+   * condicion fisica —eso es inventario y vive en su pantalla—.
+   *
+   * `total_quantity` y `available_quantity` siguen en la tabla `items` porque en
+   * ESR Pro son EL MOTOR de reservas, no un espejo: la disponibilidad se
+   * mantiene restandolas al comprometer. Lo que desaparece es su presencia AQUI:
+   * esta pantalla no las muestra, no las edita y no las pide al crear.
+   */
   let currentItem = {
     id: null,
     internal_code: '',
@@ -48,9 +50,8 @@
     description: '',
     item_type: 'cantidad',
     uses_serial: 0,
-    total_quantity: 1,
     rental_price: 0,
-    status: 'disponible',
+    internal_cost: 0,
     notes: ''
   };
 
@@ -63,20 +64,25 @@
       units = await window.api.db.get(
         'SELECT id, name, abbr FROM units_of_measure WHERE is_active = 1 ORDER BY name ASC'
       );
-      const almacenes = await window.api.db.get(
-        "SELECT id FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id LIMIT 1"
-      );
-      almacenPorDefecto = almacenes?.[0]?.id ?? null;
       loadItems();
     }
   }
 
   async function loadItems() {
+    // Columnas del CATALOGO, enumeradas en vez de `i.*`. `items` todavia guarda
+    // `total_quantity`, `min_stock`, `status` y `location`; traerlas aqui las
+    // pondria a un `bind:value` de distancia de escribirse sin querer.
     let query = `
-      SELECT i.*, c.name as cat_name, s.name as subcat_name 
+      SELECT i.id, i.internal_code, i.name, i.category_id, i.subcategory_id,
+             i.description, i.item_type, i.uses_serial, i.rental_price,
+             i.internal_cost, i.supplier_id, i.uom_id, i.notes, i.is_active,
+             c.name as cat_name, s.name as subcat_name,
+             p.name as supplier_name, COALESCE(u.abbr, u.name) as uom_abbr
       FROM items i 
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN subcategories s ON i.subcategory_id = s.id
+      LEFT JOIN suppliers p ON p.id = i.supplier_id
+      LEFT JOIN units_of_measure u ON u.id = i.uom_id
       WHERE i.is_active = ?
     `;
     let params = [parseInt(viewState)];
@@ -106,9 +112,9 @@
     isEditing = false;
     currentItem = {
       id: null, internal_code: '', name: '', category_id: '', subcategory_id: '',
-      description: '', item_type: 'cantidad', uses_serial: 0, total_quantity: 1, 
-      rental_price: 0, status: 'disponible', notes: '',
-      supplier_id: '', uom_id: '', min_stock: 0
+      description: '', item_type: 'cantidad', uses_serial: 0,
+      rental_price: 0, internal_cost: 0, notes: '',
+      supplier_id: '', uom_id: ''
     };
     serialLines = '';
     subcategories = [];
@@ -151,44 +157,51 @@
       currentItem = normalizeSerializedInventoryInput(currentItem, []);
     }
 
+    // En un SERIALIZADO la existencia SI se deriva aqui, porque registrar sus
+    // seriales es definir sus unidades: darlas de alta es catalogo, no almacen.
+    // En uno de cantidad, esta pantalla no toca ni `total_quantity` ni
+    // `available_quantity`: el stock entra por un movimiento de Inventario.
     let itemId = currentItem.id;
     if (isEditing) {
-      await window.api.db.run(`
-        UPDATE items SET 
-          internal_code=?, name=?, category_id=?, subcategory_id=?, description=?, 
-          item_type=?, uses_serial=?, total_quantity=?, available_quantity=?, rental_price=?, notes=?,
-          supplier_id=?, uom_id=?, min_stock=?
-        WHERE id=?`,
-        [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
-         currentItem.supplier_id || null, currentItem.uom_id || null,
-         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0)), currentItem.id]
-      );
+      const columnas = usesSerial
+        ? `internal_code=?, name=?, category_id=?, subcategory_id=?, description=?,
+           item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
+           supplier_id=?, uom_id=?, total_quantity=?, available_quantity=?`
+        : `internal_code=?, name=?, category_id=?, subcategory_id=?, description=?,
+           item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
+           supplier_id=?, uom_id=?`;
+      const valores = [
+        currentItem.internal_code, currentItem.name, currentItem.category_id,
+        currentItem.subcategory_id || null, currentItem.description,
+        currentItem.item_type, currentItem.uses_serial,
+        currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
+        currentItem.supplier_id || null, currentItem.uom_id || null
+      ];
+      if (usesSerial) valores.push(catalogSerialNumbers.length, catalogSerialNumbers.length);
+      valores.push(currentItem.id);
+
+      await window.api.db.run(`UPDATE items SET ${columnas} WHERE id=?`, valores);
     } else {
+      // Nace EN CERO. El campo de cantidad inicial que habia escribia cien
+      // sillas sin dejar rastro de quien ni cuando, y ese rastro es lo que hace
+      // auditable un almacen.
+      const inicial = usesSerial ? catalogSerialNumbers.length : 0;
       const res = await window.api.db.run(`
-        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, notes, supplier_id, uom_id, min_stock)
+        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes, supplier_id, uom_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
-         currentItem.supplier_id || null, currentItem.uom_id || null,
-         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0))]
+         currentItem.description, currentItem.item_type, currentItem.uses_serial, inicial, inicial,
+         currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
+         currentItem.supplier_id || null, currentItem.uom_id || null]
       );
       itemId = res.id;
-    }
 
-    // Las existencias se reparten en `item_stock` desde la migración 0009. En
-    // ESR Pro `items.total_quantity` SIGUE siendo el total —esta app guarda los
-    // números en vez de calcularlos—, así que se mantienen los dos a la vez: el
-    // total y dónde está. Un serializado no lleva fila: su existencia son sus
-    // seriales, y una cantidad aquí sería un segundo número contradiciendo al
-    // primero.
-    if (!usesSerial && almacenPorDefecto) {
+      // Su fila de existencias, para que aparezca en Inventario desde el primer
+      // dia: un articulo en cero tiene que verse igual que uno lleno.
       await window.api.db.run(
-        `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)
-         ON CONFLICT (item_id, warehouse_id) DO UPDATE SET quantity = excluded.quantity`,
-        [itemId, almacenPorDefecto, Math.max(0, Math.trunc(Number(currentItem.total_quantity) || 0))]
+        `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
+         VALUES (?, 0, 'disponible')`,
+        [itemId]
       );
     }
 
@@ -221,7 +234,7 @@
 <div class="card">
   <div class="card-title" style="align-items: center;">
     <div style="display: flex; gap: 15px; align-items: center;">
-      <span>Inventario de Ítems</span>
+      <span>Catálogo de artículos</span>
       <select bind:value={viewState} on:change={loadItems} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
         <option value="1">🟢 Activos</option>
         <option value="2">🟠 Inactivos</option>
@@ -247,8 +260,9 @@
           <th>Nombre</th>
           <th>Categoría</th>
           <th>Tipo</th>
-          <th>Stock</th>
-          <th>Precio Alquiler</th>
+          <th>Unidad</th>
+          <th>Proveedor</th>
+          <th>Precio alquiler</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -266,9 +280,11 @@
                 {item.item_type === 'cantidad' ? 'Por Cantidad' : 'Serializado'}
               </span>
             </td>
-            <td style="font-weight: bold; color: {item.available_quantity > 0 ? 'var(--success)' : 'var(--danger)'};">
-              {fmtN(item.available_quantity)} / {fmtN(item.total_quantity)}
-            </td>
+            <!-- Ni existencias ni disponible: esta pantalla es el CATÁLOGO.
+                 Cuánto hay se ve en Inventario, y repetirlo aquí acabaría
+                 enseñando dos números distintos para lo mismo. -->
+            <td>{item.uom_abbr || '-'}</td>
+            <td>{item.supplier_name || '-'}</td>
             <td>${fmt(item.rental_price)}</td>
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(item)}>✏️</button>
@@ -285,7 +301,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay ítems registrados.</td>
+            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay ítems registrados.</td>
           </tr>
         {/each}
       </tbody>
@@ -327,7 +343,7 @@
       </div>
     </div>
 
-    <div style="display: flex; gap: 15px; align-items: flex-end;">
+    <div style="display: flex; gap: 15px; align-items: flex-start;">
       <div style="flex: 1;">
         <label for="itm-type">Tipo de Ítem</label>
         <select id="itm-type" class="form-control" bind:value={currentItem.item_type}>
@@ -335,14 +351,24 @@
           <option value="serializado">Unitario (Serializado)</option>
         </select>
       </div>
+      <!--
+        Los dos precios VIGENTES. Son valores por defecto: la cotización copia
+        el de alquiler en su línea y la entrada de stock copia el de compra en
+        el movimiento. Cambiarlos aquí no reescribe ninguna de las dos cosas.
+
+        `step="any"` y no `step="0.01"`: con un paso declarado, un valor que no
+        sea múltiplo suyo da `stepMismatch` y el campo se queda mudo.
+      -->
       <div style="flex: 1;">
-        <label for="itm-qty">Cantidad Total</label>
-        <input id="itm-qty" type="number" bind:value={currentItem.total_quantity} min="1" class="form-control"
-               disabled={currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1}>
+        <label for="itm-price">Precio de alquiler</label>
+        <input id="itm-price" type="number" step="any" min="0" bind:value={currentItem.rental_price} class="form-control">
       </div>
       <div style="flex: 1;">
-        <label for="itm-price">Precio Alquiler</label>
-        <input id="itm-price" type="number" step="0.01" bind:value={currentItem.rental_price} class="form-control">
+        <label for="itm-cost">Precio de compra</label>
+        <input id="itm-cost" type="number" step="any" min="0" bind:value={currentItem.internal_cost} class="form-control">
+        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+          Se propone como costo al registrar una entrada.
+        </span>
       </div>
     </div>
 
@@ -365,13 +391,6 @@
           {/each}
         </select>
       </div>
-      <div style="flex: 1;">
-        <label for="itm-min">Mínimo</label>
-        <input id="itm-min" type="number" min="0" step="1" bind:value={currentItem.min_stock} class="form-control">
-        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
-          Por debajo de este total sale en «Solo stock bajo».
-        </span>
-      </div>
     </div>
 
     <div>
@@ -392,7 +411,8 @@
         <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="5"
                   placeholder="Un serial por línea. Ej. QSC-K12-001"></textarea>
         <small style="color:var(--text-muted);display:block;margin-top:4px;">
-          La cantidad total se calcula por la cantidad de seriales registrados.
+          Registrar un serial es DEFINIR una unidad, no moverla de sitio: por eso
+          se hace aquí. La cantidad total sale de cuántos haya registrados.
         </small>
       </div>
     {/if}

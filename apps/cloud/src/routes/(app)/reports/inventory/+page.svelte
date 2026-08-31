@@ -1,5 +1,15 @@
 <script>
+	import { formatMoney } from '@esr/core';
+
 	let { data } = $props();
+
+	/** Las tres condiciones físicas. En sentence case, como el resto. */
+	/** @type {Record<string, string>} */
+	const CONDICIONES = {
+		disponible: 'Disponible',
+		mantenimiento: 'Mantenimiento',
+		retirado: 'Retirado'
+	};
 </script>
 
 <section class="panel">
@@ -12,12 +22,21 @@
 		</div>
 	</div>
 
+	<p class="panel-hint no-print">
+		El valor se calcula con
+		{data.valuationRule === 'promedio3'
+			? 'el promedio de las 3 últimas compras'
+			: 'el último precio de compra'}, según
+		<a href="/settings/general">Configuración › Generales</a>.
+	</p>
+
 	<form class="filter-bar no-print" method="GET">
 		<input type="search" name="search" placeholder="Buscar" value={data.search} />
 		<select name="status">
-			<option value="">Todos los estados</option>
-			<option value="disponible" selected={data.status === 'disponible'}>Disponible</option>
-			<option value="mantenimiento" selected={data.status === 'mantenimiento'}>Mantenimiento</option>
+			<option value="">Cualquier condición</option>
+			{#each Object.entries(CONDICIONES) as [valor, etiqueta] (valor)}
+				<option value={valor} selected={data.status === valor}>{etiqueta}</option>
+			{/each}
 		</select>
 		<select name="category">
 			<option value="">Todas las categorías</option>
@@ -40,7 +59,9 @@
 					<th>Total</th>
 					<th>Disponible</th>
 					<th>Comprometido</th>
-					<th>Estado</th>
+					<th>Mínimo</th>
+					<th>Condición</th>
+					<th>Valor</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -52,7 +73,15 @@
 						<td>{item.total_quantity ?? 0}</td>
 						<td>{item.available_quantity ?? 0}</td>
 						<td>{item.committed_quantity}</td>
-						<td>{item.status || '—'}</td>
+						<td>{item.min_stock ?? 0}</td>
+						<td>{CONDICIONES[item.physical_status ?? ''] ?? '—'}</td>
+						<!-- «—» y no cero cuando no hay costo: las entradas anteriores a
+						     esta reforma no lo guardaban, y un cero sería inventárselo. -->
+						<td>
+							{item.valuation_cost == null
+								? '—'
+								: formatMoney(Number(item.valuation_cost) * Number(item.total_quantity ?? 0))}
+						</td>
 					</tr>
 				{/each}
 			</tbody>
