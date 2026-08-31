@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatDate, formatMoney, formatNumber, formatRelativeTime, statusBadgeClass, statusLabel } from '@esr/core';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import { EmptyState } from '@esr/ui';
 
 	let { data } = $props();
 
@@ -38,9 +38,9 @@
 </script>
 
 <div class="dashboard">
-	<header class="cabecera">
-		<p class="sello">Actualizado {actualizado}</p>
-		<label class="periodo">
+	<header class="dashboard-cabecera">
+		<p class="dashboard-sello">Actualizado {actualizado}</p>
+		<label class="dashboard-periodo">
 			<span class="visually-hidden">Periodo</span>
 			<select value={String(data.dias)} onchange={cambiarPeriodo}>
 				{#each data.periodos as dias (dias)}
@@ -111,7 +111,7 @@
 						<li>
 							<a href="/quotes/{quote.id}">
 								<span class="linea-principal">
-									<span class="linea-titulo mono">{quote.quote_number || `COT #${quote.id}`}</span>
+									<span class="linea-titulo linea-mono">{quote.quote_number || `COT #${quote.id}`}</span>
 									<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
 								</span>
 								<span class="linea-importe">{formatMoney(quote.total)}</span>
@@ -145,7 +145,7 @@
 						<li>
 							<a href="/work-orders/{order.id}">
 								<span class="linea-principal">
-									<span class="linea-titulo mono">{order.order_number || `ORD #${order.id}`}</span>
+									<span class="linea-titulo linea-mono">{order.order_number || `ORD #${order.id}`}</span>
 									<span class="badge {statusBadgeClass(order.status)}">{statusLabel(order.status)}</span>
 								</span>
 								<span class="linea-meta">{formatDate(order.date)}</span>
@@ -159,184 +159,14 @@
 </div>
 
 <style>
-	.dashboard {
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-4);
-	}
+	/* Casi todo el vocabulario de esta pantalla —`.dashboard`, `.franja`,
+	   `.metrica*`, `.panel-card*`, `.lineas*`, `.ver-todos`— vive ahora en
+	   @esr/config/theme.css, porque ESR Pro enseña la misma portada. Aquí solo
+	   queda lo que de verdad es local.
 
-	.cabecera {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--sp-3);
-		flex-wrap: wrap;
-	}
-
-	/* --text-secondary y no --text-muted: la cabecera va sobre --surface-page,
-	   no sobre blanco, y ahi el gris apagado se queda en 4.47:1. */
-	.sello {
-		margin: 0;
-		font-size: var(--font-sm);
-		color: var(--text-secondary);
-	}
-
-	.periodo select {
-		height: var(--h-control);
-		padding: 0 var(--sp-3);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		background: var(--surface);
-		color: var(--text-primary);
-		font-size: var(--font-sm);
-	}
-
-	.periodo select:focus-visible {
-		outline: none;
-		border-color: var(--border-focus);
-		box-shadow: var(--focus-ring);
-	}
-
-	/* Una sola caja partida por hairlines. El truco es el `gap: 1px` sobre el
-	   color de borde: cada celda pinta su propio fondo y la rejilla deja ver el
-	   borde por las juntas, sin dibujar ni una linea. */
-	.franja {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 1px;
-		background: var(--border);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		overflow: hidden;
-	}
-
-	.metrica {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: var(--sp-4) var(--sp-5);
-		background: var(--surface);
-	}
-
-	.metrica-label {
-		font-size: var(--font-xs);
-		color: var(--text-muted);
-	}
-
-	.metrica-valor {
-		font-size: 1.375rem;
-		font-weight: 500;
-		line-height: 1.2;
-		color: var(--text-primary);
-	}
-
-	/* Es texto que hay que LEER —dice que esta cifra no sigue al periodo—, asi
-	   que no puede ir en --text-placeholder: 2.56:1. La regla del sistema es
-	   que ese token solo vale para placeholders e iconos decorativos. */
-	.metrica-nota {
-		font-size: var(--font-xs);
-		color: var(--text-muted);
-	}
-
-	.paneles {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: var(--sp-4);
-		align-items: stretch;
-	}
-
-	.panel-card {
-		display: flex;
-		flex-direction: column;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		padding: var(--sp-5);
-	}
-
-	.panel-card-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--sp-3);
-		margin-bottom: var(--sp-3);
-	}
-
-	.panel-card-header h2 {
-		margin: 0;
-		font-size: var(--font-md);
-		color: var(--text-primary);
-	}
-
-	/* Gris en reposo: tres enlaces en color de acento tiran del ojo hacia la
-	   cabecera, que es justo donde no está el contenido. */
-	.ver-todos {
-		font-size: var(--font-sm);
-		color: var(--text-secondary);
-	}
-
-	.ver-todos:hover {
-		color: var(--text-brand);
-	}
-
-	.lineas {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.lineas li + li {
-		border-top: 1px solid var(--border);
-	}
-
-	.lineas a {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--sp-3);
-		padding: var(--sp-3) 0;
-	}
-
-	.lineas a:hover .linea-titulo {
-		color: var(--text-brand);
-	}
-
-	.linea-principal {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-2);
-		min-width: 0;
-	}
-
-	.linea-titulo {
-		font-size: var(--font-sm);
-		font-weight: 600;
-		color: var(--text-primary);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.mono {
-		font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, monospace;
-		font-weight: 500;
-	}
-
-	.linea-meta {
-		font-size: var(--font-sm);
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
-
-	.linea-importe {
-		font-size: var(--font-sm);
-		font-weight: 600;
-		color: var(--text-primary);
-		white-space: nowrap;
-	}
-
+	   OJO con borrar de aquí: un `<style>` de componente va SIN capa y gana
+	   siempre a la hoja compartida, así que mientras estas reglas estuvieran
+	   duplicadas la promoción no tenía ningún efecto. */
 	.visually-hidden {
 		position: absolute;
 		width: 1px;
@@ -344,21 +174,5 @@
 		overflow: hidden;
 		clip: rect(0 0 0 0);
 		white-space: nowrap;
-	}
-
-	@media (max-width: 900px) {
-		.franja {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.paneles {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	@media (max-width: 560px) {
-		.franja {
-			grid-template-columns: 1fr;
-		}
 	}
 </style>

@@ -1368,6 +1368,214 @@
 		pointer-events: none;
 	}
 
+	/* ─── Dashboard ───────────────────────────────────────────────
+	   La franja de metricas y los paneles de la portada. Nacieron en el
+	   dashboard de Cloud y suben aqui para que ESR Pro enseñe lo mismo:
+	   antes eran dos portadas que no se parecian en nada. */
+	.dashboard {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
+	}
+
+	.dashboard-cabecera {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		flex-wrap: wrap;
+	}
+
+	/* `--text-secondary` y no `--text-muted`: la cabecera va sobre
+	   `--surface-page`, no sobre blanco, y ahi el gris apagado se queda en
+	   4.47:1 y no llega a AA. */
+	.dashboard-sello {
+		margin: 0;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.dashboard-periodo select {
+		height: var(--h-control);
+		padding: 0 var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--surface);
+		color: var(--text-primary);
+		/* Un <select> no hereda la fuente del documento. En Cloud da igual
+		   —su app.css tiene `select { font: inherit }`, que ademas gana por ir
+		   sin capa— pero Desktop no tiene ese reset. */
+		font-family: inherit;
+		font-size: var(--font-sm);
+	}
+
+	.dashboard-periodo select:focus-visible {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* Una sola caja partida por hairlines, NO seis tarjetas con sombra: seis
+	   cifras de un digito no necesitan seis cajas compitiendo con el
+	   contenido. El truco es el `gap: 1px` sobre el color de borde: cada
+	   celda pinta su fondo y la rejilla deja ver el borde por las juntas,
+	   sin dibujar ni una linea. */
+	.franja {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 1px;
+		background: var(--border);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		overflow: hidden;
+	}
+
+	.metrica {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--sp-4) var(--sp-5);
+		background: var(--surface);
+	}
+
+	/* SIN `text-transform: uppercase` ni `letter-spacing`: es la regla 5 del
+	   sistema. Lo que distingue la etiqueta de la cifra es el tamaño y el
+	   color, no las mayusculas. */
+	.metrica-label {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	.metrica-valor {
+		font-size: 1.375rem;
+		font-weight: 500;
+		line-height: 1.2;
+		color: var(--text-primary);
+	}
+
+	/* Es texto que hay que LEER —dice que esta cifra no sigue al periodo—,
+	   asi que no puede ir en `--text-placeholder`: 2.56:1. Ese token solo
+	   vale para placeholders e iconos decorativos. */
+	.metrica-nota {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	.paneles {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--sp-4);
+		align-items: stretch;
+	}
+
+	.panel-card {
+		display: flex;
+		flex-direction: column;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		padding: var(--sp-5);
+	}
+
+	.panel-card-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-3);
+	}
+
+	.panel-card-header h2 {
+		margin: 0;
+		font-size: var(--font-md);
+		color: var(--text-primary);
+	}
+
+	/* Gris en reposo: tres enlaces en color de acento tiran del ojo hacia la
+	   cabecera, que es justo donde NO esta el contenido. */
+	.ver-todos {
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.ver-todos:hover {
+		color: var(--text-brand);
+	}
+
+	.lineas {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.lineas li + li {
+		border-top: 1px solid var(--border);
+	}
+
+	.lineas a {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		padding: var(--sp-3) 0;
+	}
+
+	.lineas a:hover .linea-titulo {
+		color: var(--text-brand);
+	}
+
+	.linea-principal {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		min-width: 0;
+	}
+
+	.linea-titulo {
+		font-size: var(--font-sm);
+		font-weight: 600;
+		color: var(--text-primary);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.linea-mono {
+		font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, monospace;
+		font-weight: 500;
+	}
+
+	.linea-meta {
+		font-size: var(--font-sm);
+		color: var(--text-muted);
+		white-space: nowrap;
+	}
+
+	.linea-importe {
+		font-size: var(--font-sm);
+		font-weight: 600;
+		color: var(--text-primary);
+		white-space: nowrap;
+	}
+
+	@media (max-width: 900px) {
+		.franja {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.paneles {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 560px) {
+		.franja {
+			grid-template-columns: 1fr;
+		}
+	}
+
 	/* ─── Ficha de registro ───────────────────────────────────────
 	   El esqueleto de una pantalla de DETALLE: el cuerpo a la izquierda y
 	   una columna estrecha a la derecha con totales, estado y acciones.
