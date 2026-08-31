@@ -68,6 +68,13 @@
       color: '#f59e0b'
     },
     {
+      title: 'Artículos',
+      description: 'El catálogo: qué artículos existen, su unidad, su proveedor y su estado. Las existencias se ven en Inventario.',
+      icon: '🏷️',
+      path: '/settings/articles',
+      color: '#f97316'
+    },
+    {
       title: 'Almacenes',
       description: 'Dónde está físicamente la mercancía. El inventario se ve por almacén.',
       icon: '🏬',

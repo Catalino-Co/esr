@@ -1,409 +1,408 @@
 <script>
   import { onMount } from 'svelte';
-  import {
-    isSerializedInventoryItem,
-    normalizeSerializedInventoryInput,
-    parseSerialLines,
-    validateSerialCatalogInput
-  } from '@esr/core';
-  import { validateInventoryItemInput } from '@esr/schemas';
-  import { Modal } from '@esr/ui';
-  import { fmt, fmtN } from '@esr/reports';
+  import { formatMoney, formatNumber } from '@esr/core';
+  import { EmptyState, Icon, Modal } from '@esr/ui';
 
-  let viewState = "1";
-  let items = [];
-  let categories = [];
-  let subcategories = [];
-  let suppliers = [];
-  let units = [];
   /**
-   * El almacen donde escribe esta pantalla mientras no elija almacen.
+   * Inventario: CUANTO hay y DONDE.
    *
-   * Desde la migracion 0009 las existencias se reparten en `item_stock`, y la
-   * pantalla de Inventario por almacen es el paso siguiente.
+   * Separado del catalogo, que vive en Ajustes › Articulos y responde a otra
+   * pregunta —que existe—. Por eso aqui no hay estados: activar, inactivar o
+   * archivar un articulo no es algo que se decida mirando existencias.
+   *
+   * Misma distribucion que la de ESR Cloud. El almacen INFORMA y NO RESERVA:
+   * cotizar y aprobar siguen comprometiendo contra el total de la empresa.
+   *
+   * Va en sintaxis Svelte CLASICA (`let`, `$:`, `on:`), como el resto de Desktop.
    */
-  let almacenPorDefecto = null;
-  let filterCategory = '';
-  
-  let showModal = false;
-  let isEditing = false;
-  let serialLines = '';
-  
-  let currentItem = {
-    id: null,
-    internal_code: '',
-    name: '',
-    category_id: '',
-    subcategory_id: '',
-    description: '',
-    item_type: 'cantidad',
-    uses_serial: 0,
-    total_quantity: 1,
-    rental_price: 0,
-    status: 'disponible',
-    notes: ''
-  };
 
-  async function loadData() {
-    if (window.api && window.api.db) {
-      categories = await window.api.db.get("SELECT * FROM categories ORDER BY name ASC");
-      suppliers = await window.api.db.get(
-        'SELECT id, name FROM suppliers WHERE is_active = 1 ORDER BY name ASC'
-      );
-      units = await window.api.db.get(
-        'SELECT id, name, abbr FROM units_of_measure WHERE is_active = 1 ORDER BY name ASC'
-      );
-      const almacenes = await window.api.db.get(
-        "SELECT id FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, id LIMIT 1"
-      );
-      almacenPorDefecto = almacenes?.[0]?.id ?? null;
-      loadItems();
-    }
-  }
+  /** El almacen elegido se recuerda entre visitas. */
+  const CLAVE_ALMACEN = 'esr_almacen';
 
-  async function loadItems() {
-    let query = `
-      SELECT i.*, c.name as cat_name, s.name as subcat_name 
-      FROM items i 
-      LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN subcategories s ON i.subcategory_id = s.id
-      WHERE i.is_active = ?
-    `;
-    let params = [parseInt(viewState)];
-    if (filterCategory) {
-      query += ` AND i.category_id = ?`;
-      params.push(filterCategory);
-    }
-    query += ` ORDER BY i.name ASC`;
-    
-    items = await window.api.db.get(query, params);
-  }
+  let almacenes = [];
+  let categorias = [];
+  let almacenId = '';
+  let busqueda = '';
+  let categoriaId = '';
+  let soloBajo = false;
 
-  async function onCategoryChange() {
-    if (currentItem.category_id) {
-      subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
-    } else {
-      subcategories = [];
-    }
-    currentItem.subcategory_id = '';
-  }
+  let items = [];
+  let error = '';
 
-  onMount(() => {
-    loadData();
-  });
-
-  function openCreate() {
-    isEditing = false;
-    currentItem = {
-      id: null, internal_code: '', name: '', category_id: '', subcategory_id: '',
-      description: '', item_type: 'cantidad', uses_serial: 0, total_quantity: 1, 
-      rental_price: 0, status: 'disponible', notes: '',
-      supplier_id: '', uom_id: '', min_stock: 0
-    };
-    serialLines = '';
-    subcategories = [];
-    showModal = true;
-  }
-
-  async function openEdit(item) {
-    isEditing = true;
-    currentItem = { ...item };
-    const serials = await window.api.db.get(
-      'SELECT serial_number FROM item_serials WHERE item_id = ? ORDER BY serial_number ASC',
-      [item.id]
+  async function cargarCatalogos() {
+    almacenes = await window.api.db.get(
+      "SELECT id, name FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, name"
     );
-    serialLines = serials.map(s => s.serial_number).join('\n');
-    if (currentItem.category_id) {
-      subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
-    }
-    showModal = true;
+    categorias = await window.api.db.get('SELECT id, name FROM categories ORDER BY name ASC');
+
+    const recordado = localStorage.getItem(CLAVE_ALMACEN);
+    const existe = almacenes.some((a) => String(a.id) === recordado);
+    almacenId = existe ? recordado : almacenes[0] ? String(almacenes[0].id) : '';
   }
 
-  async function saveItem() {
-    if (!validateInventoryItemInput(currentItem).valid) {
-      alert("Nombre y Categoría son obligatorios");
+  async function cargarItems() {
+    if (!almacenId) {
+      items = [];
+      return;
+    }
+    localStorage.setItem(CLAVE_ALMACEN, almacenId);
+
+    const where = ['i.is_active = 1'];
+    const params = [];
+
+    if (busqueda.trim()) {
+      where.push('(i.name LIKE ? OR i.internal_code LIKE ?)');
+      params.push(`%${busqueda.trim()}%`, `%${busqueda.trim()}%`);
+    }
+    if (categoriaId) {
+      where.push('i.category_id = ?');
+      params.push(categoriaId);
+    }
+    // «Stock bajo» se compara contra el TOTAL y no contra lo disponible hoy:
+    // responde «hay que comprar mas», que es una decision de compra. Un articulo
+    // con todo alquilado no es stock bajo, esta ocupado.
+    if (soloBajo) {
+      where.push('COALESCE(i.min_stock, 0) > 0 AND COALESCE(i.total_quantity, 0) < COALESCE(i.min_stock, 0)');
+    }
+
+    /*
+     * En un articulo SERIALIZADO lo que hay en un almacen son sus unidades, no
+     * una cantidad: por eso la primera rama cuenta `item_serials` y la segunda
+     * lee `item_stock`. Son dos modelos y mezclarlos daria dos numeros
+     * contradiciendose.
+     */
+    items = await window.api.db.get(
+      `SELECT i.id, i.internal_code, i.name, i.item_type, i.total_quantity,
+              i.available_quantity, i.rental_price, i.min_stock,
+              c.name AS cat_name,
+              p.name AS supplier_name,
+              COALESCE(u.abbr, u.name) AS uom_abbr,
+              CASE WHEN i.item_type = 'serializado' THEN (
+                     SELECT COUNT(*) FROM item_serials s
+                      WHERE s.item_id = i.id AND s.warehouse_id = ?
+                        AND s.status NOT IN ('retirado', 'mantenimiento'))
+                   ELSE COALESCE((SELECT st.quantity FROM item_stock st
+                                   WHERE st.item_id = i.id AND st.warehouse_id = ?), 0)
+              END AS warehouse_quantity
+         FROM items i
+         LEFT JOIN categories c ON c.id = i.category_id
+         LEFT JOIN suppliers p ON p.id = i.supplier_id
+         LEFT JOIN units_of_measure u ON u.id = i.uom_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY i.name ASC`,
+      [almacenId, almacenId, ...params]
+    );
+  }
+
+  async function cargar() {
+    if (!window.api?.db) return;
+    error = '';
+    await cargarCatalogos();
+    await cargarItems();
+  }
+
+  onMount(() => cargar());
+
+  // ── Dialogo: movimiento de stock ─────────────────────────────────────────
+  let moviendo = false;
+  let errorMovimiento = '';
+  let movimiento = { id: null, name: '', tipo: 'entrada', cantidad: 1, notas: '', actual: 0 };
+
+  function abrirMovimiento(item) {
+    movimiento = {
+      id: item.id,
+      name: item.name,
+      tipo: 'entrada',
+      cantidad: 1,
+      notas: '',
+      actual: Number(item.warehouse_quantity) || 0
+    };
+    errorMovimiento = '';
+    moviendo = true;
+  }
+
+  /**
+   * Lo que quedara en el almacen.
+   *
+   * «Ajuste» FIJA la cantidad; entrada y salida la suman y la restan. Sin esta
+   * distincion, un ajuste se lee como una suma y se registra el doble.
+   */
+  $: resultante =
+    movimiento.tipo === 'ajuste'
+      ? Number(movimiento.cantidad) || 0
+      : movimiento.tipo === 'entrada'
+        ? movimiento.actual + (Number(movimiento.cantidad) || 0)
+        : movimiento.actual - (Number(movimiento.cantidad) || 0);
+
+  async function registrarMovimiento() {
+    const pedida = Math.max(0, Math.trunc(Number(movimiento.cantidad) || 0));
+    if (movimiento.tipo !== 'ajuste' && pedida === 0) {
+      errorMovimiento = 'La cantidad debe ser mayor que cero.';
+      return;
+    }
+    if (resultante < 0) {
+      errorMovimiento = `No hay tanto que sacar: en este almacén hay ${movimiento.actual}.`;
       return;
     }
 
-    const usesSerial = isSerializedInventoryItem(currentItem);
-    const serialNumbers = parseSerialLines(serialLines);
-    let catalogSerialNumbers = [];
+    const usuario = JSON.parse(sessionStorage.getItem('esr_user') || 'null');
 
-    if (usesSerial) {
-      const serialValidation = validateSerialCatalogInput(serialNumbers);
-      if (!serialValidation.ok) {
-        alert('Agregue al menos un serial para equipos unitarios.');
-        return;
-      }
-      catalogSerialNumbers = serialValidation.value;
-      currentItem = normalizeSerializedInventoryInput(currentItem, catalogSerialNumbers);
-    } else {
-      currentItem = normalizeSerializedInventoryInput(currentItem, []);
-    }
-
-    let itemId = currentItem.id;
-    if (isEditing) {
-      await window.api.db.run(`
-        UPDATE items SET 
-          internal_code=?, name=?, category_id=?, subcategory_id=?, description=?, 
-          item_type=?, uses_serial=?, total_quantity=?, available_quantity=?, rental_price=?, notes=?,
-          supplier_id=?, uom_id=?, min_stock=?
-        WHERE id=?`,
-        [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
-         currentItem.supplier_id || null, currentItem.uom_id || null,
-         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0)), currentItem.id]
-      );
-    } else {
-      const res = await window.api.db.run(`
-        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, notes, supplier_id, uom_id, min_stock)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.description, currentItem.item_type, currentItem.uses_serial, currentItem.total_quantity,
-         currentItem.total_quantity, currentItem.rental_price, currentItem.notes,
-         currentItem.supplier_id || null, currentItem.uom_id || null,
-         Math.max(0, Math.trunc(Number(currentItem.min_stock) || 0))]
-      );
-      itemId = res.id;
-    }
-
-    // Las existencias se reparten en `item_stock` desde la migración 0009. En
-    // ESR Pro `items.total_quantity` SIGUE siendo el total —esta app guarda los
-    // números en vez de calcularlos—, así que se mantienen los dos a la vez: el
-    // total y dónde está. Un serializado no lleva fila: su existencia son sus
-    // seriales, y una cantidad aquí sería un segundo número contradiciendo al
-    // primero.
-    if (!usesSerial && almacenPorDefecto) {
+    try {
+      /*
+       * Tres escrituras que tienen que ir juntas: la existencia del almacen, el
+       * total del articulo y el rastro de quien lo movio.
+       *
+       * En ESR Pro `items.total_quantity` SIGUE siendo el total —esta app guarda
+       * los numeros en vez de calcularlos—, asi que hay que mantener las dos
+       * cosas: cuanto hay y donde esta. Si solo se tocara `item_stock`, la
+       * columna «Total» y todo lo que cuelga de ella se quedarian congelados.
+       */
       await window.api.db.run(
         `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)
          ON CONFLICT (item_id, warehouse_id) DO UPDATE SET quantity = excluded.quantity`,
-        [itemId, almacenPorDefecto, Math.max(0, Math.trunc(Number(currentItem.total_quantity) || 0))]
+        [movimiento.id, almacenId, resultante]
       );
-    }
 
-    if (usesSerial) {
-      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
-      for (const serialNumber of catalogSerialNumbers) {
-        await window.api.db.run(
-          'INSERT INTO item_serials (item_id, serial_number, status) VALUES (?, ?, ?)',
-          [itemId, serialNumber, 'disponible']
-        );
-      }
-    } else if (isEditing) {
-      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
-    }
-    showModal = false;
-    loadItems();
-  }
+      const delta = resultante - movimiento.actual;
+      await window.api.db.run(
+        'UPDATE items SET total_quantity = MAX(0, COALESCE(total_quantity, 0) + ?) WHERE id = ?',
+        [delta, movimiento.id]
+      );
+      await window.api.db.run(
+        'UPDATE items SET available_quantity = MAX(0, COALESCE(available_quantity, 0) + ?) WHERE id = ?',
+        [delta, movimiento.id]
+      );
 
-  async function changeState(id, newState) {
-    let msg = newState === 0 ? "¿Archivar este ítem?" 
-            : newState === 1 ? "¿Marcar este ítem como Activo?"
-            : "¿Marcar este ítem como Inactivo?";
-    if (confirm(msg)) {
-      await window.api.db.run("UPDATE items SET is_active = ? WHERE id = ?", [newState, id]);
-      loadItems();
+      await window.api.db.run(
+        `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [movimiento.id, almacenId, usuario?.id ?? null, movimiento.tipo, delta, movimiento.notas || null]
+      );
+
+      moviendo = false;
+      await cargarItems();
+    } catch (e) {
+      errorMovimiento = String(e?.message || 'No se pudo registrar el movimiento.');
     }
   }
 </script>
 
 <div class="card">
-  <div class="card-title" style="align-items: center;">
-    <div style="display: flex; gap: 15px; align-items: center;">
-      <span>Inventario de Ítems</span>
-      <select bind:value={viewState} on:change={loadItems} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
-        <option value="1">🟢 Activos</option>
-        <option value="2">🟠 Inactivos</option>
-        <option value="0">📁 Archivados</option>
-      </select>
-    </div>
-    <div style="display: flex; gap: 10px;">
-      <select class="form-control" bind:value={filterCategory} on:change={loadItems} style="width: 200px;">
-        <option value="">Todas las Categorías</option>
-        {#each categories as cat}
-          <option value={cat.id}>{cat.name}</option>
-        {/each}
-      </select>
-      <button class="btn btn-primary" on:click={openCreate}>+ Nuevo Ítem</button>
-    </div>
+  <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
+    <span>Inventario</span>
+    <a href="/settings/articles" class="btn btn-secondary btn-sm">Catálogo de artículos</a>
   </div>
 
-  <div class="table-wrapper">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Código</th>
-          <th>Nombre</th>
-          <th>Categoría</th>
-          <th>Tipo</th>
-          <th>Stock</th>
-          <th>Precio Alquiler</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each items as item}
-          <tr>
-            <td><span class="badge badge-primary">{item.internal_code || '-'}</span></td>
-            <td style="font-weight: 500;">{item.name}</td>
-            <td>
-              {item.cat_name}
-              {#if item.subcat_name}<br><small style="color:var(--text-muted)">{item.subcat_name}</small>{/if}
-            </td>
-            <td>
-              <span class="badge {item.item_type === 'cantidad' ? 'badge-success' : 'badge-warning'}">
-                {item.item_type === 'cantidad' ? 'Por Cantidad' : 'Serializado'}
-              </span>
-            </td>
-            <td style="font-weight: bold; color: {item.available_quantity > 0 ? 'var(--success)' : 'var(--danger)'};">
-              {fmtN(item.available_quantity)} / {fmtN(item.total_quantity)}
-            </td>
-            <td>${fmt(item.rental_price)}</td>
-            <td>
-              <button class="btn-icon" title="Editar" on:click={() => openEdit(item)}>✏️</button>
-              {#if viewState === '1'}
-                <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(item.id, 2)}>⏸️</button>
-                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(item.id, 0)}>📁</button>
-              {:else if viewState === '2'}
-                <button class="btn-icon text-success" title="Activar" on:click={() => changeState(item.id, 1)}>▶️</button>
-                <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(item.id, 0)}>📁</button>
-              {:else}
-                <button class="btn-icon" title="Restaurar a Activo" on:click={() => changeState(item.id, 1)}>🔄</button>
-              {/if}
-            </td>
-          </tr>
-        {:else}
-          <tr>
-            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay ítems registrados.</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+  <div class="filtros">
+    <input
+      type="text"
+      class="form-control"
+      placeholder="Nombre o código…"
+      bind:value={busqueda}
+      on:input={cargarItems}
+    />
+    <select class="form-control" bind:value={almacenId} on:change={cargarItems}>
+      {#each almacenes as almacen (almacen.id)}
+        <option value={String(almacen.id)}>{almacen.name}</option>
+      {/each}
+    </select>
+    <select class="form-control" bind:value={categoriaId} on:change={cargarItems}>
+      <option value="">Cualquier categoría</option>
+      {#each categorias as cat (cat.id)}
+        <option value={String(cat.id)}>{cat.name}</option>
+      {/each}
+    </select>
+    <label class="casilla">
+      <input type="checkbox" bind:checked={soloBajo} on:change={cargarItems} />
+      <span>Solo stock bajo</span>
+    </label>
   </div>
+
+  {#if error}<div class="alert alert-danger">{error}</div>{/if}
+
+  {#if almacenes.length === 0}
+    <EmptyState
+      icon="box"
+      title="Sin almacenes"
+      description="El inventario se ve por almacén. Cree el primero para empezar."
+      actionLabel="Ir a Almacenes"
+      actionHref="/settings/warehouses"
+    />
+  {:else}
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Categoría</th>
+            <th class="num">En almacén</th>
+            <th class="num">Total</th>
+            <th class="num">Disponible</th>
+            <th class="num">Mínimo</th>
+            <th class="num">Precio</th>
+            <th>Proveedor</th>
+            <th style="width: 90px; text-align: right;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each items as item (item.id)}
+            <tr>
+              <td>{item.internal_code || '—'}</td>
+              <td style="font-weight: 500;">{item.name}</td>
+              <td>{item.cat_name || '—'}</td>
+              <td class="num">{formatNumber(item.warehouse_quantity ?? 0)}</td>
+              <td
+                class="num"
+                class:bajo={(item.min_stock ?? 0) > 0 && (item.total_quantity ?? 0) < item.min_stock}
+              >
+                {formatNumber(item.total_quantity ?? 0)}
+              </td>
+              <!-- La unidad acompaña a lo DISPONIBLE, que es la cifra con la que
+                   se decide si se puede comprometer algo. -->
+              <td class="num">
+                {formatNumber(item.available_quantity ?? 0)}
+                {#if item.uom_abbr}<span class="uom">{item.uom_abbr}</span>{/if}
+              </td>
+              <td class="num">{item.min_stock ?? 0}</td>
+              <td class="num">{formatMoney(item.rental_price ?? 0)}</td>
+              <td>{item.supplier_name || '—'}</td>
+              <td style="text-align: right; white-space: nowrap;">
+                <div class="row-actions" style="justify-content: flex-end;">
+                  <button
+                    class="row-action"
+                    on:click={() => abrirMovimiento(item)}
+                    disabled={item.item_type === 'serializado'}
+                    aria-label="Mover existencias de {item.name}"
+                    title={item.item_type === 'serializado'
+                      ? 'Sus existencias son sus seriales: regístrelos o retírelos desde la ficha del artículo.'
+                      : 'Entrada, salida o ajuste'}
+                  >
+                    <Icon name="stock" />
+                  </button>
+                  <a
+                    class="row-action"
+                    href="/settings/articles"
+                    aria-label="Editar {item.name}"
+                    title="Editar en el catálogo"
+                  >
+                    <Icon name="edit" />
+                  </a>
+                </div>
+              </td>
+            </tr>
+          {:else}
+            <tr>
+              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                {soloBajo
+                  ? 'Ningún artículo está por debajo de su mínimo.'
+                  : 'No hay artículos para mostrar.'}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
 </div>
 
-<Modal bind:show={showModal} title={isEditing ? 'Editar Ítem' : 'Nuevo Ítem'}>
-  <div style="display: flex; flex-direction: column; gap: 15px;">
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="itm-code">Código Interno</label>
-        <input id="itm-code" type="text" bind:value={currentItem.internal_code} class="form-control" placeholder="Ej. AUD-001">
-      </div>
-      <div style="flex: 2;">
-        <label for="itm-name">Nombre *</label>
-        <input id="itm-name" type="text" bind:value={currentItem.name} class="form-control" placeholder="Ej. Bocina Activa 15&quot;">
-      </div>
+<Modal bind:show={moviendo} title="Movimiento de stock" maxWidth="480px">
+  {#if errorMovimiento}<div class="alert alert-danger">{errorMovimiento}</div>{/if}
+
+  <p class="panel-hint">{movimiento.name}</p>
+
+  <div class="form-grid">
+    <div class="form-field">
+      <label for="mov-tipo">Tipo</label>
+      <select id="mov-tipo" bind:value={movimiento.tipo}>
+        <option value="entrada">Entrada</option>
+        <option value="salida">Salida</option>
+        <option value="ajuste">Ajuste</option>
+      </select>
     </div>
-
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="itm-cat">Categoría *</label>
-        <select id="itm-cat" class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange}>
-          <option value="">Seleccione...</option>
-          {#each categories as cat}
-            <option value={cat.id}>{cat.name}</option>
-          {/each}
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-subcat">Subcategoría</label>
-        <select id="itm-subcat" class="form-control" bind:value={currentItem.subcategory_id} disabled={!currentItem.category_id}>
-          <option value="">Ninguna</option>
-          {#each subcategories as sub}
-            <option value={sub.id}>{sub.name}</option>
-          {/each}
-        </select>
-      </div>
+    <div class="form-field">
+      <label for="mov-cant">Cantidad</label>
+      <input id="mov-cant" type="number" min="0" step="1" bind:value={movimiento.cantidad} />
     </div>
-
-    <div style="display: flex; gap: 15px; align-items: flex-end;">
-      <div style="flex: 1;">
-        <label for="itm-type">Tipo de Ítem</label>
-        <select id="itm-type" class="form-control" bind:value={currentItem.item_type}>
-          <option value="cantidad">General (Por Cantidad)</option>
-          <option value="serializado">Unitario (Serializado)</option>
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-qty">Cantidad Total</label>
-        <input id="itm-qty" type="number" bind:value={currentItem.total_quantity} min="1" class="form-control"
-               disabled={currentItem.item_type === 'serializado' || Number(currentItem.uses_serial) === 1}>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-price">Precio Alquiler</label>
-        <input id="itm-price" type="number" step="0.01" bind:value={currentItem.rental_price} class="form-control">
-      </div>
-    </div>
-
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="itm-supplier">Proveedor</label>
-        <select id="itm-supplier" bind:value={currentItem.supplier_id} class="form-control">
-          <option value="">(Ninguno)</option>
-          {#each suppliers as proveedor (proveedor.id)}
-            <option value={proveedor.id}>{proveedor.name}</option>
-          {/each}
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-uom">Unidad de Medida</label>
-        <select id="itm-uom" bind:value={currentItem.uom_id} class="form-control">
-          <option value="">(Ninguna)</option>
-          {#each units as unidad (unidad.id)}
-            <option value={unidad.id}>{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}</option>
-          {/each}
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-min">Mínimo</label>
-        <input id="itm-min" type="number" min="0" step="1" bind:value={currentItem.min_stock} class="form-control">
-        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
-          Por debajo de este total sale en «Solo stock bajo».
-        </span>
-      </div>
-    </div>
-
-    <div>
-      <span style="display:block; font-size:0.85rem; font-weight:500; color:var(--text-muted); margin-bottom:5px;">¿Controla Seriales Individuales?</span>
-      <div style="display: flex; gap: 10px; margin-top: 5px;">
-        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
-          <input type="radio" bind:group={currentItem.uses_serial} value={0}> No
-        </label>
-        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
-          <input type="radio" bind:group={currentItem.uses_serial} value={1}> Sí
-        </label>
-      </div>
-    </div>
-
-    {#if isSerializedInventoryItem(currentItem)}
-      <div>
-        <label for="itm-serials">Seriales individuales</label>
-        <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="5"
-                  placeholder="Un serial por línea. Ej. QSC-K12-001"></textarea>
-        <small style="color:var(--text-muted);display:block;margin-top:4px;">
-          La cantidad total se calcula por la cantidad de seriales registrados.
-        </small>
-      </div>
-    {/if}
-
-    <div>
-      <label for="itm-notes">Descripción / Observaciones</label>
-      <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
+    <div class="form-field full">
+      <label for="mov-notas">Observaciones</label>
+      <input id="mov-notas" type="text" placeholder="Motivo del movimiento" bind:value={movimiento.notas} />
     </div>
   </div>
 
-  <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveItem}>Guardar Ítem</button>
-  </div>
+  <p class="panel-hint ayuda">
+    En este almacén hay <strong>{formatNumber(movimiento.actual)}</strong> y quedarán
+    <strong class:negativo={resultante < 0}>{formatNumber(resultante)}</strong>.
+    {#if movimiento.tipo === 'ajuste'}Un ajuste fija la cantidad, no la suma.{/if}
+  </p>
+
+  <svelte:fragment slot="footer">
+    <button class="btn btn-secondary" on:click={() => (moviendo = false)}>Cancelar</button>
+    <button class="btn btn-primary" on:click={registrarMovimiento} disabled={resultante < 0}>
+      Registrar
+    </button>
+  </svelte:fragment>
 </Modal>
 
 <style>
-  .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
-  .form-control:focus { border-color: var(--primary); }
-  label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
-  .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s;}
-  .btn-icon:hover { opacity: 1; transform: scale(1.1); }
-  .text-danger { color: var(--danger); }
+  .filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+
+  .filtros .form-control {
+    width: auto;
+    min-width: 11rem;
+  }
+
+  .casilla {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--font-sm);
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .num {
+    text-align: right;
+  }
+
+  /* La unidad NO va en `--text-placeholder`: ese token da 2.56:1 y solo vale
+     para placeholders e iconos decorativos. Esto se lee. */
+  .uom {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+  }
+
+  /* El aviso va en el TOTAL, que es contra lo que se compara el mínimo. */
+  .bajo {
+    color: var(--danger-text);
+    font-weight: 600;
+  }
+
+  .ayuda {
+    margin: var(--sp-3) 0 0;
+  }
+
+  .negativo {
+    color: var(--danger-text);
+  }
+
+  .form-control {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    outline: none;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+
+  .form-control:focus {
+    border-color: var(--primary);
+  }
 </style>

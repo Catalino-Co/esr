@@ -25,6 +25,12 @@
       'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7',
       'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'
     ],
+    // Movimiento de existencias: una flecha que entra y otra que sale.
+    stock: [
+      'M12 3v18',
+      'M8 7l4-4 4 4',
+      'M16 17l-4 4-4-4'
+    ],
     trash: [
       'M3 6h18',
       'M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2',
