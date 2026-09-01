@@ -23,18 +23,32 @@ export function createPostgresPool(config: PostgresConfig = {}): pg.Pool {
 	const useSsl = config.ssl ?? process.env.PGSSL === 'true';
 	const schema = config.schema ?? getPostgresSchema();
 
-	const nextPool = new Pool({
+	/**
+	 * El `search_path` va en `options`, que viaja en el paquete de arranque de
+	 * la conexion. Queda puesto ANTES de que se pueda ejecutar nada.
+	 *
+	 * Aqui habia ademas un manejador del evento `connect` que hacia
+	 * `void client.query('SET search_path ...')`. Sobraba —`options` ya lo
+	 * dejaba hecho— y ademas era la causa de este aviso en cada arranque:
+	 *
+	 *   DeprecationWarning: Calling client.query() when the client is already
+	 *   executing a query is deprecated and will be removed in pg@9.0.
+	 *
+	 * El motivo, leido en la traza: `pg-pool` emite `connect` y acto seguido
+	 * entrega el cliente a quien lo estaba esperando, que lanza SU consulta
+	 * mientras el `SET` sin esperar sigue en vuelo. Hoy no corrompe nada
+	 * —el cliente encola y respeta el orden— pero en pg@9 dejaria de funcionar.
+	 *
+	 * No se arregla poniendole un `await` al manejador: `pg-pool` no espera a
+	 * que termine, asi que el `void` era honesto sobre lo que ocurria. La
+	 * solucion es no necesitarlo.
+	 */
+	return new Pool({
 		connectionString,
 		max: config.max ?? Number(process.env.PGPOOL_MAX || 10),
 		ssl: useSsl ? { rejectUnauthorized: false } : undefined,
 		options: `-c search_path=${schema},public`
 	});
-
-	nextPool.on('connect', (client) => {
-		void client.query(`SET search_path TO ${schema}, public`);
-	});
-
-	return nextPool;
 }
 
 export function getPostgresPool(config?: PostgresConfig): pg.Pool {
