@@ -7,8 +7,11 @@
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import Topbar from '$lib/components/layout/Topbar.svelte';
   import { theme } from '$lib/stores/theme.js';
+  import { salir, sesion } from '$lib/stores/session.js';
 
-  let user             = null;
+  /* La sesion vive en un store, no en una variable leida una sola vez: el login
+     navega con `goto()` y este layout NO se vuelve a montar. Ver session.js. */
+  $: user = $sesion;
   let isAuthChecked    = false;
   let sidebarCollapsed = false;
 
@@ -42,9 +45,6 @@
     window.addEventListener('resize', applyAppearance);
     window.addEventListener('esr:appearance-changed', applyAppearance);
 
-    const session = sessionStorage.getItem('esr_user');
-    if (session) user = JSON.parse(session);
-
     if (!user && $page.url.pathname !== '/login') {
       goto('/login', { replaceState: true });
     } else if (user && $page.url.pathname === '/login') {
@@ -69,8 +69,7 @@
 
   function handleLogout() {
     if (confirm('¿Estás seguro que deseas cerrar sesión?')) {
-      sessionStorage.removeItem('esr_user');
-      user = null;
+      salir();
       goto('/login', { replaceState: true });
     }
   }

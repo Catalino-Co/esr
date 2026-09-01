@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { entrar } from '$lib/stores/session.js';
 
   let username = '';
   let password = '';
@@ -52,7 +53,7 @@
       // seria gratuito.
       const user = await window.api.auth.login({ username, password });
       if (user) {
-        sessionStorage.setItem('esr_user', JSON.stringify(user));
+        entrar(user);
         goto('/', { replaceState: true });
         return;
       }
@@ -83,7 +84,7 @@
       const user = await window.api.auth.login({ username, password });
       
       if (user) {
-        sessionStorage.setItem('esr_user', JSON.stringify(user));
+        entrar(user);
         goto('/', { replaceState: true }); // go to dashboard
       } else {
         errorMsg = 'Usuario o contraseña incorrectos.';
