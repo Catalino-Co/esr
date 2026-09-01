@@ -3,22 +3,26 @@ import { ICONS } from '@esr/ui/icons';
 /**
  * Menu plano de ESR Pro, sin subdivisiones, con la misma iconografia
  * compartida que ESR Cloud.
+ *
+ * Cada entrada declara el PERMISO que hace falta para verla, tomado del mismo
+ * catalogo de `@esr/core` que usa Cloud. Filtrar el menu es cortesia, no
+ * seguridad: ver `$lib/can.js`.
  */
 export const navItems = [
-	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard, subtitle: 'Resumen de la operación' },
-	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes, subtitle: 'Propuestas comerciales' },
-	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders, subtitle: 'Operación y entregas' },
+	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard, subtitle: 'Resumen de la operación', permission: 'reports.view' },
+	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes, subtitle: 'Propuestas comerciales', permission: 'quotes.view' },
+	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders, subtitle: 'Operación y entregas', permission: 'work_orders.view' },
 	// Orden documental: cotizacion -> orden -> conduce -> factura. El conduce no
 	// esta en el menu (ver `hiddenTitles`).
-	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices, subtitle: 'Documentos de cobro y estado de cuenta' },
-	{ path: '/events', label: 'Eventos', icon: ICONS.events, subtitle: 'Calendario y reservas' },
-	{ path: '/clients', label: 'Clientes', icon: ICONS.customers, subtitle: 'Directorio de clientes de la empresa' },
-	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Existencias por almacén' },
+	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices, subtitle: 'Documentos de cobro y estado de cuenta', permission: 'invoices.view' },
+	{ path: '/events', label: 'Eventos', icon: ICONS.events, subtitle: 'Calendario y reservas', permission: 'events.view' },
+	{ path: '/clients', label: 'Clientes', icon: ICONS.customers, subtitle: 'Directorio de clientes de la empresa', permission: 'customers.view' },
+	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Existencias por almacén', permission: 'inventory.view' },
 	// Paquetes no existe en Cloud; va junto a Inventario, que es lo que agrupa.
-	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages, subtitle: 'Artículos que se alquilan juntos' },
-	{ path: '/reports', label: 'Reportes', icon: ICONS.reports, subtitle: 'Consultas operativas básicas' },
-	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents, subtitle: 'Seguimiento operativo' },
-	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings, subtitle: 'Configuración del sistema' },
+	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages, subtitle: 'Artículos que se alquilan juntos', permission: 'packages.view' },
+	{ path: '/reports', label: 'Reportes', icon: ICONS.reports, subtitle: 'Consultas operativas básicas', permission: 'reports.view' },
+	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents, subtitle: 'Seguimiento operativo', permission: 'incidents.view' },
+	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings, subtitle: 'Configuración del sistema', permission: 'settings.view' },
 	{ path: '/docs', label: 'Documentación', icon: ICONS.docs, subtitle: 'Manual de usuario de ESR Pro' }
 ];
 
@@ -37,6 +41,11 @@ const hiddenTitles = [
 	{ path: '/conduces', label: 'Conduces', subtitle: 'Notas de entrega de la operación' },
 	{ path: '/checklist', label: 'Checklist', subtitle: 'Verificación de salida y retorno' }
 ];
+
+/** Las entradas que el rol puede ver. Sin rol, ninguna. */
+export function visibleNavItems(puede) {
+	return navItems.filter((item) => !item.permission || puede(item.permission));
+}
 
 export function isNavActive(pathname, path) {
 	if (path === '/') return pathname === '/';

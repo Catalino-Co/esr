@@ -1467,7 +1467,6 @@ un formulario.
 
 | Rol (BD) | Etiqueta | Alcance |
 | --- | --- | --- |
-| `owner` | Propietario | Igual que admin. No puede degradarse ni desactivarse desde la UI. |
 | `admin` | Administrador | Todo, incluye `/settings` y gestion de miembros. |
 | `manager` | Gerente | Aprueba, convierte y cancela cotizaciones; cancela y cierra ordenes; resuelve incidencias; desactiva registros; ve auditoria. |
 | `staff` | Operador | Crea y edita clientes, eventos, inventario y cotizaciones; prepara, entrega, devuelve y llena checklists; crea incidencias. |

@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { ASSIGNABLE_ROLES, isOwnerRole } from '@esr/core';
+import { COMPANY_ROLES } from '@esr/core';
 import type { CompanyRole, MemberStatus } from '@esr/schemas';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
@@ -8,8 +8,14 @@ import { getMemberRepository } from '$lib/server/repositories';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudMemberInput, validateCloudUserInput } from '$lib/server/validators';
 
-/** Roles que conservan el control de la empresa; nunca deben quedar en cero. */
-const PRIVILEGED_ROLES: CompanyRole[] = ['owner', 'admin'];
+/**
+ * Roles que conservan el control de la empresa; nunca deben quedar en cero.
+ *
+ * Era `['owner', 'admin']`. Con `owner` eliminado (migracion 024) queda uno
+ * solo, y esta lista pasa a ser LA UNICA proteccion: antes cada empresa tenia
+ * ademas un propietario intocable que garantizaba el minimo por construccion.
+ */
+const PRIVILEGED_ROLES: CompanyRole[] = ['admin'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,14 +25,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		members,
-		assignableRoles: ASSIGNABLE_ROLES,
+		assignableRoles: COMPANY_ROLES,
 		currentUserId: user.id
 	};
 };
 
 /**
- * Un admin no puede tocar al `owner` ni degradarse a si mismo si con eso la
- * empresa se queda sin nadie que pueda administrarla.
+ * El miembro existe y es de esta empresa.
+ *
+ * Aqui tambien se cortaba cualquier cambio sobre el `owner`, que era intocable.
+ * Ese rol ya no existe, asi que TODO miembro es editable y quien impide quedarse
+ * sin administracion es `wouldLoseLastAdmin`, que mira el estado FINAL.
  */
 async function assertMutable(
 	locals: App.Locals,
@@ -40,9 +49,6 @@ async function assertMutable(
 	const companyId = locals.companyId as string;
 	const member = await getMemberRepository().findById(toTenantContext(companyId), memberId);
 	if (!member) return { member: null, error: 'Usuario no encontrado.' };
-	if (isOwnerRole(member.role)) {
-		return { member, error: 'El propietario de la empresa no puede modificarse.' };
-	}
 	return { member };
 }
 
@@ -114,7 +120,7 @@ export const actions: Actions = {
 			status: String(form.get('status') ?? '').trim()
 		};
 
-		if (!ASSIGNABLE_ROLES.includes(values.role as CompanyRole)) {
+		if (!COMPANY_ROLES.includes(values.role as CompanyRole)) {
 			return fail(400, { error: 'Seleccione un rol válido.', values });
 		}
 		if (values.status !== 'active' && values.status !== 'inactive') {

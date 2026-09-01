@@ -107,7 +107,7 @@
 			</thead>
 			<tbody>
 				{#each data.members as member (member.id)}
-					{@const isOwner = member.role === 'owner'}
+					{@const esAdmin = member.role === 'admin'}
 					{@const isSelf = String(member.user_id) === String(data.currentUserId)}
 					{@const activo = member.status === 'active'}
 					<tr>
@@ -117,7 +117,9 @@
 						</td>
 						<td>{member.user_email}</td>
 						<td>
-							<span class="badge" class:badge-active={isOwner} class:badge-muted={!isOwner}>
+							<!-- El badge destaca al ADMINISTRADOR, que es quien manda desde que
+							     el propietario dejo de existir. Antes destacaba al propietario. -->
+							<span class="badge" class:badge-active={esAdmin} class:badge-muted={!esAdmin}>
 								{roleLabel(member.role)}
 							</span>
 						</td>
@@ -126,22 +128,21 @@
 								{estadoTexto(member.status)}
 							</span>
 						</td>
+						<!-- TODOS los miembros son editables. El propietario intocable se fue
+						     con su rol; lo que impide que la empresa se quede sin quien la
+						     administre es la guarda del servidor, que exige al menos un
+						     administrador ACTIVO y responde con su propio mensaje. -->
 						<td class="row-actions">
-							{#if isOwner}
-								<!-- El propietario es intocable: ni se degrada ni se desactiva. -->
-								<span class="text-muted">—</span>
-							{:else}
-								<button type="button" class="btn-edit" onclick={() => abrirEdicion(member)}>
-									Editar
+							<button type="button" class="btn-edit" onclick={() => abrirEdicion(member)}>
+								Editar
+							</button>
+							<form method="POST" action="?/setStatus" use:enhance>
+								<input type="hidden" name="member_id" value={member.id} />
+								<input type="hidden" name="status" value={activo ? 'inactive' : 'active'} />
+								<button type="submit" class={activo ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
+									{activo ? 'Desactivar' : 'Reactivar'}
 								</button>
-								<form method="POST" action="?/setStatus" use:enhance>
-									<input type="hidden" name="member_id" value={member.id} />
-									<input type="hidden" name="status" value={activo ? 'inactive' : 'active'} />
-									<button type="submit" class={activo ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}>
-										{activo ? 'Desactivar' : 'Reactivar'}
-									</button>
-								</form>
-							{/if}
+							</form>
 						</td>
 					</tr>
 				{/each}

@@ -1,7 +1,14 @@
 import { invalid, isNonEmptyText, valid, type ESRId, type Nullable, type ValidationResult } from './shared';
 
 export type CompanyStatus = 'active' | 'inactive';
-export type CompanyRole = 'owner' | 'admin' | 'manager' | 'staff' | 'viewer';
+/**
+ * Los roles de una empresa.
+ *
+ * `owner` se elimino en la migracion 024: tenia EXACTAMENTE los mismos
+ * permisos que `admin` —el mismo array por referencia en la matriz— y lo unico
+ * que aportaba eran guardas de mutacion.
+ */
+export type CompanyRole = 'admin' | 'manager' | 'staff' | 'viewer';
 export type MemberStatus = 'active' | 'inactive' | 'invited';
 
 export type Company = {

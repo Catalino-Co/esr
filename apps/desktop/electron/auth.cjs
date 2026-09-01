@@ -105,10 +105,17 @@ async function bootstrapAdmin({ username, password, name } = {}) {
   });
 }
 
+/**
+ * Rol por defecto `staff`, no `operador`.
+ *
+ * Desde la migracion 0013 los roles son los de `@esr/core`, los mismos que
+ * Cloud: admin, manager, staff, viewer. El arranque inicial sigue creando
+ * `admin`, que es correcto: el primer usuario tiene que poder administrar.
+ */
 async function createUser({ username, password, name, role }) {
   return await runQuery(
     'INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)',
-    [username, hashPassword(password), name, role || 'operador']
+    [username, hashPassword(password), name, role || 'staff']
   );
 }
 
@@ -116,13 +123,13 @@ async function updateUser({ id, username, password, name, role }) {
   if (password) {
     return await runQuery(
       'UPDATE users SET username = ?, password = ?, name = ?, role = ? WHERE id = ?',
-      [username, hashPassword(password), name, role || 'operador', id]
+      [username, hashPassword(password), name, role || 'staff', id]
     );
   }
 
   return await runQuery(
     'UPDATE users SET username = ?, name = ?, role = ? WHERE id = ?',
-    [username, name, role || 'operador', id]
+    [username, name, role || 'staff', id]
   );
 }
 

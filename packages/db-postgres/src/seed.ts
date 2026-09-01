@@ -70,10 +70,14 @@ async function upsertDemoTenant(client: pg.PoolClient, tenant: DemoTenant, passw
 	const userId = userResult.rows[0].id;
 
 	await client.query(
+		// `admin`, no `owner`: ese rol se elimino en la migracion 024 por ser
+		// `admin` con otro nombre. Y OJO con el `DO UPDATE`: si esto siguiera
+		// diciendo 'owner', volver a pasar la semilla reventaria contra el CHECK
+		// nuevo. Van juntos.
 		`INSERT INTO company_members (company_id, user_id, role, status)
-		 VALUES ($1, $2, 'owner', 'active')
+		 VALUES ($1, $2, 'admin', 'active')
 		 ON CONFLICT (company_id, user_id)
-		 DO UPDATE SET role = 'owner', status = 'active', updated_at = NOW()`,
+		 DO UPDATE SET role = 'admin', status = 'active', updated_at = NOW()`,
 		[companyId, userId]
 	);
 
@@ -276,7 +280,7 @@ async function runSeed(): Promise<void> {
 		console.log(`[db-postgres] Demo logins (password: ${DEMO_PASSWORD}):`);
 		for (const tenant of tenants) {
 			const suffix = tenant.slug.replace('demo-', '');
-			console.log(`  ${tenant.companyName}: ${tenant.email} (owner)`);
+			console.log(`  ${tenant.companyName}: ${tenant.email} (admin)`);
 			for (const member of demoMembers) {
 				console.log(`    ${member.emailPrefix}-${suffix}@demo.local (${member.role})`);
 			}

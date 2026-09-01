@@ -1,6 +1,8 @@
 <script>
 	import { ICONS } from '@esr/ui/icons';
-	import { navItems, isNavActive } from '$lib/navigation.js';
+	import { isNavActive, visibleNavItems } from '$lib/navigation.js';
+	import { roleLabel } from '@esr/core';
+	import { can } from '$lib/can.js';
 
 	export let pathname = '/';
 	export let collapsed = false;
@@ -10,6 +12,10 @@
 
 	$: toggleLabel = collapsed ? 'Expandir menú' : 'Colapsar menú';
 	$: initial = user?.name?.charAt(0)?.toUpperCase() ?? user?.username?.charAt(0)?.toUpperCase() ?? 'U';
+
+	/* El menú, recortado al rol. Depende de `user` a propósito: así se recalcula
+	   al entrar y al salir, sin leer `sessionStorage` en cada render. */
+	$: visibles = visibleNavItems((permiso) => can(permiso, user?.role ?? null));
 </script>
 
 <nav class="sidebar" class:sidebar--collapsed={collapsed} aria-label="Navegación principal">
@@ -33,7 +39,7 @@
 
 	<div class="sidebar-nav">
 		<div class="nav-group">
-			{#each navItems as item (item.path)}
+			{#each visibles as item (item.path)}
 				<a
 					href={item.path}
 					class="nav-item"
@@ -53,7 +59,9 @@
 			<div class="sidebar-user-avatar" aria-hidden="true">{initial}</div>
 			<div class="sidebar-user-info">
 				<span class="sidebar-user-name">{user?.name ?? user?.username ?? 'Usuario'}</span>
-				<span class="sidebar-user-role">{user?.role ?? 'Local'}</span>
+				<!-- La etiqueta del rol, no el valor crudo de la columna. Antes se leia
+				     «admin» a secas; ahora dice «Administrador», igual que en Cloud. -->
+				<span class="sidebar-user-role">{user?.role ? roleLabel(user.role) : 'Local'}</span>
 			</div>
 		</div>
 		<button

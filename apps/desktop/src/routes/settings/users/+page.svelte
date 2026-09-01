@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { validateUserInput } from '@esr/schemas';
   import { BackLink, Modal } from '@esr/ui';
+  import { COMPANY_ROLES, ROLE_DESCRIPTIONS, roleLabel } from '@esr/core';
 
   let viewState = "1";
   let users = [];
@@ -102,7 +103,7 @@
           <tr>
             <td style="font-weight: 500;">{u.name}</td>
             <td>{u.username}</td>
-            <td><span class="badge badge-primary">{u.role}</span></td>
+            <td><span class="badge badge-primary">{roleLabel(u.role)}</span></td>
             <td>
               <button class="btn-icon" title="Editar" on:click={() => openEdit(u)}>✏️</button>
               {#if viewState === '1'}
@@ -146,11 +147,15 @@
     
     <div>
       <label for="u-role">Rol del Sistema</label>
+      <!-- Los mismos cuatro roles que ESR Cloud, desde `@esr/core`. Antes habia
+           una lista propia de tres —admin, operador, almacen— que no coincidia
+           con la de Cloud en nada salvo el primero. -->
       <select id="u-role" bind:value={currentUser.role} class="form-control">
-        <option value="admin">Administrador Principal</option>
-        <option value="operador">Operador (Reservas)</option>
-        <option value="almacen">Almacén (Solo Checklist)</option>
+        {#each COMPANY_ROLES as rol (rol)}
+          <option value={rol}>{roleLabel(rol)}</option>
+        {/each}
       </select>
+      <small class="rol-nota">{ROLE_DESCRIPTIONS[currentUser.role] ?? ''}</small>
     </div>
   </div>
 
@@ -161,6 +166,14 @@
 </Modal>
 
 <style>
+  /* La descripcion del rol, debajo del select. */
+  .rol-nota {
+    display: block;
+    margin-top: var(--sp-1);
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+  }
+
   .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
   .form-control:focus { border-color: var(--primary); }
   label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }

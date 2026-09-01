@@ -39,11 +39,10 @@ export class PostgresMemberRepository implements TenantCompanyMemberRepository {
 			 WHERE cm.company_id = $1
 			 ORDER BY
 				CASE cm.role
-					WHEN 'owner' THEN 0
-					WHEN 'admin' THEN 1
-					WHEN 'manager' THEN 2
-					WHEN 'staff' THEN 3
-					ELSE 4
+					WHEN 'admin' THEN 0
+					WHEN 'manager' THEN 1
+					WHEN 'staff' THEN 2
+					ELSE 3
 				END,
 				u.name`,
 			[requireCompanyId(ctx)]

@@ -240,7 +240,6 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
  * Los valores tecnicos no se traducen porque viven en el CHECK de PostgreSQL.
  */
 export const ROLE_LABELS: Record<CompanyRole, string> = {
-	owner: 'Propietario',
 	admin: 'Administrador',
 	manager: 'Gerente',
 	staff: 'Operador',
@@ -248,17 +247,20 @@ export const ROLE_LABELS: Record<CompanyRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<CompanyRole, string> = {
-	owner: 'Control total, incluye configuracion y miembros.',
 	admin: 'Control total, incluye configuracion y miembros.',
 	manager: 'Aprueba cotizaciones, cierra ordenes y resuelve incidencias.',
 	staff: 'Ejecuta la operacion diaria: crea, prepara, entrega y devuelve.',
 	viewer: 'Solo lectura y reportes.'
 };
 
-/** Roles asignables desde la UI, ordenados de mayor a menor alcance. */
-export const ASSIGNABLE_ROLES: CompanyRole[] = ['admin', 'manager', 'staff', 'viewer'];
-
-export const COMPANY_ROLES: CompanyRole[] = ['owner', ...ASSIGNABLE_ROLES];
+/**
+ * Los roles, de mayor a menor alcance. TODOS son asignables desde la UI.
+ *
+ * Hubo un `ASSIGNABLE_ROLES` aparte porque `owner` no se podia asignar. Al
+ * eliminarse ese rol las dos listas quedaron identicas, y dos nombres para el
+ * mismo array es exactamente como se separan luego. Queda uno.
+ */
+export const COMPANY_ROLES: CompanyRole[] = ['admin', 'manager', 'staff', 'viewer'];
 
 const VIEWER_PERMISSIONS: Permission[] = [
 	// `settings.view` solo habilita ABRIR la seccion Configuracion, cuyo
@@ -337,7 +339,6 @@ const ADMIN_PERMISSIONS: Permission[] = [
 ];
 
 export const ROLE_PERMISSIONS: Record<CompanyRole, readonly Permission[]> = {
-	owner: ADMIN_PERMISSIONS,
 	admin: ADMIN_PERMISSIONS,
 	manager: MANAGER_PERMISSIONS,
 	staff: STAFF_PERMISSIONS,
@@ -373,9 +374,10 @@ export function roleLabel(role: string | null | undefined): string {
 }
 
 /**
- * `owner` y `admin` comparten permisos, pero solo `owner` es intocable:
- * ningun admin puede degradarlo ni eliminarlo.
+ * Aqui vivia `isOwnerRole`. Se fue con el rol `owner` (migracion 024).
+ *
+ * Lo que protege ahora a una empresa de quedarse sin quien la administre no es
+ * un rol intocable, sino `wouldLoseLastAdmin` en la pantalla de Usuarios: exige
+ * al menos un `admin` ACTIVO. Es una regla sobre el estado final, no sobre la
+ * identidad de una fila, y cubre tanto degradar como desactivar.
  */
-export function isOwnerRole(role: string | null | undefined): boolean {
-	return role === 'owner';
-}

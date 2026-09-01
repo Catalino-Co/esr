@@ -1,4 +1,4 @@
-import { ASSIGNABLE_ROLES } from '@esr/core';
+import { COMPANY_ROLES } from '@esr/core';
 import { validateCompanySettingsInput, validateCustomerInput, type CompanyRole } from '@esr/schemas';
 
 export type ValidationError = { field: string; message: string };
@@ -148,7 +148,7 @@ export function validateCloudMemberInput(data: {
 	} else if (!EMAIL_PATTERN.test(data.email.trim())) {
 		errors.push({ field: 'email', message: 'El email no es válido.' });
 	}
-	if (!data.role || !ASSIGNABLE_ROLES.includes(data.role as CompanyRole)) {
+	if (!data.role || !COMPANY_ROLES.includes(data.role as CompanyRole)) {
 		errors.push({ field: 'role', message: 'Seleccione un rol válido.' });
 	}
 	return errors;
@@ -173,7 +173,7 @@ export function validateCloudUserInput(data: {
 	} else if (!EMAIL_PATTERN.test(data.email.trim())) {
 		errors.push({ field: 'email', message: 'El email no es válido.' });
 	}
-	if (!data.role || !ASSIGNABLE_ROLES.includes(data.role as CompanyRole)) {
+	if (!data.role || !COMPANY_ROLES.includes(data.role as CompanyRole)) {
 		errors.push({ field: 'role', message: 'Seleccione un rol válido.' });
 	}
 	return errors;
