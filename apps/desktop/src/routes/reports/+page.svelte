@@ -79,7 +79,7 @@
       <div class="stat-value">{fmtN(summary.totalQuotations)}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-title">Órdenes de Trabajo Activas</div>
+      <div class="stat-title">Órdenes activas</div>
       <div class="stat-value text-primary">{fmtN(summary.totalWorkOrders)}</div>
     </div>
     <div class="stat-card">

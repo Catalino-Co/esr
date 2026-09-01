@@ -727,8 +727,8 @@ export function generateEventPDF(evento, extras = {}, action = 'save', companyIn
   );
   resumen.push(
     order
-      ? ['Orden de trabajo', orderDocumentNumber(order), order.status || '—', '']
-      : ['Orden de trabajo', '—', 'Sin orden', '']
+      ? ['Orden', orderDocumentNumber(order), order.status || '—', '']
+      : ['Orden', '—', 'Sin orden', '']
   );
 
   y = hueco(doc, y + 8, 30);

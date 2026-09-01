@@ -139,7 +139,7 @@
 <!-- ══════════════════════════════════════════════════════════════ HEADER -->
 <div class="top-bar">
   <div class="top-bar-left">
-    <a href="/work_orders" class="btn-back">← Órdenes de Trabajo</a>
+    <a href="/work_orders" class="btn-back">← Órdenes</a>
     <h2 class="page-title">Checklist de Operación</h2>
     {#if workOrder}
       <span class="wo-chip">WO-{String(woId).padStart(5,'0')}</span>

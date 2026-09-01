@@ -60,7 +60,7 @@ const groups = [
 			{
 				slug: 'ordenes',
 				icon: ICONS.workOrders,
-				title: 'Órdenes de Trabajo',
+				title: 'Órdenes',
 				summary: 'Estados de una orden, preparación, entrega, devolución y cierre.'
 			}
 		]
