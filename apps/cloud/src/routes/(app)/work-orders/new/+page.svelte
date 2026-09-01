@@ -401,11 +401,13 @@
 		font-weight: 600;
 	}
 
-	/* El reparto de la fase 4, invertido respecto a lo que tenía ESR Pro: el
-	   catálogo acotado y la columna de trabajo elástica. */
+	/* Mitad y mitad, el mismo reparto que el editor de ESR Pro: las dos
+	   columnas se leen, así que ninguna acota a la otra. `minmax(0, 1fr)` y no
+	   `1fr` pelado, o una tabla ancha reventaría su mitad en vez de scrollear
+	   dentro de su caja. */
 	.editor-layout {
 		display: grid;
-		grid-template-columns: minmax(260px, 380px) minmax(460px, 1fr);
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		gap: var(--sp-4);
 		align-items: start;
 		margin-top: var(--sp-4);

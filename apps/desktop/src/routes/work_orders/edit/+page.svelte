@@ -778,16 +778,24 @@
   .clear-btn:hover { color:var(--danger); }
 
   /* ── Main panel ──────────────────────────────────────────────────────── */
-  /* El ancho sobrante va a EQUIPOS, no al catálogo.
-     Estaba justo al revés: `minmax(280px,1fr)` en el catálogo —elástico— y
-     `minmax(380px,480px)` en la derecha —topada—. O sea que el espacio que
-     ganaba la ventana se lo llevaba la lista de la que solo se elige, y la
-     tabla que de verdad se trabaja —con cantidades, seriales y el botón de
-     quitar— se quedaba fija en 480px y con las columnas apretadas. */
+  /* Mitad y mitad, y el reparto NO depende del ancho de la ventana.
+     Ha pasado por los dos extremos: primero `minmax(280px,1fr)` en el
+     catálogo con la derecha topada a 480px —el espacio sobrante se lo
+     llevaba la lista de la que solo se elige—, y luego al revés, con el
+     catálogo acotado a 380px, que dejaba el nombre del artículo partido en
+     tres líneas. Las dos columnas se leen, así que se reparten igual.
+
+     `minmax(0,1fr)` y no `1fr` pelado: el mínimo de `1fr` es `auto`, y una
+     tabla ancha reventaría su mitad en vez de scrollear dentro. */
   .main-panel {
     display:grid;
-    grid-template-columns:minmax(260px,380px) minmax(460px,1fr);
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
     gap:16px; align-items:start;
+  }
+
+  /* Bajo 1100px no caben dos columnas de la mitad sin estrangular las dos. */
+  @media (max-width: 1100px) {
+    .main-panel { grid-template-columns:minmax(0,1fr); }
   }
   .catalog-card { margin:0; padding:0; overflow:hidden; }
   .right-panel  { display:flex; flex-direction:column; gap:14px; }
