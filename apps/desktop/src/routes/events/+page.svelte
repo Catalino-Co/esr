@@ -365,7 +365,7 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="ev-order">Vincular orden de trabajo</label>
+      <label for="ev-order">Vincular orden</label>
       <select id="ev-order" bind:value={nuevo.work_order_id}>
         <option value="">(Ninguna)</option>
         {#each workOrders as wo (wo.id)}

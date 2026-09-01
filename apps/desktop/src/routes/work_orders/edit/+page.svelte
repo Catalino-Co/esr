@@ -9,7 +9,7 @@
     validateSerializedRentalLines
   } from '@esr/core';
   import { validateRentalOrderInput } from '@esr/schemas';
-  import { generateWorkOrderPDF, generateConducePDF } from '@esr/reports';
+  import { generateWorkOrderPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmtN } from '@esr/reports';
 
@@ -229,7 +229,7 @@
     const { url, filename } = generateWorkOrderPDF(woData, items, 'preview', company);
     pdfPreviewUrl   = url;
     pdfPreviewFile  = filename;
-    pdfPreviewTitle = `Orden de trabajo WO-${String(currentWO.id).padStart(5,'0')}`;
+    pdfPreviewTitle = `Orden WO-${String(currentWO.id).padStart(5,'0')}`;
     showPdfPreview  = true;
   }
 
@@ -387,7 +387,7 @@
 
       goto('/work_orders');
     } catch (err) {
-      alert(err?.message || 'Error al guardar la orden de trabajo.');
+      alert(err?.message || 'Error al guardar la orden.');
       console.error(err);
     } finally {
       isSaving = false;
@@ -400,12 +400,12 @@
 <!-- ══════════════════════════════════════════════════════════════ TOP BAR -->
 <div class="top-bar">
   <div class="top-bar-left">
-    <button class="btn-back" on:click={() => goto('/work_orders')}>← Órdenes de Trabajo</button>
+    <button class="btn-back" on:click={() => goto('/work_orders')}>← Órdenes</button>
     <h2 class="page-title">
       {#if isEditing}
-        Orden de Trabajo <span style="color:var(--primary);">WO-{String(currentWO.id ?? '').padStart(5,'0')}</span>
+        Orden <span style="color:var(--primary);">WO-{String(currentWO.id ?? '').padStart(5,'0')}</span>
       {:else}
-        Nueva Orden de Trabajo
+        Nueva orden
       {/if}
     </h2>
     {#if isEditing}
@@ -417,7 +417,7 @@
   </div>
   <div style="display:flex;gap:10px;">
     {#if isEditing}
-      <button class="btn btn-secondary" on:click={() => openPDF('wo')} title="Imprimir Orden de Trabajo">🖨️ WO</button>
+      <button class="btn btn-secondary" on:click={() => openPDF('wo')} title="Imprimir la orden">🖨️ Orden</button>
       <button class="btn btn-secondary" on:click={handleConduceBtn} title="Ver / Crear Conduce">🚚 Conduce</button>
       <button class="btn btn-secondary" on:click={() => goto(`/invoices/new?wo=${currentWO.id}`)}
               title="Facturar las entregas de esta orden">🧾 Facturar</button>
@@ -651,10 +651,13 @@
           <table class="table" style="margin:0;">
             <thead>
               <tr>
+                <!-- Seriales deja de ir a 160px: es la columna que crece con el
+                     ancho nuevo. Código y Cant. sí siguen fijas, que su
+                     contenido no cambia de tamaño. -->
                 <th style="width:80px;">Código</th>
                 <th>Equipo</th>
                 <th style="width:72px;text-align:center;">Cant.</th>
-                <th style="width:160px;">Seriales</th>
+                <th style="min-width:160px;">Seriales</th>
                 <th style="width:28px;"></th>
               </tr>
             </thead>
@@ -775,9 +778,15 @@
   .clear-btn:hover { color:var(--danger); }
 
   /* ── Main panel ──────────────────────────────────────────────────────── */
+  /* El ancho sobrante va a EQUIPOS, no al catálogo.
+     Estaba justo al revés: `minmax(280px,1fr)` en el catálogo —elástico— y
+     `minmax(380px,480px)` en la derecha —topada—. O sea que el espacio que
+     ganaba la ventana se lo llevaba la lista de la que solo se elige, y la
+     tabla que de verdad se trabaja —con cantidades, seriales y el botón de
+     quitar— se quedaba fija en 480px y con las columnas apretadas. */
   .main-panel {
     display:grid;
-    grid-template-columns:minmax(280px,1fr) minmax(380px,480px);
+    grid-template-columns:minmax(260px,380px) minmax(460px,1fr);
     gap:16px; align-items:start;
   }
   .catalog-card { margin:0; padding:0; overflow:hidden; }
@@ -834,8 +843,10 @@
     background:rgba(245,158,11,.14); color:#b45309;
     border-radius:10px; padding:1px 6px; text-transform:uppercase;
   }
+  /* `width:100%` y no 150px fijos: con la columna ya ancha, ese ancho clavado
+     era lo que seguía obligando a los seriales a leerse de tres en tres. */
   .serial-select {
-    width:150px; min-height:52px;
+    width:100%; min-width:150px; min-height:52px;
     border:1px solid var(--border-color); border-radius:4px;
     font-size:.76rem; padding:3px 5px; outline:none;
   }

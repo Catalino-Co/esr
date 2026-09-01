@@ -116,7 +116,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'quotes.update': 'Editar cotizaciones',
 	'quotes.approve': 'Aprobar cotizaciones',
 	'quotes.cancel': 'Cancelar cotizaciones',
-	'quotes.convert': 'Convertir en orden de trabajo',
+	'quotes.convert': 'Convertir en orden',
 	'quotes.archive': 'Archivar cotizaciones',
 
 	'work_orders.view': 'Ver ordenes',

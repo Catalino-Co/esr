@@ -137,7 +137,7 @@
 </div>
 
 <div class="form-field">
-	<label for="ev-order">Vincular orden de trabajo</label>
+	<label for="ev-order">Vincular orden</label>
 	<select id="ev-order" name="work_order_id">
 		<option value="">(Ninguna)</option>
 		{#each orders as order (order.id)}

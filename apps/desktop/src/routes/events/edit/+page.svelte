@@ -276,7 +276,7 @@
           </select>
         </div>
         <div class="form-field">
-          <label for="ev-order">Vincular orden de trabajo</label>
+          <label for="ev-order">Vincular orden</label>
           <select id="ev-order" bind:value={vincularOrden}>
             <option value="">(Ninguna)</option>
             {#each ordenesLibres as wo (wo.id)}
@@ -325,9 +325,9 @@
       </div>
 
       <div class="card tarjeta">
-        <div class="card-title">Orden de trabajo</div>
+        <div class="card-title">Orden</div>
         {#if ordenes.length === 0}
-          <p class="form-hint">Sin orden de trabajo vinculada.</p>
+          <p class="form-hint">Sin orden vinculada.</p>
         {:else}
           {#each ordenes as o (o.id)}
             <div class="resumen">

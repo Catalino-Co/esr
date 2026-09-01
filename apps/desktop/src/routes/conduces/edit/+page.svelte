@@ -189,7 +189,7 @@
 
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function saveConduce() {
-    if (!currentConduce.work_order_id) { alert('Seleccione una Orden de Trabajo.'); return; }
+    if (!currentConduce.work_order_id) { alert('Seleccione una orden.'); return; }
     isSaving = true;
     calculateTotals();
     try {
@@ -269,7 +269,7 @@
 
   <!-- Selector de WO -->
   <div class="import-box">
-    <div class="import-label">🚚 Orden de Trabajo de origen <span class="import-hint">(requerida)</span></div>
+    <div class="import-label">🚚 Orden de origen <span class="import-hint">(requerida)</span></div>
     <div class="import-row">
       <div class="combo-wrap">
         <div class="combo-row" class:combo-active={!!selectedWO}>
@@ -350,7 +350,7 @@
     {#if conduceItems.length === 0}
       <div class="empty-state">
         <span style="font-size:2rem;">📦</span>
-        <p>Selecciona una Orden de Trabajo y haz click en <strong>Cargar Equipos</strong>.</p>
+        <p>Selecciona una orden y haz click en <strong>Cargar Equipos</strong>.</p>
       </div>
     {:else}
       <div class="items-table-wrap">

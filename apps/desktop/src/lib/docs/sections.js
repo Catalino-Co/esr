@@ -43,12 +43,12 @@ const groups = [
 				slug: 'cotizaciones',
 				icon: ICONS.quotes,
 				title: 'Cotizaciones',
-				summary: 'Preparar una cotización, aprobarla y convertirla en orden de trabajo.'
+				summary: 'Preparar una cotización, aprobarla y convertirla en orden.'
 			},
 			{
 				slug: 'ordenes',
 				icon: ICONS.workOrders,
-				title: 'Órdenes de Trabajo',
+				title: 'Órdenes',
 				summary: 'Estados de una orden, preparación, entrega, devolución y cierre.'
 			}
 		]

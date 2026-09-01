@@ -126,14 +126,14 @@
 			{/if}
 		</section>
 
-		<!-- ── Resumen: orden de trabajo ─────────────────────────────────────
+		<!-- ── Resumen: orden ────────────────────────────────────────────────
 			Solo el número y el estado, que es lo que se pidió. No lleva importe:
 			el dinero del evento es el de la cotización.
 		-->
 		<section class="panel tarjeta">
-			<h3 class="tarjeta-titulo">Orden de trabajo</h3>
+			<h3 class="tarjeta-titulo">Orden</h3>
 			{#if data.orders.length === 0}
-				<p class="panel-hint">Sin orden de trabajo vinculada.</p>
+				<p class="panel-hint">Sin orden vinculada.</p>
 			{:else}
 				{#each data.orders as order (order.id)}
 					<div class="resumen">

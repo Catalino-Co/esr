@@ -1,7 +1,7 @@
 <script>
 	const reports = [
 		{ href: '/reports/inventory', title: 'Inventario disponible', description: 'Stock total, disponible y comprometido por artículo.', ready: true },
-		{ href: '/reports/orders', title: 'Órdenes activas', description: 'Estado, fechas y totales de órdenes de trabajo.', ready: true },
+		{ href: '/reports/orders', title: 'Órdenes activas', description: 'Estado, fechas y totales de las órdenes.', ready: true },
 		{ href: '/reports/incidents', title: 'Incidencias abiertas', description: 'Seguimiento de incidencias operativas.', ready: true },
 		{ href: '/reports/events', title: 'Eventos por fecha', description: 'Calendario y reservas por periodo.', ready: false },
 		{ href: '/reports/quotes', title: 'Cotizaciones por estado', description: 'Pipeline comercial y conversiones.', ready: false },
