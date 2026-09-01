@@ -11,7 +11,7 @@ import { requirePermission } from '$lib/server/permissions';
 
 /**
  * Referencia de solo lectura: exporta `load` y NINGUNA action, que es el
- * marcador que ya usa /audit para decir que aqui no se escribe nada.
+ * marcador que ya usa /settings/audit para decir que aqui no se escribe nada.
  *
  * La matriz se arma en el servidor a partir de `ROLE_PERMISSIONS`, la misma
  * constante que autoriza de verdad. Copiarla a mano en la pantalla la dejaria

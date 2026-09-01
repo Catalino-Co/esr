@@ -325,7 +325,7 @@ Exportación CSV opcional:
 Auditoría (solo lectura):
 
 ```text
-/audit
+/settings/audit
 ```
 
 ESR Cloud registra acciones críticas en `audit_logs`. Cada entrada incluye `company_id`, usuario, acción, entidad y metadatos no sensibles. Los logs se filtran por empresa; no se pueden editar ni eliminar desde la UI.

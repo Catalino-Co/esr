@@ -128,6 +128,15 @@ export const settingsSections: SettingsSection[] = [
 		icon: ICONS.roles,
 		description: 'Qué puede hacer cada rol, permiso a permiso. Es una referencia: no se edita.',
 		permission: 'settings.members.manage'
+	},
+	{
+		href: '/settings/audit',
+		title: 'Auditoría',
+		icon: ICONS.audit,
+		description: 'Quién hizo qué y cuándo: aprobaciones, anulaciones, impresiones y cambios de estado.',
+		// `audit.view`, NO `settings.members.manage`: un gerente audita pero no
+		// gestiona usuarios, asi que ve esta tarjeta y no las dos de arriba.
+		permission: 'audit.view'
 	}
 ];
 

@@ -83,13 +83,6 @@ export const navItems: NavItemConfig[] = [
 		permission: 'reports.view'
 	},
 	{
-		href: '/audit',
-		label: 'Auditoría',
-		icon: ICONS.audit,
-		matchPrefix: '/audit',
-		permission: 'audit.view'
-	},
-	{
 		href: '/incidents',
 		label: 'Incidencias',
 		icon: ICONS.incidents,
@@ -147,8 +140,8 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/settings/collaborators', title: 'Colaboradores', subtitle: 'Equipo que ejecuta la operación: técnicos, choferes y montaje.' },
 	{ prefix: '/settings/sectors', title: 'Sectores comerciales', subtitle: 'A qué se dedica el cliente. Campo opcional de su ficha.' },
 	{ prefix: '/settings/address-types', title: 'Tipos de dirección', subtitle: 'Clasifican las direcciones de servicio del cliente.' },
+	{ prefix: '/settings/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
 	{ prefix: '/settings', title: 'Configuración', subtitle: 'Ajustes de la empresa activa' },
-	{ prefix: '/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
 	{ prefix: '/docs', title: 'Documentación', subtitle: 'Manual de usuario de ESR Cloud' }
 ];
 
