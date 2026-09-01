@@ -2,7 +2,7 @@
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { Icon } from '@esr/ui';
+	import { Icon, PdfPreviewModal } from '@esr/ui';
 	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
 
 	let { data, form } = $props();
@@ -18,6 +18,41 @@
 	const items = $derived(data.items);
 	const status = $derived(order.status);
 	const isReadOnly = $derived(status === 'cancelado' || status === 'cerrado');
+
+	/* ── Imprimir ──────────────────────────────────────────────────────────
+	 * Mismo patrón que la cotización y el evento: el servidor manda los datos Y
+	 * registra `document.printed`, y el PDF se arma en cliente con jsPDF.
+	 */
+	let verPdf = $state(false);
+	let pdfUrl = $state('');
+	let pdfNombre = $state('orden.pdf');
+	let errorPdf = $state('');
+	let generando = $state(false);
+
+	async function imprimir() {
+		if (generando) return;
+		generando = true;
+		pdfUrl = '';
+		errorPdf = '';
+		verPdf = true;
+		try {
+			const res = await fetch(`${page.url.pathname}/document`, { method: 'POST' });
+			if (!res.ok) throw new Error('El servidor rechazó la petición.');
+			const { company, order: fila, items: lineas } = await res.json();
+			/* Import DINÁMICO: jsPDF pesa ~400 KB, y en SSR un import de nivel
+			   superior se evalúa también en el servidor, donde `Blob` y
+			   `URL.createObjectURL` no existen. */
+			const { generateWorkOrderPDF } = await import('@esr/reports/rentals');
+			const { url, filename } = generateWorkOrderPDF(fila, lineas, 'preview', company);
+			pdfUrl = url;
+			pdfNombre = filename;
+		} catch (/** @type {any} */ e) {
+			verPdf = false;
+			errorPdf = `No se pudo generar el documento. ${e?.message ?? ''}`.trim();
+		} finally {
+			generando = false;
+		}
+	}
 
 	/**
 	 * Confirmación tras entregar o devolver.
@@ -80,16 +115,16 @@
 			<a class="grupo-btn" href="/work-orders" aria-label="Volver a órdenes" title="Volver a órdenes">
 				<Icon name="back" size={18} />
 			</a>
-			<a
+			<button
+				type="button"
 				class="grupo-btn"
-				href="/work-orders/{order.id}/print"
-				target="_blank"
-				rel="noopener"
+				onclick={imprimir}
+				disabled={generando}
 				aria-label="Imprimir la orden"
 				title="Imprimir la orden"
 			>
 				<Icon name="printer" size={18} />
-			</a>
+			</button>
 			<!-- Checklists SIEMPRE, también con la orden cerrada. Antes vivía dentro
 			     del bloque que se ocultaba al cerrar, o sea que desaparecía justo
 			     cuando más se consulta: para comprobar qué volvió. -->
@@ -119,6 +154,9 @@
 
 {#if form?.error}
 	<div class="alert-error" role="alert">{form.error}</div>
+{/if}
+{#if errorPdf}
+	<div class="alert-error" role="alert">{errorPdf}</div>
 {/if}
 {#if entregado}
 	<div class="alert-success" role="status">Entrega registrada en el conduce {entregado}.</div>
@@ -312,6 +350,8 @@
 		</section>
 	</aside>
 </div>
+
+<PdfPreviewModal bind:show={verPdf} {pdfUrl} filename={pdfNombre} title="Vista previa de la orden" />
 
 <style>
 	/* La cabecera reutiliza `.herramientas` de theme.css —la misma fila que los

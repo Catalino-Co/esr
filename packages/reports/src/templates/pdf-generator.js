@@ -31,6 +31,7 @@ function pct(valor) {
   return `${Number(n.toFixed(3))}%`;
 }
 import { quoteDocumentFilename, quoteDocumentNumber, quoteItemLabel } from '../formatters/labels.js';
+import { formatDate } from '../formatters/date.js';
 
 /**
  * Geometria de pagina, en milimetros. Antes eran numeros sueltos —`14`, `140`,
@@ -277,53 +278,101 @@ export function generateQuotationPDF(quotation, items, action = 'save', companyI
   return createPdfResult(doc, quoteDocumentFilename(quotation), action);
 }
 
+/**
+ * La hoja de trabajo de una orden.
+ *
+ * NO LLEVA PRECIOS NI TOTALES, y es lo que la distingue de todo lo demas: esto
+ * lo lee quien prepara y carga el camion, no quien cobra. El dinero de una
+ * orden vive en su cotizacion y en su factura.
+ *
+ * Cloud imprimia esta misma orden con `renderOrderDocument`, un documento HTML
+ * cuyas columnas eran Articulo, Codigo, Cant., Estado, PRECIO y TOTAL, mas un
+ * bloque «Total orden» alineado a la derecha. Salia clavada a una factura
+ * porque compartia plantilla base con la factura. Ahora las dos apps imprimen
+ * esto.
+ *
+ * Sigue el molde de la COTIZACION y no el que tenia: usa `hueco()` y
+ * `paginar()`, asi que una orden de sesenta lineas o unas instrucciones largas
+ * saltan de pagina en vez de escribirse encima del margen.
+ *
+ * @param {any} wo           La fila de `work_orders`, con `client_name` y
+ *                           `event_name` resueltos por quien llama.
+ * @param {any[]} items      Las lineas. Solo se leen codigo, nombre y cantidad.
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
 export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = null) {
   const doc = new jsPDF();
-  
+
   renderCompanyHeader(doc, companyInfo);
-  
+
   doc.setFontSize(18);
   doc.setTextColor(0);
-  doc.text("ORDEN DE TRABAJO", 140, 20);
+  doc.text('ORDEN DE TRABAJO', COL_ETIQUETA, 20);
+
   doc.setFontSize(10);
-  doc.text(`WO-${String(wo.id).padStart(5, '0')}`, 140, 26);
-  doc.text(`Fecha Operación: ${wo.date}`, 140, 31);
-  if (wo.vehicle) doc.text(`Vehículo: ${wo.vehicle}`, 140, 36);
+  // `orderDocumentNumber` y no `WO-${id}` a pelo: Cloud numera `ORD-000005` en
+  // `order_number` y antes se imprimia un `WO-00006` sacado del id, que no
+  // coincidia con lo que enseñaba la pantalla.
+  doc.text(`Nº: ${orderDocumentNumber(wo)}`, COL_ETIQUETA, 26);
+  doc.text(`Fecha de operación: ${formatDate(wo.date)}`, COL_ETIQUETA, 31);
 
   doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Cliente / Evento:", 14, 55);
-  doc.setFont("helvetica", "normal");
-  doc.text(wo.client_name || "N/A", 14, 61);
-  doc.text(`Responsable: ${wo.responsible_person || 'No asignado'}`, 14, 66);
-  
-  const tableData = items.map(i => [
-    i.internal_code,
-    i.name,
-    i.quantity.toString()
-  ]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cliente', MARGEN_X, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(wo.client_name || 'N/A', MARGEN_X, 61);
+
+  // Los tres datos de logistica, que son los que se miran el dia del montaje.
+  let y = 66;
+  if (wo.event_name) { doc.text(`Evento: ${wo.event_name}`, MARGEN_X, y); y += 5; }
+  doc.text(`Responsable: ${wo.responsible_person || 'No asignado'}`, MARGEN_X, y); y += 5;
+  if (wo.vehicle) { doc.text(`Vehículo: ${wo.vehicle}`, MARGEN_X, y); y += 5; }
 
   autoTable(doc, {
-    startY: 75,
-    head: [['Código', 'Descripción del Ítem', 'Cantidad a Preparar']],
-    body: tableData,
+    startY: y + 6,
+    head: [['Código', 'Descripción del equipo', 'Cantidad a preparar']],
+    body: (items || []).map((linea) => [
+      linea.internal_code || '—',
+      linea.name || 'Sin descripción',
+      // `String(... ?? 0)` y no `.toString()`: una cantidad nula reventaba.
+      String(linea.quantity ?? 0)
+    ]),
     theme: 'grid',
-    headStyles: { fillColor: [108, 117, 125] },
+    headStyles: { fillColor: [67, 94, 190] },
     styles: { fontSize: 10 },
-    columnStyles: { 2: { halign: 'center', cellWidth: 40 } }
+    margin: { left: MARGEN_X, right: MARGEN_X },
+    columnStyles: { 2: { halign: 'center', cellWidth: 42 } }
   });
 
-  const finalY = doc.lastAutoTable.finalY + 10;
-  if (wo.notes) {
-    doc.setFont("helvetica", "bold");
-    doc.text("Instrucciones / Observaciones:", 14, finalY);
-    doc.setFont("helvetica", "normal");
-    doc.text(doc.splitTextToSize(wo.notes, 180), 14, finalY + 6);
+  y = tablaFinalY(doc, y);
+
+  const notas = String(wo.notes || '').trim();
+  if (notas) {
+    const anchoTexto = anchoPagina(doc) - MARGEN_X * 2;
+    const lineas = doc.splitTextToSize(notas, anchoTexto);
+    y = hueco(doc, y + 10, 6 + lineas.length * 4);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Instrucciones de montaje / observaciones:', MARGEN_X, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lineas, MARGEN_X, y + 5);
+    y += 5 + lineas.length * 4;
   }
 
-  const filename = `Orden_Trabajo_${String(wo.id).padStart(5, '0')}.pdf`;
+  // Quien prepara firma que salio completo. Es la unica firma de este
+  // documento: no hay «recibido conforme» porque eso es el conduce.
+  y = hueco(doc, y + 18, 14);
+  doc.setLineWidth(0.5);
+  doc.line(MARGEN_X, y, MARGEN_X + 66, y);
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text('Preparado por (firma)', MARGEN_X + 5, y + 5);
 
-  return createPdfResult(doc, filename, action);
+  paginar(doc);
+
+  return createPdfResult(doc, `Orden_${orderDocumentNumber(wo).replace(/[^\w-]/g, '')}.pdf`, action);
 }
 
 export function generateChecklistPDF(workOrder, items, type = 'salida', action = 'save', companyInfo = null) {
