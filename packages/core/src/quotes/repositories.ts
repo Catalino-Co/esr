@@ -6,7 +6,23 @@ export type CreateQuoteInput = Omit<Quote, 'id'> & { items: QuoteItem[] };
 export type TenantCreateQuoteInput = Omit<CreateQuoteInput, 'company_id'>;
 export type QuoteListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
-	state?: RecordStateFilter; search?: string; status?: string; event_id?: ESRId; created_from?: string; limit?: number; offset?: number };
+	state?: RecordStateFilter;
+	search?: string;
+	status?: string;
+	event_id?: ESRId;
+	/**
+	 * Solo las HUERFANAS: `event_id IS NULL`.
+	 *
+	 * Campo aparte y no `event_id: null`, que seria lo natural: `event_id` se
+	 * aplica con `if (filters.event_id)`, una prueba de veracidad, asi que un
+	 * nulo no filtraria NADA y la peticion «solo huerfanas» devolveria todas.
+	 * Para un selector de documentos a vincular ese es el peor fallo posible.
+	 */
+	without_event?: boolean;
+	created_from?: string;
+	limit?: number;
+	offset?: number;
+};
 
 export type AddQuoteItemInput = {
 	item_id: ESRId;
@@ -43,6 +59,31 @@ export interface TenantQuoteRepository {
 	findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<Quote[]>;
 	create(ctx: RepositoryContext, data: TenantCreateQuoteInput): Promise<Quote>;
 	update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateQuoteInput>): Promise<Quote>;
+	/**
+	 * Engancha la cotizacion al evento, si sigue huerfana y viva.
+	 *
+	 * EL VINCULO VIVE EN EL DOCUMENTO, NO EN EL EVENTO. Hay dos posibles en la
+	 * base —`events.quotation_id` y `quotations.event_id`— y manda el segundo:
+	 * es el que el dialogo de alta de cotizaciones rellena SIEMPRE, el que ya
+	 * lee `findByEventId`, y por tanto el unico que no puede discrepar de la
+	 * realidad. `events.quotation_id` y `events.work_order_id` quedan muertas.
+	 *
+	 * Solo ENGANCHA, nunca suelta: un evento puede tener varias cotizaciones, y
+	 * desenganchar «las que no se eligieron» seria borrar vinculos que nadie
+	 * pidio tocar. Para soltar una se abre esa cotizacion y se le cambia el
+	 * evento.
+	 *
+	 * NO se hace con `update()`, y no es un capricho: aquel relee la fila y
+	 * reescribe las doce columnas, asi que ademas de no poder expresar la
+	 * condicion, revertiria en silencio cualquier cambio que otra peticion
+	 * hiciera entremedias. Aqui las tres guardas —empresa, orfandad y
+	 * circulacion— se evaluan en la MISMA sentencia que escribe.
+	 *
+	 * `false` significa «no se escribio nada». Quien llama decide que contar:
+	 * si ya era de este evento es un exito idempotente, y si es de otro, un
+	 * conflicto que hay que decir en voz alta.
+	 */
+	linkToEvent(ctx: RepositoryContext, quoteId: ESRId, eventId: ESRId): Promise<boolean>;
 	/**
 	 * Cambia el estado de circulacion. Sustituye al antiguo `deactivate()`, que
 	 * fijaba 0 a pelo y no tenia inverso: con tres estados hace falta poder

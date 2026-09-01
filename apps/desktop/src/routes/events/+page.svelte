@@ -16,8 +16,6 @@
 
   let events = [];
   let clients = [];
-  let quotations = [];
-  let workOrders = [];
   let eventTypes = [];
 
   let estado = '';
@@ -48,21 +46,14 @@
 
   async function loadCatalogos() {
     if (!window.api?.db) return;
-    const [c, q, w, t] = await Promise.all([
+    // Aqui se traian tambien las cotizaciones y ordenes huerfanas, para los dos
+    // desplegables del alta. Se fueron con ellos: vincular pasa a hacerse desde
+    // la ficha, a la que el alta redirige.
+    const [c, t] = await Promise.all([
       window.api.db.get('SELECT id, name FROM clients WHERE is_active = 1 ORDER BY name ASC'),
-      // Solo las HUERFANAS: enganchar una que ya es de otro evento seria
-      // robarsela sin avisar.
-      window.api.db.get(
-        "SELECT id FROM quotations WHERE is_active = 1 AND event_id IS NULL ORDER BY id DESC"
-      ),
-      window.api.db.get(
-        'SELECT id FROM work_orders WHERE is_active = 1 AND event_id IS NULL ORDER BY id DESC'
-      ),
       window.api.db.get('SELECT id, name, color FROM event_types WHERE is_active = 1 ORDER BY name ASC')
     ]);
     clients = c;
-    quotations = q;
-    workOrders = w;
     eventTypes = t;
   }
 
@@ -124,8 +115,6 @@
     location: '',
     responsible_person: '',
     notes: '',
-    quotation_id: '',
-    work_order_id: '',
     status: 'tentativo'
   };
   let nuevo = { ...VACIO };
@@ -156,23 +145,6 @@
           nuevo.notes, nuevo.status
         ]
       );
-
-      // El vinculo se escribe en el DOCUMENTO, no en el evento: `quotations.
-      // event_id` es el que de verdad los une, y escribir tambien
-      // `events.quotation_id` crearia un segundo vinculo que puede contradecir
-      // al primero.
-      if (nuevo.quotation_id) {
-        await window.api.db.run(
-          'UPDATE quotations SET event_id = ? WHERE id = ? AND event_id IS NULL',
-          [res.id, nuevo.quotation_id]
-        );
-      }
-      if (nuevo.work_order_id) {
-        await window.api.db.run(
-          'UPDATE work_orders SET event_id = ? WHERE id = ? AND event_id IS NULL',
-          [res.id, nuevo.work_order_id]
-        );
-      }
 
       creando = false;
       goto(`/events/edit?id=${res.id}`);
@@ -353,30 +325,9 @@
       <input id="ev-responsible" type="text" bind:value={nuevo.responsible_person} />
     </div>
 
-    <p class="separador">Documentos</p>
-
-    <div class="form-field">
-      <label for="ev-quote">Vincular cotización</label>
-      <select id="ev-quote" bind:value={nuevo.quotation_id}>
-        <option value="">(Ninguna)</option>
-        {#each quotations as qt (qt.id)}
-          <option value={qt.id}>Cotización #{String(qt.id).padStart(5, '0')}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="form-field">
-      <label for="ev-order">Vincular orden</label>
-      <select id="ev-order" bind:value={nuevo.work_order_id}>
-        <option value="">(Ninguna)</option>
-        {#each workOrders as wo (wo.id)}
-          <option value={wo.id}>WO-{String(wo.id).padStart(5, '0')}</option>
-        {/each}
-      </select>
-    </div>
-
-    <p class="form-hint pista">
-      Solo se ofrecen las que aún no pertenecen a ningún evento.
-    </p>
+    <!-- Aquí había un bloque «Documentos» con dos desplegables. Se fue: el
+         vínculo se hace desde la ficha, a la que esta alta redirige nada más
+         crear, y allí es una tabla con lo que hace falta para elegir. -->
 
     <div class="form-field full">
       <label for="ev-notes">Condiciones o notas del evento</label>
@@ -429,11 +380,6 @@
     font-size: var(--font-xs);
     font-weight: 600;
     color: var(--text-secondary);
-  }
-
-  .pista {
-    grid-column: 1 / -1;
-    margin: 0;
   }
 
   .con-muestra {

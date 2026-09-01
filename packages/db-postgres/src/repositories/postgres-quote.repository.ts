@@ -7,7 +7,7 @@ import {
 	type TenantCreateQuoteInput,
 	type TenantQuoteRepository
 } from '@esr/core';
-import { DEFAULT_RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
+import { DEFAULT_RECORD_STATE, RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
 import type { ESRId, Quote, QuoteItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -89,6 +89,10 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 			params.push(filters.event_id);
 			where.push(`q.event_id = $${params.length}`);
 		}
+		// Las HUERFANAS. Sin parametro: `IS NULL` no se compara con `=`, y por eso
+		// tampoco cabe dentro de `event_id`. Pedir los dos a la vez devuelve vacio,
+		// que es lo correcto y no necesita guarda.
+		if (filters.without_event) where.push('q.event_id IS NULL');
 		const result = await this.pool.query<QuoteRow>(
 			`SELECT q.* FROM quotations q
 			 LEFT JOIN clients c ON c.id = q.client_id AND c.company_id = q.company_id
@@ -101,6 +105,17 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 
 	async findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<Quote[]> {
 		return this.list(ctx, { event_id: eventId, limit: 100, offset: 0 });
+	}
+
+	/** Ver el docblock de la interfaz: las tres guardas van en el propio UPDATE. */
+	async linkToEvent(ctx: RepositoryContext, quoteId: ESRId, eventId: ESRId): Promise<boolean> {
+		const result = await this.pool.query(
+			`UPDATE quotations SET event_id = $3
+			 WHERE company_id = $1 AND id = $2 AND event_id IS NULL AND is_active = $4
+			 RETURNING id`,
+			[requireCompanyId(ctx), quoteId, eventId, RECORD_STATE.ACTIVE]
+		);
+		return result.rowCount === 1;
 	}
 
 	/**

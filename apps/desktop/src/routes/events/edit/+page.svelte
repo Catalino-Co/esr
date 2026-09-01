@@ -1,10 +1,10 @@
 <script>
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
+  import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
   import { validateEventInput } from '@esr/schemas';
   import { generateEventPDF } from '@esr/reports';
-  import { Icon, PdfPreviewModal } from '@esr/ui';
+  import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
 
   /**
    * Ficha de evento de ESR Pro.
@@ -22,14 +22,29 @@
   let evento = null;
   let clientes = [];
   let tipos = [];
-  let cotizacionesLibres = [];
-  let ordenesLibres = [];
   /** Lo que de verdad cuelga del evento: `quotations.event_id`. */
   let cotizaciones = [];
+  let cotizacionesTotal = 0;
   let ordenes = [];
 
-  let vincularCotizacion = '';
-  let vincularOrden = '';
+  /* ── Vincular ──────────────────────────────────────────────────────────
+   * Antes eran dos desplegables DENTRO del formulario del evento, asi que
+   * enganchar una cotizacion obligaba a pulsar «Guardar cambios» del evento
+   * entero. Ahora son dos botones de la barra, cada uno con su dialogo.
+   *
+   * A diferencia de Cloud, el estado NO va en la URL: aqui no hay `load` ni
+   * invalidacion que aprovechar, y el patron de la casa es el `bind:show` de
+   * `@esr/ui`. Las candidatas se piden AL ABRIR, no en `cargar()`: asi el
+   * `LIMIT 200` no se paga en cada entrada a la ficha.
+   */
+  let vinculando = null;
+  /* `Modal` de `@esr/ui` se cierra a si mismo poniendo `show = false`, asi que
+     hace falta un booleano suyo: `vinculando` guarda el TIPO, no la apertura. */
+  let mostrarVinculo = false;
+  let candidatos = [];
+  let cargandoCandidatos = false;
+  let errorVinculo = '';
+  let buscarDoc = '';
 
   let guardando = false;
   let error = '';
@@ -61,19 +76,15 @@
     error = '';
     mensaje = '';
 
-    const [ev, cl, tp, qLibres, oLibres, qs, os] = await Promise.all([
+    const [ev, cl, tp, qs, os] = await Promise.all([
       window.api.db.getOne('SELECT * FROM events WHERE id = ?', [id]),
       window.api.db.get('SELECT id, name FROM clients WHERE is_active = 1 ORDER BY name ASC'),
       window.api.db.get('SELECT id, name, color FROM event_types WHERE is_active = 1 ORDER BY name ASC'),
+      // El vinculo REAL: `quotations.event_id`. SIN filtrar por `is_active`, y
+      // a proposito: la tarjeta enseña lo vivo, pero la cuenta del enlace al
+      // historial tiene que salir de TODO. Con dos consultas, la N mentiria.
       window.api.db.get(
-        'SELECT id FROM quotations WHERE is_active = 1 AND event_id IS NULL ORDER BY id DESC'
-      ),
-      window.api.db.get(
-        'SELECT id FROM work_orders WHERE is_active = 1 AND event_id IS NULL ORDER BY id DESC'
-      ),
-      // El vinculo REAL, en las dos direcciones que importan.
-      window.api.db.get(
-        'SELECT id, status, total FROM quotations WHERE event_id = ? AND is_active = 1 ORDER BY id DESC',
+        'SELECT id, quote_number, status, total, is_active FROM quotations WHERE event_id = ? ORDER BY id DESC',
         [id]
       ),
       window.api.db.get(
@@ -90,12 +101,87 @@
     evento = { ...ev };
     clientes = cl;
     tipos = tp;
-    cotizacionesLibres = qLibres;
-    ordenesLibres = oLibres;
-    cotizaciones = qs;
+    // La tarjeta enseña lo VIVO: activas y no canceladas. Lo demas se llega por
+    // el historial, que es lo que evita que ocultar sea esconder.
+    cotizacionesTotal = qs.length;
+    cotizaciones = qs.filter((q) => q.is_active === 1 && q.status !== 'cancelada');
     ordenes = os;
-    vincularCotizacion = '';
-    vincularOrden = '';
+  }
+
+  /* ── Los dialogos de vincular ─────────────────────────────────────────── */
+
+  /** @param {'cotizacion' | 'orden'} tipo */
+  async function abrirVinculo(tipo) {
+    vinculando = tipo;
+    mostrarVinculo = true;
+    errorVinculo = '';
+    buscarDoc = '';
+    candidatos = [];
+    cargandoCandidatos = true;
+    try {
+      candidatos =
+        tipo === 'cotizacion'
+          ? // Las CANCELADAS no se ofrecen: la tarjeta las esconde, asi que
+            // vincular una seria verla desaparecer en el acto. Un selector no
+            // debe ofrecer nada que su propio resultado no vaya a mostrar.
+            await window.api.db.get(
+              `SELECT q.id, q.quote_number, q.date, q.total, q.status, c.name AS client_name
+               FROM quotations q LEFT JOIN clients c ON c.id = q.client_id
+               WHERE q.is_active = 1 AND q.event_id IS NULL AND q.status != 'cancelada'
+               ORDER BY q.id DESC LIMIT 200`
+            )
+          : await window.api.db.get(
+              `SELECT w.id, w.date, w.status, w.responsible_person, c.name AS client_name
+               FROM work_orders w LEFT JOIN clients c ON c.id = w.client_id
+               WHERE w.is_active = 1 AND w.event_id IS NULL
+               ORDER BY w.id DESC LIMIT 200`
+            );
+    } finally {
+      cargandoCandidatos = false;
+    }
+  }
+
+  /* Filtrado EN MEMORIA sobre lo ya traido, que es la convencion de ESR Pro:
+     aqui no hay servidor al que volver por cada tecla. */
+  $: terminoDoc = buscarDoc.trim().toLowerCase();
+  $: candidatosVisibles = candidatos.filter((fila) => {
+    if (!terminoDoc) return true;
+    return [numeroCandidato(fila), fila.client_name, fila.responsible_person].some((v) =>
+      (v ?? '').toLowerCase().includes(terminoDoc)
+    );
+  });
+
+  const numeroCandidato = (fila) =>
+    vinculando === 'cotizacion'
+      ? fila.quote_number || `#${String(fila.id).padStart(5, '0')}`
+      : `WO-${String(fila.id).padStart(5, '0')}`;
+
+  /**
+   * Engancha el documento al evento.
+   *
+   * Las tres guardas van EN LA SENTENCIA que escribe —`event_id IS NULL` y
+   * `is_active = 1`—, no en un SELECT previo: entre pintar la tabla y pulsar
+   * el boton, alguien pudo asignarlo desde otra pantalla. Y NO falla en
+   * silencio: `db.run` devuelve `{ id, changes }`, asi que `changes === 0` es
+   * un conflicto que hay que decir en voz alta.
+   */
+  async function vincular(id) {
+    const tabla = vinculando === 'cotizacion' ? 'quotations' : 'work_orders';
+    const res = await window.api.db.run(
+      `UPDATE ${tabla} SET event_id = ? WHERE id = ? AND event_id IS NULL AND is_active = 1`,
+      [evento.id, id]
+    );
+    if (res.changes === 0) {
+      // El dialogo NO se cierra: el error se lee donde ocurrio, y se puede
+      // elegir otra sin volver a empezar.
+      errorVinculo =
+        vinculando === 'cotizacion'
+          ? 'Esa cotización ya pertenece a otro evento o dejó de estar activa.'
+          : 'Esa orden ya pertenece a otro evento o dejó de estar activa.';
+      return;
+    }
+    mostrarVinculo = false;
+    await cargar(evento.id);
   }
 
   async function guardar() {
@@ -120,22 +206,6 @@
           evento.notes, evento.status, evento.id
         ]
       );
-
-      // El vinculo se escribe en el DOCUMENTO. `AND event_id IS NULL` no es
-      // adorno: entre que se pinto el desplegable y se pulso Guardar, alguien
-      // pudo asignarlo desde otra pantalla.
-      if (vincularCotizacion) {
-        await window.api.db.run(
-          'UPDATE quotations SET event_id = ? WHERE id = ? AND event_id IS NULL',
-          [evento.id, vincularCotizacion]
-        );
-      }
-      if (vincularOrden) {
-        await window.api.db.run(
-          'UPDATE work_orders SET event_id = ? WHERE id = ? AND event_id IS NULL',
-          [evento.id, vincularOrden]
-        );
-      }
 
       mensaje = 'Evento guardado.';
       await cargar(evento.id);
@@ -181,8 +251,15 @@
         <Icon name="printer" size={18} />
       </button>
     </div>
+    <!-- Aqui habia un badge del estado, que solo repetia lo que dice su propio
+         `<select>` mas abajo. El sitio lo ocupan los dos botones de vincular. -->
     <div class="herramientas-datos">
-      <span class="badge {statusBadgeClass(evento.status)}">{statusLabel(evento.status)}</span>
+      <button type="button" class="btn btn-secondary" on:click={() => abrirVinculo('cotizacion')}>
+        Vincular cotización
+      </button>
+      <button type="button" class="btn btn-secondary" on:click={() => abrirVinculo('orden')}>
+        Vincular orden
+      </button>
     </div>
   </div>
 
@@ -264,31 +341,10 @@
           <input id="ev-responsible" type="text" bind:value={evento.responsible_person} />
         </div>
 
-        <p class="separador">Documentos</p>
-
-        <div class="form-field">
-          <label for="ev-quote">Vincular cotización</label>
-          <select id="ev-quote" bind:value={vincularCotizacion}>
-            <option value="">(Ninguna)</option>
-            {#each cotizacionesLibres as qt (qt.id)}
-              <option value={qt.id}>Cotización #{String(qt.id).padStart(5, '0')}</option>
-            {/each}
-          </select>
-        </div>
-        <div class="form-field">
-          <label for="ev-order">Vincular orden</label>
-          <select id="ev-order" bind:value={vincularOrden}>
-            <option value="">(Ninguna)</option>
-            {#each ordenesLibres as wo (wo.id)}
-              <option value={wo.id}>WO-{String(wo.id).padStart(5, '0')}</option>
-            {/each}
-          </select>
-        </div>
-
-        <p class="form-hint pista">
-          Solo se ofrecen las que aún no pertenecen a ningún evento. Vincular no
-          desvincula lo que ya estuviera unido a este.
-        </p>
+        <!-- El bloque «Documentos» se fue de aquí: el vínculo no es un campo del
+             evento —no se guarda en `events`, se escribe en el documento—, y
+             metido en este formulario obligaba a guardar el evento entero para
+             enganchar una cotización. Está en la barra, en dos botones. -->
 
         <div class="form-field full">
           <label for="ev-notes">Condiciones o notas del evento</label>
@@ -322,6 +378,17 @@
             </div>
           {/each}
         {/if}
+
+        <!-- La tarjeta enseña lo vivo, así que aquí hay que decir lo que se está
+             callando: canceladas, inactivas y archivadas. Va FUERA del `{#if}`,
+             en las dos ramas: si todas están canceladas, arriba pone «Sin
+             cotización vinculada», y ese es justo el caso en el que hace falta
+             la salida. -->
+        {#if cotizacionesTotal > cotizaciones.length}
+          <a class="historial" href="/events/quotes?id={evento.id}">
+            Historial de cotizaciones ({cotizacionesTotal})
+          </a>
+        {/if}
       </div>
 
       <div class="card tarjeta">
@@ -342,6 +409,78 @@
       </div>
     </div>
   </div>
+  <!-- El diálogo de vincular. Uno para los dos tipos: se eligen igual y se
+       vinculan igual; lo que cambia es el rótulo y que la orden no lleva
+       importe. -->
+  <Modal
+    bind:show={mostrarVinculo}
+    title={vinculando === 'cotizacion' ? 'Vincular cotización' : 'Vincular orden'}
+    maxWidth="760px"
+  >
+    {#if errorVinculo}
+      <div class="alert alert-danger">{errorVinculo}</div>
+    {/if}
+
+    <input
+      class="buscador"
+      type="search"
+      bind:value={buscarDoc}
+      placeholder="Número, cliente o responsable"
+      aria-label="Buscar entre las candidatas"
+    />
+
+    {#if cargandoCandidatos}
+      <p class="form-hint">Cargando…</p>
+    {:else if candidatosVisibles.length === 0}
+      <p class="empty-state">
+        {terminoDoc
+          ? `Ninguna coincide con «${buscarDoc}».`
+          : vinculando === 'cotizacion'
+            ? 'No hay cotizaciones libres: todas pertenecen ya a algún evento, o están canceladas.'
+            : 'No hay órdenes libres: todas pertenecen ya a algún evento.'}
+      </p>
+    {:else}
+      <div class="tabla-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Cliente</th>
+              <th>Fecha</th>
+              {#if vinculando === 'cotizacion'}<th style="text-align:right;">Total</th>{/if}
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each candidatosVisibles as fila (fila.id)}
+              <tr>
+                <td>{numeroCandidato(fila)}</td>
+                <td>{fila.client_name || '—'}</td>
+                <td>{fila.date ? formatDate(fila.date) : '—'}</td>
+                {#if vinculando === 'cotizacion'}
+                  <td style="text-align:right;">{formatMoney(fila.total)}</td>
+                {/if}
+                <td>
+                  <span class="badge {statusBadgeClass(fila.status)}">{statusLabel(fila.status)}</span>
+                </td>
+                <td style="text-align:right;">
+                  <button type="button" class="btn btn-primary btn-sm" on:click={() => vincular(fila.id)}>
+                    Vincular
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+
+    <p class="form-hint">
+      Solo se ofrecen las que aún no pertenecen a ningún evento. Vincular no
+      desvincula lo que ya estuviera unido a este.
+    </p>
+  </Modal>
 {:else if error}
   <div class="card"><div class="alert alert-danger">{error}</div></div>
 {/if}
@@ -378,9 +517,32 @@
     color: var(--text-secondary);
   }
 
-  .pista {
-    grid-column: 1 / -1;
-    margin: 0;
+  .historial {
+    display: inline-block;
+    margin-top: var(--sp-3);
+    font-size: var(--font-sm);
+  }
+
+  /* Campos sueltos del diálogo: los estilos de campo cuelgan de `.form-grid`,
+     y aquí no hay rejilla. */
+  .buscador {
+    width: 100%;
+    margin-bottom: var(--sp-3);
+    font-family: inherit;
+    font-size: var(--font-sm);
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  /* Seis columnas no caben en el diálogo: que scrollee la tabla, no el
+     diálogo entero, que ya scrollea en vertical. */
+  .tabla-scroll {
+    overflow-x: auto;
+    max-height: 22rem;
+    overflow-y: auto;
   }
 
   .con-muestra {

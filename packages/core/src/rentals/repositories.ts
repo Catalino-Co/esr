@@ -6,7 +6,16 @@ export type CreateRentalOrderInput = Omit<RentalOrder, 'id'> & { items: RentalOr
 export type TenantCreateRentalOrderInput = Omit<CreateRentalOrderInput, 'company_id'>;
 export type RentalOrderListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
-	state?: RecordStateFilter; search?: string; status?: string; date?: string; event_id?: ESRId; limit?: number; offset?: number };
+	state?: RecordStateFilter;
+	search?: string;
+	status?: string;
+	date?: string;
+	event_id?: ESRId;
+	/** Solo las HUERFANAS. Ver la nota gemela en `QuoteListFilters`. */
+	without_event?: boolean;
+	limit?: number;
+	offset?: number;
+};
 
 export interface RentalOrderRepository {
 	findById(id: ESRId): Promise<RentalOrder | null>;
@@ -28,6 +37,15 @@ export interface TenantRentalOrderRepository {
 	findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<RentalOrder[]>;
 	create(ctx: RepositoryContext, data: TenantCreateRentalOrderInput): Promise<RentalOrder>;
 	update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateRentalOrderInput>): Promise<RentalOrder>;
+	/**
+	 * Engancha la orden al evento, si sigue huerfana y viva.
+	 *
+	 * Gemelo del de cotizaciones, y con sus mismas razones: el vinculo vive en
+	 * `work_orders.event_id`, solo engancha, y las tres guardas van dentro de la
+	 * sentencia que escribe en vez de en un `findById` previo. Ver el docblock
+	 * de `TenantQuoteRepository.linkToEvent`.
+	 */
+	linkToEvent(ctx: RepositoryContext, orderId: ESRId, eventId: ESRId): Promise<boolean>;
 	/**
 	 * Cambia el estado de circulacion. Sustituye al antiguo `deactivate()`, que
 	 * fijaba 0 a pelo y no tenia inverso: con tres estados hace falta poder

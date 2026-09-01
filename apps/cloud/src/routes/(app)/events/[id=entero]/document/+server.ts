@@ -48,7 +48,18 @@ export const POST: RequestHandler = async (event) => {
 		description: `Impresión de evento ${evento.name}`
 	});
 
-	const quote = quotes[0] ?? null;
+	/*
+	 * La CANCELADA no se imprime.
+	 *
+	 * Antes era `quotes[0]` a secas, ordenado por fecha de creacion: con seis
+	 * canceladas y una viva, el papel sacaba la cancelada mas reciente. Pasaba
+	 * desapercibido porque la pantalla enseñaba lo mismo; desde que la tarjeta
+	 * oculta las canceladas, el papel tiene que decir lo mismo que la pantalla.
+	 *
+	 * Las ordenes no se filtran: su tarjeta tampoco lo hace, y la regla es que
+	 * papel y pantalla coincidan, no filtrar por filtrar.
+	 */
+	const quote = quotes.find((q) => q.status !== 'cancelada') ?? null;
 	const order = orders[0] ?? null;
 
 	return json({

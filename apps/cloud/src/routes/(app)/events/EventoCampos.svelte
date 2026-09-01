@@ -14,8 +14,6 @@
 		valores = {},
 		customers = [],
 		eventTypes = [],
-		quotes = [],
-		orders = [],
 		/** El estado solo se edita en la ficha; al crear nace tentativo. */
 		conEstado = false,
 		fieldErrors = {}
@@ -124,38 +122,14 @@
 	<input id="ev-responsible" name="responsible_person" value={valores.responsible_person ?? ''} />
 </div>
 
-<p class="separador">Documentos</p>
-
-<div class="form-field">
-	<label for="ev-quote">Vincular cotización</label>
-	<select id="ev-quote" name="quotation_id">
-		<option value="">(Ninguna)</option>
-		{#each quotes as quote (quote.id)}
-			<option value={quote.id}>{quote.quote_number || `#${quote.id}`}</option>
-		{/each}
-	</select>
-</div>
-
-<div class="form-field">
-	<label for="ev-order">Vincular orden</label>
-	<select id="ev-order" name="work_order_id">
-		<option value="">(Ninguna)</option>
-		{#each orders as order (order.id)}
-			<option value={order.id}>{order.order_number || `WO-${String(order.id).padStart(5, '0')}`}</option>
-		{/each}
-	</select>
-</div>
-
 <!--
-	Dicho donde se elige: el desplegable solo trae documentos SIN evento. El
-	vínculo se guarda en la cotización y en la orden —`quotations.event_id`—, que
-	es el que Cloud rellena siempre; escribirlo en el evento crearía un segundo
-	vínculo que puede contradecir al primero.
+	Aquí vivía un bloque «Documentos» con dos desplegables para vincular la
+	cotización y la orden. Se fue: el vínculo no es un campo del evento —no se
+	guarda en `events`, se escribe en el documento—, y meterlo en este formulario
+	obligaba a pulsar «Guardar cambios» del evento entero para enganchar una
+	cotización. Ahora son dos botones en la barra de la ficha, cada uno con su
+	diálogo. Al crear no se ofrece: el alta redirige a la ficha, y allí está.
 -->
-<p class="form-hint pista">
-	Solo se ofrecen las que aún no pertenecen a ningún evento. Vincular no
-	desvincula lo que ya estuviera unido a este.
-</p>
 
 <div class="form-field full">
 	<label for="ev-notes">Condiciones o notas del evento</label>
@@ -174,11 +148,6 @@
 		font-weight: 600;
 		text-transform: none;
 		color: var(--text-secondary);
-	}
-
-	.pista {
-		grid-column: 1 / -1;
-		margin: 0;
 	}
 
 	.con-muestra {

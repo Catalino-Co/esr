@@ -1,5 +1,5 @@
 import type { RecordState, RentalOrderListFilters, RepositoryContext, TenantCreateRentalOrderInput, TenantRentalOrderRepository } from '@esr/core';
-import { DEFAULT_RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
+import { DEFAULT_RECORD_STATE, RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
 import type { ESRId, Quote, QuoteItem, RentalOrder, RentalOrderItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -147,7 +147,11 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		const where = ['wo.company_id = $1'];
 		if (filters.search) {
 			params.push(`%${filters.search}%`);
-			where.push(`(c.name ILIKE $${params.length} OR wo.responsible_person ILIKE $${params.length})`);
+			// `order_number` estaba fuera de la busqueda: no se podia encontrar una
+			// orden por su numero, que es justo como se la nombra en voz alta.
+			where.push(
+				`(c.name ILIKE $${params.length} OR wo.responsible_person ILIKE $${params.length} OR wo.order_number ILIKE $${params.length})`
+			);
 		}
 		// Estado de circulacion. Esta consulta ignoraba `is_active` por completo,
 		// asi que los desactivados seguian saliendo en la lista.
@@ -155,6 +159,8 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		if (filters.status) { params.push(filters.status); where.push(`wo.status = $${params.length}`); }
 		if (filters.date) { params.push(filters.date); where.push(`wo.date = $${params.length}`); }
 		if (filters.event_id) { params.push(filters.event_id); where.push(`wo.event_id = $${params.length}`); }
+		// Las HUERFANAS. Ver la nota gemela en el repositorio de cotizaciones.
+		if (filters.without_event) where.push('wo.event_id IS NULL');
 		const result = await this.pool.query<RentalOrder>(
 			`SELECT wo.* FROM work_orders wo
 			 LEFT JOIN clients c ON c.id = wo.client_id AND c.company_id = wo.company_id
@@ -172,6 +178,17 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 	 */
 	async findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<RentalOrder[]> {
 		return this.list(ctx, { event_id: eventId, limit: 100, offset: 0 });
+	}
+
+	/** Ver el docblock de la interfaz: las tres guardas van en el propio UPDATE. */
+	async linkToEvent(ctx: RepositoryContext, orderId: ESRId, eventId: ESRId): Promise<boolean> {
+		const result = await this.pool.query(
+			`UPDATE work_orders SET event_id = $3
+			 WHERE company_id = $1 AND id = $2 AND event_id IS NULL AND is_active = $4
+			 RETURNING id`,
+			[requireCompanyId(ctx), orderId, eventId, RECORD_STATE.ACTIVE]
+		);
+		return result.rowCount === 1;
 	}
 
 	/**

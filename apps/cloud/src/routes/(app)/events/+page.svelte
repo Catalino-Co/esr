@@ -213,8 +213,6 @@
 				valores={borrador}
 				customers={data.customers}
 				eventTypes={data.eventTypes}
-				quotes={data.quotes}
-				orders={data.orders}
 				conEstado={false}
 			/>
 		</form>

@@ -4,15 +4,13 @@ import type { Actions, PageServerLoad } from './$types';
 import {
 	getCustomerRepository,
 	getEventRepository,
-	getEventTypeRepository,
-	getQuoteRepository,
-	getRentalRepository
+	getEventTypeRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudEventInput } from '$lib/server/validators';
-import { leerEvento, vincularDocumentos } from './evento-form';
+import { leerEvento } from './evento-form';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'events.view');
@@ -31,13 +29,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const customerMap = new Map(customers.map((customer) => [customer.id, customer.name]));
 
-	// Las cotizaciones y ordenes SIN evento, mas nada. Son las unicas que el
-	// dialogo puede enganchar sin robarselas a otro evento.
-	const [quotesLibres, ordersLibres] = await Promise.all([
-		getQuoteRepository().list(ctx, { limit: 200, offset: 0 }),
-		getRentalRepository().list(ctx, { limit: 200, offset: 0 })
-	]);
-
+	// Aqui se traian 400 filas —200 cotizaciones y 200 ordenes— para alimentar
+	// los dos desplegables del dialogo de alta. Se fueron con ellos: vincular
+	// pasa a hacerse desde la ficha, a la que el alta redirige.
 	return {
 		events: events.map((event) => ({
 			...event,
@@ -45,8 +39,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		})),
 		customers,
 		eventTypes,
-		quotes: quotesLibres.filter((q) => !q.event_id),
-		orders: ordersLibres.filter((o) => !o.event_id),
 		search: search ?? '',
 		status: status ?? ''
 	};
@@ -96,11 +88,6 @@ export const actions: Actions = {
 			status: values.status,
 			is_active: 1
 		});
-
-		// El vinculo se escribe en la COTIZACION y en la ORDEN, no en el evento:
-		// `quotations.event_id` es el que Cloud rellena siempre y el que leen las
-		// tarjetas de resumen. Ver `evento-form.ts`.
-		await vincularDocumentos(ctx, created.id!, values);
 
 		await recordAuditLog(event, {
 			action: 'event.created',
