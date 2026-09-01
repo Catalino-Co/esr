@@ -1,12 +1,14 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { PERIODOS, PERIODO_LABELS } from '@esr/core';
 
 	let { data, form } = $props();
 
 	const values = $derived(
 		form?.values ?? {
 			default_tax_rate: String(data.defaults.default_tax_rate),
-			default_valuation_rule: data.defaults.default_valuation_rule
+			default_valuation_rule: data.defaults.default_valuation_rule,
+			default_order_range: data.defaults.default_order_range
 		}
 	);
 </script>
@@ -60,6 +62,20 @@
 			<span class="field-hint">
 				Con qué costo se valora lo que hay en el almacén. El costo sale de las entradas
 				registradas; las que se hicieron sin costo no cuentan.
+			</span>
+		</div>
+		<div class="form-field">
+			<label for="default_order_range">Órdenes que se cargan</label>
+			<select id="default_order_range" name="default_order_range">
+				{#each PERIODOS as periodo (periodo)}
+					<option value={periodo} selected={values.default_order_range === periodo}>
+						{PERIODO_LABELS[periodo]} en curso
+					</option>
+				{/each}
+			</select>
+			<span class="field-hint">
+				La ventana de fechas con la que abre el listado de órdenes. Se puede cambiar en la
+				propia pantalla, y para ver más de un año se teclean las fechas a mano.
 			</span>
 		</div>
 		<div class="form-actions">

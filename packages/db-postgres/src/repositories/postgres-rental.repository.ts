@@ -148,22 +148,54 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		if (filters.search) {
 			params.push(`%${filters.search}%`);
 			// `order_number` estaba fuera de la busqueda: no se podia encontrar una
-			// orden por su numero, que es justo como se la nombra en voz alta.
+			// orden por su numero, que es justo como se la nombra en voz alta. Y
+			// tampoco el EVENTO, teniendo la columna en la tabla del listado.
 			where.push(
-				`(c.name ILIKE $${params.length} OR wo.responsible_person ILIKE $${params.length} OR wo.order_number ILIKE $${params.length})`
+				`(c.name ILIKE $${params.length} OR wo.responsible_person ILIKE $${params.length} OR wo.order_number ILIKE $${params.length} OR e.name ILIKE $${params.length})`
 			);
 		}
 		// Estado de circulacion. Esta consulta ignoraba `is_active` por completo,
 		// asi que los desactivados seguian saliendo en la lista.
 		appendStateFilter(params, where, filters.state, 'wo.');
 		if (filters.status) { params.push(filters.status); where.push(`wo.status = $${params.length}`); }
-		if (filters.date) { params.push(filters.date); where.push(`wo.date = $${params.length}`); }
+		/*
+		 * Aqui vivia `filters.date`, una IGUALDAD exacta sobre la fecha que no
+		 * usaba ningun llamador —comprobado en los seis— desde que se escribio.
+		 * Se va con la ventana: dejar los dos juntos era una trampa cargada, el
+		 * primero que quisiera «las de un dia» pasaria `date` y funcionaria, y el
+		 * segundo lo pasaria creyendo que era el inicio de un rango.
+		 */
+		/*
+		 * La ventana de fechas.
+		 *
+		 * Comparacion de TEXTO y no `::date`: `work_orders.date` es TEXT en
+		 * `YYYY-MM-DD` con ceros, donde el orden lexicografico y el cronologico
+		 * coinciden. Es lo que ya hace el dashboard sobre esta misma columna.
+		 *
+		 * `date IS NULL` NUNCA se descarta, y es la decision con consecuencias:
+		 * excluirla haria que una orden a la que se le olvido la fecha se
+		 * volviera invisible sin que nada lo dijera. Es ademas lo que
+		 * `/reports/orders` ya hacia en memoria (`!order.date || ...`), asi que
+		 * el papel y la pantalla siguen diciendo lo mismo.
+		 */
+		if (filters.date_from) {
+			params.push(filters.date_from);
+			where.push(`(wo.date IS NULL OR wo.date >= $${params.length})`);
+		}
+		if (filters.date_to) {
+			params.push(filters.date_to);
+			where.push(`(wo.date IS NULL OR wo.date <= $${params.length})`);
+		}
 		if (filters.event_id) { params.push(filters.event_id); where.push(`wo.event_id = $${params.length}`); }
 		// Las HUERFANAS. Ver la nota gemela en el repositorio de cotizaciones.
 		if (filters.without_event) where.push('wo.event_id IS NULL');
 		const result = await this.pool.query<RentalOrder>(
+			// El JOIN de eventos es SOLO para poder buscar por su nombre: no se
+			// proyecta `e.name`, que cambiaria la forma de la fila para los seis
+			// llamadores de `list()` y para el tipo `RentalOrder`.
 			`SELECT wo.* FROM work_orders wo
 			 LEFT JOIN clients c ON c.id = wo.client_id AND c.company_id = wo.company_id
+			 LEFT JOIN events e ON e.id = wo.event_id AND e.company_id = wo.company_id
 			 WHERE ${where.join(' AND ')} ORDER BY wo.date DESC, wo.id DESC${appendPagination(params, filters)}`, params
 		);
 		return result.rows;
@@ -178,6 +210,31 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 	 */
 	async findByEventId(ctx: RepositoryContext, eventId: ESRId): Promise<RentalOrder[]> {
 		return this.list(ctx, { event_id: eventId, limit: 100, offset: 0 });
+	}
+
+	/** Ver el docblock de la interfaz: sin filtro de estado ni de circulacion. */
+	async searchByNumber(
+		ctx: RepositoryContext,
+		termino: string,
+		limite = 10
+	): Promise<RentalOrder[]> {
+		const result = await this.pool.query<RentalOrder>(
+			`SELECT wo.* FROM work_orders wo
+			 WHERE wo.company_id = $1
+			   AND (wo.order_number ILIKE '%' || $2 || '%' OR wo.id::text = $2)
+			 ORDER BY
+			   -- Relevancia, y no es un adorno: tecleando «12» sin esto la ORD-000012
+			   -- queda enterrada bajo la ORD-000120. Exacta, luego la que EMPIEZA
+			   -- por lo tecleado, y luego el resto por fecha.
+			   (lower(wo.order_number) = lower($2)) DESC,
+			   (wo.order_number ILIKE $2 || '%') DESC,
+			   wo.date DESC NULLS LAST, wo.id DESC
+			 LIMIT $3`,
+			// `wo.id::text = $2` cubre las ordenes sin `order_number`: un ILIKE
+			// contra NULL nunca casa, y esas quedarian invisibles para siempre.
+			[requireCompanyId(ctx), termino, Math.min(50, Math.max(1, limite))]
+		);
+		return result.rows;
 	}
 
 	/** Ver el docblock de la interfaz: las tres guardas van en el propio UPDATE. */

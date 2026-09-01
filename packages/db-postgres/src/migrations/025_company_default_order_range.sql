@@ -1,0 +1,13 @@
+-- ── Rango por defecto del listado de ordenes ─────────────────────────────────
+--
+-- `mes` | `trimestre` | `anio`, siempre el que contiene el dia de hoy. Es lo que
+-- el listado de ordenes carga cuando la URL no trae fechas.
+--
+-- Ajuste de empresa, junto a `default_tax_rate` y `default_valuation_rule`. Con
+-- `mes` por defecto, una empresa que no lo configure ve la ventana mas estrecha,
+-- que es la que hace util el listado: lo de esta semana deja de estar enterrado
+-- bajo lo del año pasado.
+--
+-- No hay opcion «todo» a proposito: para ver mas de un año se teclean las dos
+-- fechas a mano, o se deja una de las dos vacia y ese lado queda abierto.
+ALTER TABLE company_info ADD COLUMN IF NOT EXISTS default_order_range TEXT DEFAULT 'mes';

@@ -39,9 +39,15 @@ class SqliteCompanySettingsRepository {
     // Solo dos reglas. Cualquier otra cosa cae en `ultimo`, que es la que ve una
     // instalacion que nunca abrio esta pantalla.
     const regla = data.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
+    // La ventana del listado de ordenes. Misma lista blanca: cualquier otra cosa
+    // cae en `mes`, que es la mas estrecha y la que hace util el listado.
+    const VENTANAS = ['mes', 'trimestre', 'anio'];
+    const ventana = VENTANAS.includes(data.default_order_range) ? data.default_order_range : 'mes';
     await runQuery(
-      'UPDATE company_info SET default_tax_rate = ?, default_valuation_rule = ? WHERE id = 1',
-      [tasa, regla]
+      `UPDATE company_info
+       SET default_tax_rate = ?, default_valuation_rule = ?, default_order_range = ?
+       WHERE id = 1`,
+      [tasa, regla, ventana]
     );
     return await this.get();
   }

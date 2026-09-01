@@ -12,6 +12,7 @@ const itemInventory = require('./versioned/0010_item_inventory.cjs');
 const dropLegacyItemColumns = require('./versioned/0011_drop_legacy_item_columns.cjs');
 const quoteNumber = require('./versioned/0012_quote_number.cjs');
 const roleAlignment = require('./versioned/0013_role_alignment.cjs');
+const companyDefaultOrderRange = require('./versioned/0014_company_default_order_range.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -26,7 +27,8 @@ const MIGRATIONS = [
   itemInventory,
   dropLegacyItemColumns,
   quoteNumber,
-  roleAlignment
+  roleAlignment,
+  companyDefaultOrderRange
 ];
 
 /**

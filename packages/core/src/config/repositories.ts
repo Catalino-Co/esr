@@ -28,4 +28,6 @@ export type TenantCompanyDefaultsInput = {
 	default_tax_rate: number;
 	/** `ultimo` | `promedio3`. Ver `CompanySettings.default_valuation_rule`. */
 	default_valuation_rule?: string;
+	/** `mes` | `trimestre` | `anio`. Ver `CompanySettings.default_order_range`. */
+	default_order_range?: string;
 };

@@ -1271,6 +1271,17 @@
 		cursor: not-allowed;
 	}
 
+	/* Un boton del grupo con ETIQUETA en vez de icono: el rango rapido —Mes,
+	   Trimestre, Año— no tiene glifo que se entienda solo. Pierde el ancho fijo
+	   de 2.25rem y lo sustituye por relleno; la altura se conserva para que el
+	   grupo no descuadre al lado de los de icono. */
+	.grupo-btn--texto {
+		width: auto;
+		padding: 0 var(--sp-3);
+		font-family: inherit;
+		font-size: var(--font-sm);
+	}
+
 	/* El anillo por encima de los vecinos, o el borde del de al lado lo corta. */
 	.grupo-btn:focus-visible {
 		outline: none;
@@ -1413,6 +1424,49 @@
 	.filters-control--date input:focus {
 		border-color: var(--border-focus);
 		box-shadow: var(--focus-ring);
+	}
+
+	/* Boton de la barra de filtros, cuadrado y a la altura de los campos: el de
+	   buscar en el rango y el de limpiar el buscador. No es `.btn-secondary`,
+	   que trae su propio relleno horizontal y descuadraria la fila. */
+	.filters-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		width: 2.25rem;
+		height: 2.25rem;
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: background var(--transition-fast), color var(--transition-fast);
+	}
+
+	.filters-btn:hover:not(:disabled) {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.filters-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.filters-btn:focus-visible {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	/* El de limpiar: mas pequeño y sin borde, porque acompaña al buscador en vez
+	   de ser una accion por su cuenta. */
+	.filters-btn--sm {
+		width: 1.75rem;
+		height: 1.75rem;
+		border-color: transparent;
+		background: none;
 	}
 
 	/* Visible solo para quien navega sin JavaScript o con teclado. */

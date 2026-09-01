@@ -43,6 +43,13 @@
     check: ['M20 6 9 17l-5-5'],
     // Descartar. La equis, para lo que cancela o cierra.
     x: ['M18 6 6 18', 'M6 6l12 12'],
+    // Buscar. La lupa de Lucide: un circulo y el mango.
+    //
+    // OJO: las dos barras de filtros —Cloud y Desktop— llevan su PROPIA lupa en
+    // SVG inline. No se sustituyeron por esta: alli va posicionada en absoluto a
+    // 15px dentro del input y con otro viewBox, y cambiarla es riesgo cosmetico
+    // a cambio de nada. Esta es para los botones.
+    search: ['M11 11m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0', 'm21 21-4.35-4.35'],
     // Recargar: las dos flechas en circulo. Se dibuja con arcos y no con un
     // circulo entero porque hacen falta los huecos donde van las puntas.
     refresh: [

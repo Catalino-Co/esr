@@ -16,9 +16,20 @@ export const load: PageServerLoad = async (event) => {
 	const dateFrom = event.url.searchParams.get('dateFrom')?.trim() || undefined;
 	const dateTo = event.url.searchParams.get('dateTo')?.trim() || undefined;
 
-	let orders = await getRentalRepository().list(ctx, { search, status, limit: 500, offset: 0 });
-	if (dateFrom) orders = orders.filter((order) => !order.date || order.date >= dateFrom);
-	if (dateTo) orders = orders.filter((order) => !order.date || order.date <= dateTo);
+	// El rango va al REPOSITORIO, no a un `filter` en memoria sobre lo ya
+	// traido. Aquel se aplicaba DESPUES del limite, asi que acotar las fechas
+	// no traia mas filas: solo escondia parte de las que cabian. Y el listado
+	// de ordenes usa ahora ese mismo filtro, que es lo que garantiza que el
+	// reporte y la pantalla contesten lo mismo —las ordenes SIN fecha salen en
+	// los dos, igual que salian aqui.
+	const orders = await getRentalRepository().list(ctx, {
+		search,
+		status,
+		date_from: dateFrom,
+		date_to: dateTo,
+		limit: 500,
+		offset: 0
+	});
 
 	const [customers, events] = await Promise.all([
 		getCustomerRepository().list(ctx, { limit: 500, offset: 0 }),

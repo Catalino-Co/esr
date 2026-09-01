@@ -9,7 +9,13 @@ export type RentalOrderListFilters = {
 	state?: RecordStateFilter;
 	search?: string;
 	status?: string;
-	date?: string;
+	/**
+	 * Ventana de fechas sobre `date`, la de OPERACION. Ambos extremos
+	 * inclusive, `YYYY-MM-DD`, y cada uno opcional: dejar uno vacio deja ese
+	 * lado abierto, que es como se piden mas de un año sin inventar centinelas.
+	 */
+	date_from?: string;
+	date_to?: string;
 	event_id?: ESRId;
 	/** Solo las HUERFANAS. Ver la nota gemela en `QuoteListFilters`. */
 	without_event?: boolean;
@@ -46,6 +52,14 @@ export interface TenantRentalOrderRepository {
 	 * de `TenantQuoteRepository.linkToEvent`.
 	 */
 	linkToEvent(ctx: RepositoryContext, orderId: ESRId, eventId: ESRId): Promise<boolean>;
+	/**
+	 * Ordenes cuyo NUMERO contiene `termino`. Para el buscador por numero.
+	 *
+	 * Sin filtro de estado ni de circulacion, a proposito: si se busca por
+	 * numero es porque se sabe cual es, y una orden cancelada o archivada tiene
+	 * que aparecer igual. Es lo contrario que `list()`, que ofrece lo vivo.
+	 */
+	searchByNumber(ctx: RepositoryContext, termino: string, limite?: number): Promise<RentalOrder[]>;
 	/**
 	 * Cambia el estado de circulacion. Sustituye al antiguo `deactivate()`, que
 	 * fijaba 0 a pelo y no tenia inverso: con tres estados hace falta poder

@@ -24,6 +24,8 @@ export type CompanySettings = {
 	 * del inventario; no toca precios ni documentos.
 	 */
 	default_valuation_rule?: string;
+	/** `mes` | `trimestre` | `anio`: la ventana que carga el listado de ordenes. */
+	default_order_range?: string;
 };
 
 export function validateCompanySettingsInput(company: Pick<CompanySettings, 'name'>): ValidationResult {
