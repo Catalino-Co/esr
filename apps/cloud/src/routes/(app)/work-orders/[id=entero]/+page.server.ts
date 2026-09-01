@@ -1,8 +1,6 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
-	getChecklistRepository,
-	getConduceRepository,
 	getCustomerRepository,
 	getEventRepository,
 	getIncidentRepository,
@@ -23,18 +21,27 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const order = await getRentalRepository().findById(ctx, params.id);
 	if (!order) error(404, 'Orden no encontrada');
 
-	const [items, customer, event, quote, conduces, incidents, stockMovements, outboundChecklist, returnChecklist] =
-		await Promise.all([
-			getRentalRepository().listItems(ctx, params.id),
-			getCustomerRepository().findById(ctx, order.client_id),
-			order.event_id ? getEventRepository().findById(ctx, order.event_id) : Promise.resolve(null),
-			order.quotation_id ? getQuoteRepository().findById(ctx, order.quotation_id) : Promise.resolve(null),
-			getConduceRepository().findByWorkOrderId(ctx, params.id),
-			getIncidentRepository().findByWorkOrderId(ctx, params.id),
-			getStockMovementRepository().listByWorkOrder(ctx, params.id),
-			getChecklistRepository().findByWorkOrder(ctx, params.id, 'salida'),
-			getChecklistRepository().findByWorkOrder(ctx, params.id, 'retorno')
-		]);
+	/*
+	 * De aqui se fueron TRES consultas que nadie usaba:
+	 *
+	 *  - las dos de `getChecklistRepository`, cuyo resultado la plantilla no
+	 *    mencionaba ni una vez;
+	 *  - y el bloque `conducesWithItems`, que ademas hacia un N+1 —una consulta
+	 *    de lineas por conduce— para pintar una tabla que solo leia la cabecera.
+	 *
+	 * La tabla de conduces se retira de la ficha. La ENTIDAD no se toca: es el
+	 * pivote de la facturacion —no hay forma de emitir una factura sin al menos
+	 * una entrega—, de `payments`, de `conduce_item_serials` y de la referencia
+	 * de cada movimiento de stock. Se llega a ella desde Facturas.
+	 */
+	const [items, customer, event, quote, incidents, stockMovements] = await Promise.all([
+		getRentalRepository().listItems(ctx, params.id),
+		getCustomerRepository().findById(ctx, order.client_id),
+		order.event_id ? getEventRepository().findById(ctx, order.event_id) : Promise.resolve(null),
+		order.quotation_id ? getQuoteRepository().findById(ctx, order.quotation_id) : Promise.resolve(null),
+		getIncidentRepository().findByWorkOrderId(ctx, params.id),
+		getStockMovementRepository().listByWorkOrder(ctx, params.id)
+	]);
 
 	// Facturacion de la orden: lo ya facturado y lo que queda por facturar. La
 	// segunda consulta es la que decide si el boton «Facturar» tiene sentido.
@@ -43,26 +50,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		getInvoiceRepository().listBillableConduces(ctx, params.id)
 	]);
 
-	const conducesWithItems = await Promise.all(
-		conduces.map(async (conduce) => ({
-			conduce,
-			items: conduce.id ? await getConduceRepository().listItems(ctx, conduce.id) : []
-		}))
-	);
-
-	return {
-		order,
-		items,
-		customer,
-		event,
-		quote,
-		conduces: conducesWithItems,
-		invoices,
-		billable,
-		incidents,
-		stockMovements,
-		checklists: { outbound: outboundChecklist, return: returnChecklist }
-	};
+	return { order, items, customer, event, quote, invoices, billable, incidents, stockMovements };
 };
 
 export const actions: Actions = {
