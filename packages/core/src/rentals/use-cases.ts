@@ -19,10 +19,19 @@ export function planRentalOrderStatusForSave(input: {
 	};
 }
 
-export function mergeRentalOrderItem(
-	items: RentalOrderItem[],
-	item: Pick<RentalOrderItem, 'item_id' | 'name' | 'internal_code'> & { quantity: number }
-): RentalOrderItem[] {
+/**
+ * Añade una linea, o SUMA su cantidad si el articulo ya estaba.
+ *
+ * Es generico a proposito: cada editor lleva en su linea lo que su app
+ * necesita —ESR Pro los seriales elegidos, Cloud el precio de la linea— y el
+ * tipo concreto tiene que sobrevivir al paso por aqui. Antes fijaba el tipo de
+ * entrada a tres campos y la salida a `RentalOrderItem`, asi que cualquier
+ * campo extra se perdia por el camino a ojos del compilador.
+ */
+export function mergeRentalOrderItem<T extends Pick<RentalOrderItem, 'item_id' | 'quantity'>>(
+	items: T[],
+	item: T
+): T[] {
 	const existing = items.find((line) => line.item_id === item.item_id);
 	if (existing) {
 		return items.map((line) =>
