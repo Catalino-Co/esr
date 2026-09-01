@@ -11,7 +11,7 @@ import { ICONS } from '@esr/ui/icons';
 export const navItems = [
 	{ path: '/', label: 'Dashboard', icon: ICONS.dashboard, subtitle: 'Resumen de la operación', permission: 'reports.view' },
 	{ path: '/quotations', label: 'Cotizaciones', icon: ICONS.quotes, subtitle: 'Propuestas comerciales', permission: 'quotes.view' },
-	{ path: '/work_orders', label: 'Órdenes de Trabajo', icon: ICONS.workOrders, subtitle: 'Operación y entregas', permission: 'work_orders.view' },
+	{ path: '/work_orders', label: 'Órdenes', icon: ICONS.workOrders, subtitle: 'Operación y entregas', permission: 'work_orders.view' },
 	// Orden documental: cotizacion -> orden -> conduce -> factura. El conduce no
 	// esta en el menu (ver `hiddenTitles`).
 	{ path: '/invoices', label: 'Facturas', icon: ICONS.invoices, subtitle: 'Documentos de cobro y estado de cuenta', permission: 'invoices.view' },
