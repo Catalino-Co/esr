@@ -26,50 +26,8 @@ export const QUOTE_STATUSES = ['borrador', 'aprobada', 'cancelada', 'convertida'
 
 export type QuoteStatusValue = (typeof QUOTE_STATUSES)[number];
 
-/** Con lo que entra el listado si nadie pide otra cosa. */
-export const DEFAULT_QUOTE_STATUS: QuoteStatusValue = 'borrador';
-
-/**
- * El centinela de «todas», y no la cadena vacia.
- *
- * No es un capricho. `FilterBar` de Cloud e `irCon` BORRAN el parametro cuando
- * el valor es `''`, y con un valor por defecto que no es vacio eso es una
- * trampa cerrada: elegir «cualquier estado» quitaria `status` de la URL, el
- * `load` volveria a poner `borrador` y no habria forma de ver todas.
- *
- * Es el primer filtro que necesita distinguir «vacio» de «sin especificar»: los
- * nueve que hoy tienen un valor por defecto —el eje de circulacion— lo esquivan
- * eliminando la vista «todos», que aqui no vale.
- */
-export const QUOTE_STATUS_ALL = 'todos';
-
 export function isQuoteStatus(value: unknown): value is QuoteStatusValue {
 	return QUOTE_STATUSES.includes(String(value) as QuoteStatusValue);
-}
-
-/**
- * Lo que el filtro le pasa al repositorio.
- *
- * `undefined` significa «sin filtro», que es lo que los dos repositorios ya
- * entienden: aplican `status` con un `if`, asi que ausente es «todas».
- *
- * Ausente o basura caen en el por defecto, igual que hace `parseRecordState`:
- * un `?status=loquesea` no debe vaciar la lista.
- */
-export function parseQuoteStatus(value: string | null | undefined): QuoteStatusValue | undefined {
-	const clave = (value ?? '').trim().toLowerCase();
-	if (clave === QUOTE_STATUS_ALL) return undefined;
-	return isQuoteStatus(clave) ? clave : DEFAULT_QUOTE_STATUS;
-}
-
-/**
- * Lo contrario de `parseQuoteStatus`: el valor que tiene que marcar el select.
- *
- * Hace falta porque «sin filtro» viaja como `undefined` hacia el repositorio
- * pero el control necesita el centinela para poder seguir seleccionado.
- */
-export function quoteStatusParam(value: QuoteStatusValue | undefined): string {
-	return value ?? QUOTE_STATUS_ALL;
 }
 
 /** Opciones del selector, con el punto de color que pide `StatusSelect`. */
@@ -85,11 +43,15 @@ export function quoteStatusOptions(): Array<{ value: string; label: string; tone
 }
 
 /**
- * Las mismas opciones con «cualquier estado» delante, que es como las quiere un
- * filtro. El centinela va en el `value`.
+ * Las mismas opciones con «cualquier estado» delante, con `''` como valor.
+ *
+ * `''` y no un centinela aparte: el listado no impone un estado por defecto
+ * —entra por «cualquier estado»—, asi que no hay ningun default no vacio del
+ * que distinguir el vacio. Es el mismo trato que ya tienen los nueve filtros
+ * de estado de circulacion y el select de Ordenes.
  */
 export function quoteStatusFilterOptions(): Array<{ value: string; label: string; tone?: string }> {
-	return [{ value: QUOTE_STATUS_ALL, label: 'Cualquier estado' }, ...quoteStatusOptions()];
+	return [{ value: '', label: 'Cualquier estado' }, ...quoteStatusOptions()];
 }
 
 function tonoDePunto(estado: QuoteStatusValue): string {

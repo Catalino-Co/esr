@@ -8,7 +8,8 @@
 		form?.values ?? {
 			default_tax_rate: String(data.defaults.default_tax_rate),
 			default_valuation_rule: data.defaults.default_valuation_rule,
-			default_order_range: data.defaults.default_order_range
+			default_order_range: data.defaults.default_order_range,
+			default_quote_range: data.defaults.default_quote_range
 		}
 	);
 </script>
@@ -76,6 +77,20 @@
 			<span class="field-hint">
 				La ventana de fechas con la que abre el listado de órdenes. Se puede cambiar en la
 				propia pantalla, y para ver más de un año se teclean las fechas a mano.
+			</span>
+		</div>
+		<div class="form-field">
+			<label for="default_quote_range">Cotizaciones que se cargan</label>
+			<select id="default_quote_range" name="default_quote_range">
+				{#each PERIODOS as periodo (periodo)}
+					<option value={periodo} selected={values.default_quote_range === periodo}>
+						{PERIODO_LABELS[periodo]} en curso
+					</option>
+				{/each}
+			</select>
+			<span class="field-hint">
+				La ventana de fechas con la que abre el listado de cotizaciones. Ajuste aparte del de
+				órdenes: una empresa puede querer una ventana distinta para cada una.
 			</span>
 		</div>
 		<div class="form-actions">

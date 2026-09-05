@@ -3,19 +3,27 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon } from '@esr/ui';
-	import { quoteStatusFilterOptions, statusBadgeClass, statusLabel } from '@esr/core';
-	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import {
+		PERIODOS,
+		PERIODO_LABELS,
+		formatDateAbsolute,
+		quoteStatusFilterOptions,
+		rangoDelPeriodo,
+		statusBadgeClass,
+		statusLabel
+	} from '@esr/core';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import BuscarCotizacion from './BuscarCotizacion.svelte';
 	import { can } from '$lib/can';
 
 	let { data, form } = $props();
 
 	/* La lista sale de `@esr/core` y ya no se escribe aquí: escrita a mano en
 	   cada pantalla, Cloud y ESR Pro habían acabado ofreciendo conjuntos
-	   distintos. `QUOTE_STATUS_ALL` es el centinela de «todas», que no puede ser
-	   la cadena vacía porque `irCon` la borraría de la URL y el `load` volvería
-	   a poner el valor por defecto. */
+	   distintos. «Cualquier estado» es también el valor por defecto de esta
+	   pantalla, así que va con `''` como las demás: no hace falta un centinela
+	   aparte. */
 	const ESTADOS = quoteStatusFilterOptions();
 
 	/**
@@ -128,6 +136,31 @@
 		}
 	}
 
+	/** @param {string} periodo */
+	function aplicarPeriodo(periodo) {
+		const rango = rangoDelPeriodo(/** @type {any} */ (periodo));
+		irCon({ dateFrom: rango.desde, dateTo: rango.hasta });
+	}
+
+	/* Al teclear se espera; los demas cambios son decisiones cerradas y van
+	   directas. Mismo trato que en Ordenes. */
+	let temporizadorBusqueda = /** @type {any} */ (null);
+	function alBuscar(/** @type {Event & { currentTarget: HTMLInputElement }} */ evento) {
+		const valor = evento.currentTarget.value;
+		clearTimeout(temporizadorBusqueda);
+		temporizadorBusqueda = setTimeout(() => {
+			const url = new URL(page.url);
+			if (valor) url.searchParams.set('search', valor);
+			else url.searchParams.delete('search');
+			goto(url, { keepFocus: true, replaceState: true, noScroll: true, invalidateAll: true });
+		}, 300);
+	}
+
+	/* El diálogo de buscar por número NO va en la URL: es una ayuda de
+	   navegación de paso, y `?buscar=1` se colaría en cada enlace compartido
+	   junto al rango de fechas. */
+	let buscandoPorNumero = $state(false);
+
 	/* ── Selección múltiple ────────────────────────────────────────────────
 	 *
 	 * Apagada por defecto: la lista se lee mucho más de lo que se opera en
@@ -221,6 +254,17 @@
 		>
 			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
 		</button>
+		<!-- Navegación, no filtrado: por eso va en este grupo y no entre los
+		     controles de la fecha. -->
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={() => (buscandoPorNumero = true)}
+			aria-label="Buscar una cotización por su número"
+			title="Buscar una cotización por su número"
+		>
+			<Icon name="search" size={18} />
+		</button>
 		<!--
 			Un glifo NO es un nombre accesible: el nombre va en `aria-label` y el
 			`title` lo enseña al apuntar. `aria-pressed` es lo que dice que esto
@@ -240,6 +284,21 @@
 	</div>
 
 	<div class="herramientas-datos">
+		<!-- Rango rápido: rellena las dos fechas Y aplica. Calcado de Ordenes. -->
+		<div class="grupo" role="group" aria-label="Rango rápido">
+			{#each PERIODOS as periodo (periodo)}
+				<button
+					type="button"
+					class="grupo-btn grupo-btn--texto"
+					class:encendido={data.rangoActivo === periodo}
+					aria-pressed={data.rangoActivo === periodo}
+					onclick={() => aplicarPeriodo(periodo)}
+				>
+					{PERIODO_LABELS[periodo]}
+				</button>
+			{/each}
+		</div>
+
 		<StatusSelect
 			name="status"
 			value={data.status}
@@ -257,12 +316,72 @@
 </div>
 
 <section class="panel">
-	<!-- Solo el buscador: sin selects al lado, su `flex: 1 1 auto` le da la fila
-	     entera. Se queda dentro de `FilterBar` para conservar el retardo al
-	     teclear y el filtrado sin JavaScript. -->
-	<FilterBar
-		search={{ name: 'search', placeholder: 'Número, cliente o evento', value: data.search }}
-	/>
+	<!-- Fila propia y no `FilterBar`: aqui el orden es fechas -> boton Buscar ->
+	     buscador, con aplicacion explicita en vez de en vivo. Las clases son las
+	     compartidas de theme.css, calcadas de Ordenes. -->
+	<form class="filters" method="GET" data-sveltekit-keepfocus data-sveltekit-replacestate>
+		<!-- El estado vive FUERA de este form, en la barra de arriba. Un envio GET
+		     serializa solo lo de dentro, asi que sin este campo oculto pulsar
+		     «Buscar» BORRARIA el estado de la URL. -->
+		<input type="hidden" name="status" value={data.status} />
+
+		<div class="filters-control filters-control--date">
+			<input type="date" name="dateFrom" value={data.dateFrom} aria-label="Desde" title="Desde" />
+		</div>
+		<div class="filters-control filters-control--date">
+			<input type="date" name="dateTo" value={data.dateTo} aria-label="Hasta" title="Hasta" />
+		</div>
+
+		<button type="submit" class="filters-btn" aria-label="Buscar en el rango" title="Buscar en el rango">
+			<Icon name="search" size={16} />
+		</button>
+
+		<div class="filters-search">
+			<span class="filters-search-icon" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="15" height="15">
+					<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+					<path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+				</svg>
+			</span>
+			<input
+				type="search"
+				name="search"
+				value={data.search}
+				placeholder="Número, cliente o evento"
+				aria-label="Buscar en la tabla"
+				oninput={alBuscar}
+			/>
+		</div>
+
+		<button
+			type="button"
+			class="filters-btn filters-btn--sm"
+			disabled={!data.search}
+			onclick={() => irCon({ search: null })}
+			aria-label="Limpiar la búsqueda"
+			title="Limpiar la búsqueda"
+		>
+			<Icon name="x" size={14} />
+		</button>
+	</form>
+
+	<!-- El rango se dice SIEMPRE, no solo cuando la tabla esta vacia. -->
+	<p class="rango">
+		{#if data.invertido}
+			<span class="aviso">La fecha «Hasta» es anterior a la de «Desde».</span>
+		{:else if data.dateFrom && data.dateTo}
+			Cotizaciones del {formatDateAbsolute(data.dateFrom)} al {formatDateAbsolute(data.dateTo)}
+		{:else if data.dateFrom}
+			Cotizaciones desde el {formatDateAbsolute(data.dateFrom)}
+		{:else if data.dateTo}
+			Cotizaciones hasta el {formatDateAbsolute(data.dateTo)}
+		{:else}
+			Todas las cotizaciones
+		{/if}
+		· {data.quotes.length}
+		{data.quotes.length === 1 ? 'resultado' : 'resultados'}
+		{#if data.hayMas}<span class="aviso">— hay más de 100: acote las fechas.</span>{/if}
+	</p>
 
 	<!-- Callado mientras el diálogo está abierto: su error se pinta DENTRO, y
 	     detrás no debe quedar el mismo texto repetido. -->
@@ -293,7 +412,7 @@
 	{/if}
 
 	{#if data.quotes.length === 0}
-		<p class="empty-state">No hay cotizaciones.</p>
+		<p class="empty-state">Ninguna cotización en este rango de fechas.</p>
 	{:else}
 		<!-- El <form> envuelve la tabla para que las casillas se serialicen solas:
 		     un `name="ids"` repetido llega al servidor como `getAll('ids')`, sin
@@ -355,6 +474,7 @@
 						<th>Número</th>
 						<th>Cliente</th>
 						<th>Evento</th>
+						<th>Fecha</th>
 						<th>Estado</th>
 						<th>Total</th>
 						<th></th>
@@ -378,6 +498,7 @@
 							<td>{quote.quote_number || `#${quote.id}`}</td>
 							<td>{quote.client_name}</td>
 							<td>{quote.event_name}</td>
+							<td>{formatDateAbsolute(quote.date)}</td>
 							<!-- Badge, no el enum crudo. Esta era la única lista de Cloud que
 							     pintaba `{quote.status}` tal cual, teniendo los dos ayudantes
 							     de `@esr/core` a mano en la ficha hermana. -->
@@ -405,6 +526,10 @@
 	discrepando. Montándolo así, cada apertura nace limpia y el cierre pasa
 	siempre por `onclose`, que cubre las tres vías (✕, backdrop y Escape).
 -->
+{#if buscandoPorNumero}
+	<BuscarCotizacion onclose={() => (buscandoPorNumero = false)} />
+{/if}
+
 {#if abierto}
 <Modal open title="Nueva cotización" onclose={cerrarAlta}>
 	{#if errorCrear}
@@ -483,6 +608,16 @@
 
 	.check {
 		width: 2.5rem;
+	}
+
+	.rango {
+		margin: 0 0 var(--sp-3);
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.aviso {
+		color: var(--danger-text);
 	}
 
 	/* ── La barra de selección ──────────────────────────────────────────── */

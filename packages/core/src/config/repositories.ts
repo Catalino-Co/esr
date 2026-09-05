@@ -30,4 +30,6 @@ export type TenantCompanyDefaultsInput = {
 	default_valuation_rule?: string;
 	/** `mes` | `trimestre` | `anio`. Ver `CompanySettings.default_order_range`. */
 	default_order_range?: string;
+	/** `mes` | `trimestre` | `anio`. Ver `CompanySettings.default_quote_range`. */
+	default_quote_range?: string;
 };

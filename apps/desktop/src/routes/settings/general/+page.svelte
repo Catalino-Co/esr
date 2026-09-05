@@ -25,6 +25,8 @@
   let regla = 'ultimo';
   /** `mes` | `trimestre` | `anio`. La ventana con la que abre el listado de órdenes. */
   let ventana = 'mes';
+  /** Ajuste APARTE del anterior, para el listado de cotizaciones. */
+  let ventanaCotizaciones = 'mes';
   let guardando = false;
   let mensaje = '';
   let error = '';
@@ -38,6 +40,7 @@
     tasa = Number(fila?.default_tax_rate) || 0;
     regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
     ventana = parsePeriodo(fila?.default_order_range);
+    ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
   });
 
   async function guardar() {
@@ -62,11 +65,13 @@
       const fila = await window.api.settings.updateDefaults({
         default_tax_rate: valor,
         default_valuation_rule: regla,
-        default_order_range: ventana
+        default_order_range: ventana,
+        default_quote_range: ventanaCotizaciones
       });
       tasa = Number(fila?.default_tax_rate) || 0;
       regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
       ventana = parsePeriodo(fila?.default_order_range);
+      ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
       mensaje = 'Ajustes generales guardados.';
     } catch (e) {
       error = String(e?.message || 'No se pudo guardar.');
@@ -128,6 +133,19 @@
       <span class="field-hint">
         La ventana de fechas con la que abre el listado de órdenes. Se puede cambiar en la
         propia pantalla, y para ver más de un año se teclean las fechas a mano.
+      </span>
+    </div>
+
+    <div class="form-field">
+      <label for="ventana-cotizaciones">Cotizaciones que se cargan</label>
+      <select id="ventana-cotizaciones" bind:value={ventanaCotizaciones}>
+        {#each PERIODOS as periodo (periodo)}
+          <option value={periodo}>{PERIODO_LABELS[periodo]} en curso</option>
+        {/each}
+      </select>
+      <span class="field-hint">
+        La ventana de fechas con la que abre el listado de cotizaciones. Ajuste aparte del de
+        órdenes.
       </span>
     </div>
   </div>

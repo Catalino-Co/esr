@@ -19,7 +19,13 @@ export type QuoteListFilters = {
 	 * Para un selector de documentos a vincular ese es el peor fallo posible.
 	 */
 	without_event?: boolean;
-	created_from?: string;
+	/**
+	 * Ventana de fechas sobre `date`. Ambos extremos inclusive, `YYYY-MM-DD`, y
+	 * cada uno opcional: dejar uno vacio deja ese lado abierto. Gemelo del de
+	 * `RentalOrderListFilters`.
+	 */
+	date_from?: string;
+	date_to?: string;
 	limit?: number;
 	offset?: number;
 };
@@ -84,6 +90,14 @@ export interface TenantQuoteRepository {
 	 * conflicto que hay que decir en voz alta.
 	 */
 	linkToEvent(ctx: RepositoryContext, quoteId: ESRId, eventId: ESRId): Promise<boolean>;
+	/**
+	 * Cotizaciones cuyo NUMERO contiene `termino`. Para el buscador por numero.
+	 *
+	 * Sin filtro de estado ni de circulacion, a proposito: si se busca por
+	 * numero es porque se sabe cual es, y una cancelada o archivada tiene que
+	 * aparecer igual. Gemelo del de `TenantRentalOrderRepository`.
+	 */
+	searchByNumber(ctx: RepositoryContext, termino: string, limite?: number): Promise<Quote[]>;
 	/**
 	 * Cambia el estado de circulacion. Sustituye al antiguo `deactivate()`, que
 	 * fijaba 0 a pelo y no tenia inverso: con tres estados hace falta poder

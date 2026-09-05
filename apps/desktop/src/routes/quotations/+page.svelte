@@ -4,13 +4,17 @@
   import { generateQuotationPDF, fmt } from '@esr/reports';
   import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
   import {
-    DEFAULT_QUOTE_STATUS,
-    QUOTE_STATUS_ALL,
+    PERIODOS,
+    PERIODO_LABELS,
+    formatDateAbsolute,
+    parsePeriodo,
+    periodoDeRango,
     quoteStatusFilterOptions,
+    rangoDelPeriodo,
     statusBadgeClass,
     statusLabel
   } from '@esr/core';
-  import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
   let quotations = [];
   let showPdfPreview = false;
@@ -28,9 +32,16 @@
    */
   const ESTADOS = quoteStatusFilterOptions();
 
-  /** Se entra por los BORRADORES, que es lo que hay que atender. */
-  let estado = DEFAULT_QUOTE_STATUS;
+  /** «Cualquier estado», igual que Ordenes: no hay default no vacio. */
+  let estado = '';
   let busqueda = '';
+
+  /* La ventana de fechas. Va en SQL, no en memoria: es lo que decide CUANTAS
+     filas se traen, al contrario que el texto y el estado, que filtran lo ya
+     cargado. */
+  let desde = '';
+  let hasta = '';
+  $: rangoActivo = periodoDeRango(desde, hasta);
 
   /**
    * Las cotizaciones VIVAS.
@@ -46,14 +57,28 @@
    */
   async function loadQuotations() {
     if (!window.api?.db) return;
+    const where = ['q.is_active = 1'];
+    const params = [];
+    // `q.date` es TEXT `YYYY-MM-DD`: comparar cadenas coincide con comparar
+    // fechas. Las cotizaciones SIN fecha no desaparecen nunca, igual que en
+    // Ordenes: esconderlas dejaria invisible una a la que se le olvido la fecha.
+    if (desde) { where.push('(q.date IS NULL OR q.date >= ?)'); params.push(desde); }
+    if (hasta) { where.push('(q.date IS NULL OR q.date <= ?)'); params.push(hasta); }
     quotations = await window.api.db.get(`
       SELECT q.*, c.name as client_name, e.name as event_name
       FROM quotations q
       LEFT JOIN clients c ON q.client_id = c.id
       LEFT JOIN events  e ON q.event_id  = e.id
-      WHERE q.is_active = 1
+      WHERE ${where.join(' AND ')}
       ORDER BY q.id DESC
-    `);
+    `, params);
+  }
+
+  function aplicarPeriodo(periodo) {
+    const rango = rangoDelPeriodo(periodo);
+    desde = rango.desde;
+    hasta = rango.hasta;
+    loadQuotations();
   }
 
   /* ── El alta, en un diálogo ────────────────────────────────────────────
@@ -151,9 +176,21 @@
     }
   }
 
-  onMount(() => {
-    loadQuotations();
-    cargarCatalogos();
+  onMount(async () => {
+    // El rango por defecto sale del ajuste de empresa. Aqui NO viaja en la URL:
+    // los filtros de Desktop viven en la pantalla, como documenta su propio
+    // FilterBar.
+    let periodo = 'mes';
+    try {
+      const fila = await window.api?.settings?.getCompany?.();
+      periodo = parsePeriodo(fila?.default_quote_range);
+    } catch {
+      /* sin puente: queda el mes, que es el valor por defecto */
+    }
+    const rango = rangoDelPeriodo(periodo);
+    desde = rango.desde;
+    hasta = rango.hasta;
+    await Promise.all([loadQuotations(), cargarCatalogos()]);
   });
 
   /**
@@ -182,7 +219,7 @@
    */
   $: termino = busqueda.trim().toLowerCase();
   $: visibles = quotations.filter((q) => {
-    if (estado !== QUOTE_STATUS_ALL && q.status !== estado) return false;
+    if (estado && q.status !== estado) return false;
     if (!termino) return true;
     return [q.quote_number, q.client_name, q.event_name].some((v) =>
       (v ?? '').toLowerCase().includes(termino)
@@ -224,6 +261,70 @@
     pdfPreviewFilename = filename;
     showPdfPreview = true;
   }
+
+  /* ── Buscar una cotización por su número ────────────────────────────────
+   * Va contra TODA la base, sin ventana de fechas ni `is_active`: si se busca
+   * por número es porque se sabe cuál es, y una cancelada tiene que aparecer.
+   * `quote_number` es una columna real en SQLite (migración 0012), a
+   * diferencia de `work_orders`.
+   */
+  let buscandoPorNumero = false;
+  let consultaNumero = '';
+  let resultadosNumero = [];
+  let elegidaNumero = -1;
+
+  function abrirBuscadorNumero() {
+    consultaNumero = '';
+    resultadosNumero = [];
+    elegidaNumero = -1;
+    buscandoPorNumero = true;
+  }
+
+  let temporizadorNumero = null;
+  function alTeclearNumero() {
+    elegidaNumero = -1;
+    clearTimeout(temporizadorNumero);
+    temporizadorNumero = setTimeout(buscarPorNumero, 250);
+  }
+
+  async function buscarPorNumero() {
+    const termino = consultaNumero.trim();
+    if (termino.length < 1 || !window.api?.db) {
+      resultadosNumero = [];
+      return;
+    }
+    resultadosNumero = await window.api.db.get(
+      `SELECT q.id, q.quote_number, q.date, q.status, q.total, c.name AS client_name
+       FROM quotations q
+       LEFT JOIN clients c ON c.id = q.client_id
+       WHERE q.quote_number LIKE '%' || ? || '%'
+       ORDER BY (lower(q.quote_number) = lower(?)) DESC, q.date DESC, q.id DESC
+       LIMIT 10`,
+      [termino, termino]
+    );
+    elegidaNumero = resultadosNumero.length > 0 ? 0 : -1;
+  }
+
+  function alPulsarNumero(evento) {
+    if (resultadosNumero.length === 0) return;
+    if (evento.key === 'ArrowDown') {
+      evento.preventDefault();
+      elegidaNumero = (elegidaNumero + 1) % resultadosNumero.length;
+    } else if (evento.key === 'ArrowUp') {
+      evento.preventDefault();
+      elegidaNumero = (elegidaNumero - 1 + resultadosNumero.length) % resultadosNumero.length;
+    } else if (evento.key === 'Enter') {
+      evento.preventDefault();
+      abrirElegidaNumero();
+    }
+  }
+
+  function abrirElegidaNumero() {
+    const quote = resultadosNumero[elegidaNumero];
+    if (!quote) return;
+    buscandoPorNumero = false;
+    goto(`/quotations/edit?id=${quote.id}`);
+  }
 </script>
 
 <!--
@@ -246,22 +347,105 @@
     >
       <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
     </button>
+    <!-- Navegación, no filtrado. -->
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={abrirBuscadorNumero}
+      aria-label="Buscar una cotización por su número"
+      title="Buscar una cotización por su número"
+    >
+      <Icon name="search" size={18} />
+    </button>
+  </div>
+
+  <div class="herramientas-datos">
+    <div class="grupo" role="group" aria-label="Rango rápido">
+      {#each PERIODOS as periodo (periodo)}
+        <button
+          type="button"
+          class="grupo-btn grupo-btn--texto"
+          class:encendido={rangoActivo === periodo}
+          aria-pressed={rangoActivo === periodo}
+          on:click={() => aplicarPeriodo(periodo)}
+        >
+          {PERIODO_LABELS[periodo]}
+        </button>
+      {/each}
+    </div>
+
+    <StatusSelect
+      value={estado}
+      options={ESTADOS}
+      label="Estado de la cotización"
+      onchange={(e) => (estado = e.currentTarget.value)}
+    />
+    <button type="button" class="btn btn-primary btn-new" on:click={abrirAlta}>
+      Nueva cotización
+    </button>
   </div>
 </div>
 
 <div class="card">
-  <FilterBar
-    search={{ placeholder: 'Número, cliente o evento', value: busqueda }}
-    selects={[
-      { name: 'status', label: 'Estado de la cotización', value: estado, options: ESTADOS, width: '11rem' }
-    ]}
-    onSearch={(v) => (busqueda = v)}
-    onSelect={(_, v) => (estado = v)}
-  >
-    <button slot="actions" type="button" class="btn btn-primary btn-new" on:click={abrirAlta}>
-      Nueva cotización
+  <!-- Fila propia y no `FilterBar`: aqui el orden es fechas -> boton Buscar ->
+       buscador, con aplicacion explicita en las fechas. Calcado de Ordenes. -->
+  <div class="filters">
+    <div class="filters-control filters-control--date">
+      <input type="date" bind:value={desde} aria-label="Desde" title="Desde" />
+    </div>
+    <div class="filters-control filters-control--date">
+      <input type="date" bind:value={hasta} aria-label="Hasta" title="Hasta" />
+    </div>
+    <button
+      type="button"
+      class="filters-btn"
+      on:click={loadQuotations}
+      aria-label="Buscar en el rango"
+      title="Buscar en el rango"
+    >
+      <Icon name="search" size={16} />
     </button>
-  </FilterBar>
+
+    <div class="filters-search">
+      <span class="filters-search-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="15" height="15">
+          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+      </span>
+      <input
+        type="search"
+        bind:value={busqueda}
+        placeholder="Número, cliente o evento"
+        aria-label="Buscar en la tabla"
+      />
+    </div>
+
+    <button
+      type="button"
+      class="filters-btn filters-btn--sm"
+      disabled={!busqueda}
+      on:click={() => (busqueda = '')}
+      aria-label="Limpiar la búsqueda"
+      title="Limpiar la búsqueda"
+    >
+      <Icon name="x" size={14} />
+    </button>
+  </div>
+
+  <!-- El rango se dice SIEMPRE. -->
+  <p class="rango">
+    {#if desde && hasta}
+      Cotizaciones del {formatDateAbsolute(desde)} al {formatDateAbsolute(hasta)}
+    {:else if desde}
+      Cotizaciones desde el {formatDateAbsolute(desde)}
+    {:else if hasta}
+      Cotizaciones hasta el {formatDateAbsolute(hasta)}
+    {:else}
+      Todas las cotizaciones
+    {/if}
+    · {visibles.length} {visibles.length === 1 ? 'resultado' : 'resultados'}
+  </p>
 
   <div class="table-wrapper">
     <table class="table table--acento">
@@ -314,9 +498,9 @@
                  padding y el color. -->
             <td colspan="7">
               <p class="empty-state">
-                {termino || estado !== QUOTE_STATUS_ALL
+                {termino || estado
                   ? 'Ninguna cotización coincide con el filtro.'
-                  : 'No hay cotizaciones registradas.'}
+                  : 'Ninguna cotización en este rango de fechas.'}
               </p>
             </td>
           </tr>
@@ -393,6 +577,67 @@
 <PdfPreviewModal bind:show={showPdfPreview} pdfUrl={pdfPreviewUrl}
   filename={pdfPreviewFilename} title="Vista previa de cotización" />
 
+<!-- Buscar por número. Uno para los dos tipos —Ordenes ya tiene el gemelo—:
+     patrón combobox con `aria-activedescendant`, sin la carrera de blur de los
+     otros combobox de esta app. -->
+<Modal bind:show={buscandoPorNumero} title="Buscar cotización por número" maxWidth="620px">
+  <!-- svelte-ignore a11y_autofocus -->
+  <input
+    class="buscador"
+    type="search"
+    role="combobox"
+    autofocus
+    bind:value={consultaNumero}
+    on:input={alTeclearNumero}
+    on:keydown={alPulsarNumero}
+    placeholder="COT-00012"
+    aria-label="Número de cotización"
+    aria-expanded={resultadosNumero.length > 0}
+    aria-controls="resultados-cotizacion-numero"
+    aria-autocomplete="list"
+    aria-activedescendant={elegidaNumero >= 0 ? `resultado-cotizacion-numero-${elegidaNumero}` : undefined}
+    autocomplete="off"
+  />
+
+  {#if consultaNumero.trim() === ''}
+    <p class="form-hint">
+      Escriba el número. Se busca en todas las cotizaciones, también fuera del rango de fechas.
+    </p>
+  {:else if resultadosNumero.length === 0}
+    <p class="empty-state">Ninguna cotización con ese número.</p>
+  {:else}
+    <ul class="resultados" id="resultados-cotizacion-numero" role="listbox" aria-label="Cotizaciones encontradas">
+      {#each resultadosNumero as quote, indice (quote.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <li
+          id="resultado-cotizacion-numero-{indice}"
+          class="resultado"
+          class:elegido={indice === elegidaNumero}
+          role="option"
+          aria-selected={indice === elegidaNumero}
+          on:click={() => (elegidaNumero = indice)}
+          on:dblclick={abrirElegidaNumero}
+        >
+          <span class="numero">{quote.quote_number || `#${quote.id}`}</span>
+          <span class="cliente">{quote.client_name || '—'}</span>
+          <span class="fecha">{formatDateAbsolute(quote.date)}</span>
+          <span class="total">{fmt(quote.total)}</span>
+          <span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  <svelte:fragment slot="footer">
+    <button type="button" class="btn btn-secondary" on:click={() => (buscandoPorNumero = false)}>
+      Cancelar
+    </button>
+    <button type="button" class="btn btn-primary" on:click={abrirElegidaNumero} disabled={elegidaNumero < 0}>
+      Abrir cotización
+    </button>
+  </svelte:fragment>
+</Modal>
+
 <style>
   /* Solo el botón de icono de la fila. Los badges ya NO se definen aquí: su
      versión local iba sin capa, ganaba a theme.css y era lo que forzaba el
@@ -423,5 +668,78 @@
   .aviso-impresion {
     grid-column: 1 / -1;
     margin: 0;
+  }
+
+  .rango {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+  }
+
+  /* Campos sueltos del diálogo de número: el estilo de campo cuelga de
+     `.form-grid`, y aquí no hay rejilla. */
+  .buscador {
+    width: 100%;
+    font-family: inherit;
+    font-size: var(--font-sm);
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  .resultados {
+    list-style: none;
+    margin: var(--sp-3) 0 0;
+    padding: 0;
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+  }
+
+  .resultado {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr) auto auto auto;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .resultado:last-child {
+    border-bottom: none;
+  }
+
+  .resultado:hover {
+    background: var(--bg-hover);
+  }
+
+  .resultado.elegido {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .numero {
+    font-weight: 600;
+  }
+
+  .cliente,
+  .fecha {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fecha {
+    font-size: var(--font-xs);
+  }
+
+  .total {
+    font-weight: 600;
+    white-space: nowrap;
   }
 </style>

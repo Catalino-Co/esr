@@ -43,11 +43,16 @@ class SqliteCompanySettingsRepository {
     // cae en `mes`, que es la mas estrecha y la que hace util el listado.
     const VENTANAS = ['mes', 'trimestre', 'anio'];
     const ventana = VENTANAS.includes(data.default_order_range) ? data.default_order_range : 'mes';
+    // Ajuste APARTE del de ordenes: misma lista blanca.
+    const ventanaCotizaciones = VENTANAS.includes(data.default_quote_range)
+      ? data.default_quote_range
+      : 'mes';
     await runQuery(
       `UPDATE company_info
-       SET default_tax_rate = ?, default_valuation_rule = ?, default_order_range = ?
+       SET default_tax_rate = ?, default_valuation_rule = ?, default_order_range = ?,
+           default_quote_range = ?
        WHERE id = 1`,
-      [tasa, regla, ventana]
+      [tasa, regla, ventana, ventanaCotizaciones]
     );
     return await this.get();
   }

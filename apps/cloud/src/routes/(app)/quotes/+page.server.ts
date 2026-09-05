@@ -2,13 +2,15 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	SELECTABLE_STATES,
-	parseQuoteStatus,
-	quoteStatusParam,
+	parsePeriodo,
+	periodoDeRango,
+	rangoDelPeriodo,
 	validateQuoteCanApprove
 } from '@esr/core';
 import type { Quote } from '@esr/schemas';
 import { validateCreateQuoteInput } from '@esr/schemas';
 import {
+	getCompanySettingsRepository,
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
@@ -22,21 +24,43 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'quotes.view');
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
+	// Sin validar contra la lista: un valor invalido simplemente no encuentra
+	// filas, igual que en Ordenes. `''` es «cualquier estado», y es tambien el
+	// valor por defecto: esta pantalla ya no impone `'borrador'`.
+	const status = url.searchParams.get('status')?.trim() || undefined;
 
-	// Sin `status` en la URL se listan los BORRADORES, que es lo que hay que
-	// atender. Para ver el resto se cambia el selector.
-	//
-	// «Todas» viaja como `?status=todos` y NO como vacio: `FilterBar` e `irCon`
-	// borran el parametro cuando el valor es `''`, asi que con un valor por
-	// defecto que no es vacio la opcion «cualquier estado» se anularia a si
-	// misma. `parseQuoteStatus` devuelve `undefined` para el centinela, que es
-	// lo que el repositorio entiende como «sin filtro».
-	const status = parseQuoteStatus(url.searchParams.get('status'));
+	const desdeUrl = url.searchParams.get('dateFrom')?.trim() || '';
+	const hastaUrl = url.searchParams.get('dateTo')?.trim() || '';
+
+	/*
+	 * La VENTANA de fechas, calcada de Ordenes.
+	 *
+	 * El ajuste de empresa manda SOLO cuando la URL no trae ninguna de las dos
+	 * fechas. Un ajuste APARTE del de ordenes (`default_quote_range`): una
+	 * empresa puede querer otra ventana para cotizaciones.
+	 */
+	const usaDefecto = !desdeUrl && !hastaUrl;
+	const porDefecto = usaDefecto
+		? rangoDelPeriodo(
+				parsePeriodo((await getCompanySettingsRepository().get(ctx))?.default_quote_range)
+			)
+		: null;
+	const desde = porDefecto ? porDefecto.desde : desdeUrl;
+	const hasta = porDefecto ? porDefecto.hasta : hastaUrl;
+	const invertido = Boolean(desde && hasta && desde > hasta);
 
 	// Sin `state`: el listado ya no ofrece el eje de circulacion, y sin el
 	// `appendStateFilter` del repositorio cae en `DEFAULT_RECORD_STATE`, que es
 	// «activas». La columna sigue en la tabla y la usan los reportes.
-	const quotes = await getQuoteRepository().list(ctx, { search, status, limit: 100, offset: 0 });
+	const quotes = await getQuoteRepository().list(ctx, {
+		search,
+		status,
+		date_from: desde || undefined,
+		date_to: hasta || undefined,
+		// Uno de mas para saber si se corta, y decirlo.
+		limit: 101,
+		offset: 0
+	});
 
 	// Estas dos listas hacen DOS trabajos: los mapas de nombres de la tabla y los
 	// selects del dialogo de alta. Ya se cargaban para lo primero, asi que el
@@ -56,8 +80,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const customerMap = new Map(customers.map((c) => [c.id, c.name]));
 	const eventMap = new Map(events.map((e) => [e.id, e.name]));
 
+	const hayMas = quotes.length > 100;
+
 	return {
-		quotes: quotes.map((quote) => ({
+		quotes: quotes.slice(0, 100).map((quote) => ({
 			...quote,
 			client_name: quote.client_id ? customerMap.get(quote.client_id) ?? '—' : '—',
 			event_name: quote.event_id ? eventMap.get(quote.event_id) ?? '—' : '—'
@@ -65,9 +91,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		customers,
 		events,
 		search: search ?? '',
-		// El valor que tiene que marcar el selector, no el que fue al SQL: «sin
-		// filtro» es `undefined` abajo y el centinela aqui.
-		status: quoteStatusParam(status)
+		status: status ?? '',
+		dateFrom: desde,
+		dateTo: hasta,
+		rangoActivo: periodoDeRango(desde, hasta),
+		invertido,
+		hayMas
 	};
 };
 

@@ -26,6 +26,8 @@ export type CompanySettings = {
 	default_valuation_rule?: string;
 	/** `mes` | `trimestre` | `anio`: la ventana que carga el listado de ordenes. */
 	default_order_range?: string;
+	/** `mes` | `trimestre` | `anio`: la ventana que carga el listado de cotizaciones. */
+	default_quote_range?: string;
 };
 
 export function validateCompanySettingsInput(company: Pick<CompanySettings, 'name'>): ValidationResult {

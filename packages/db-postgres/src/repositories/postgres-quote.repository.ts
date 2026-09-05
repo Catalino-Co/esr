@@ -93,12 +93,47 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		// tampoco cabe dentro de `event_id`. Pedir los dos a la vez devuelve vacio,
 		// que es lo correcto y no necesita guarda.
 		if (filters.without_event) where.push('q.event_id IS NULL');
+		/*
+		 * La ventana de fechas.
+		 *
+		 * `q.date` es TEXT `YYYY-MM-DD`, comparacion lexicografica correcta con
+		 * ceros a la izquierda. `date IS NULL` nunca se descarta: una cotizacion
+		 * sin fecha no debe desaparecer sin que nada lo diga. Gemelo del de
+		 * `postgres-rental.repository.ts`.
+		 *
+		 * El `ORDER BY` NO cambia a `date`: sigue siendo `created_at`, el orden de
+		 * siempre, del que dependen otros llamadores (las candidatas de «Vincular
+		 * cotizacion» en la ficha del evento). Este cambio solo filtra.
+		 */
+		if (filters.date_from) {
+			params.push(filters.date_from);
+			where.push(`(q.date IS NULL OR q.date >= $${params.length})`);
+		}
+		if (filters.date_to) {
+			params.push(filters.date_to);
+			where.push(`(q.date IS NULL OR q.date <= $${params.length})`);
+		}
 		const result = await this.pool.query<QuoteRow>(
 			`SELECT q.* FROM quotations q
 			 LEFT JOIN clients c ON c.id = q.client_id AND c.company_id = q.company_id
 			 LEFT JOIN events e ON e.id = q.event_id AND e.company_id = q.company_id
 			 WHERE ${where.join(' AND ')} ORDER BY q.created_at DESC, q.id DESC${appendPagination(params, filters)}`,
 			params
+		);
+		return result.rows;
+	}
+
+	/** Ver el docblock de la interfaz: sin filtro de estado ni de circulacion. */
+	async searchByNumber(ctx: RepositoryContext, termino: string, limite = 10): Promise<Quote[]> {
+		const result = await this.pool.query<QuoteRow>(
+			`SELECT q.* FROM quotations q
+			 WHERE q.company_id = $1 AND q.quote_number ILIKE '%' || $2 || '%'
+			 ORDER BY
+			   (lower(q.quote_number) = lower($2)) DESC,
+			   (q.quote_number ILIKE $2 || '%') DESC,
+			   q.date DESC NULLS LAST, q.id DESC
+			 LIMIT $3`,
+			[requireCompanyId(ctx), termino, Math.min(50, Math.max(1, limite))]
 		);
 		return result.rows;
 	}

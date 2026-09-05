@@ -13,6 +13,8 @@ const dropLegacyItemColumns = require('./versioned/0011_drop_legacy_item_columns
 const quoteNumber = require('./versioned/0012_quote_number.cjs');
 const roleAlignment = require('./versioned/0013_role_alignment.cjs');
 const companyDefaultOrderRange = require('./versioned/0014_company_default_order_range.cjs');
+const quotationsDateIdx = require('./versioned/0015_quotations_date_idx.cjs');
+const companyDefaultQuoteRange = require('./versioned/0016_company_default_quote_range.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -28,7 +30,9 @@ const MIGRATIONS = [
   dropLegacyItemColumns,
   quoteNumber,
   roleAlignment,
-  companyDefaultOrderRange
+  companyDefaultOrderRange,
+  quotationsDateIdx,
+  companyDefaultQuoteRange
 ];
 
 /**
