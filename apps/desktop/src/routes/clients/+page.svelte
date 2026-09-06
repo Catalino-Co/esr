@@ -1,13 +1,20 @@
 <script>
   import { onMount } from 'svelte';
   import { RECORD_STATES, RECORD_STATE_FILTER_LABELS, recordStateBadgeClass, recordStateLabel } from '@esr/core';
+  import { Icon } from '@esr/ui';
   import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
   /**
    * Listado de clientes. El alta y la edicion se fueron a `/clients/edit`, que
    * es el patron del resto de la app (cotizaciones, ordenes, conduces,
    * paquetes): el modal de 500 px no daba para el formulario mas el directorio
    * de direcciones.
+   *
+   * Herramientas fuera de la tarjeta, igual que Cotizaciones/Facturas/Eventos:
+   * navegar la pantalla es un trabajo distinto de filtrar sus datos. Sin Quick
+   * range ni rango de fechas: este listado no tiene ninguna nocion de fecha
+   * que filtrar.
    *
    * Sin estilos propios ni `style=` en linea: todo el vocabulario sale de
    * @esr/config/theme.css, el mismo que usa Cloud. El estilo en linea gana a
@@ -24,6 +31,7 @@
   let viewState = 1;
   let busqueda = '';
   let clients = [];
+  let recargando = false;
 
   async function loadClients() {
     if (window.api && window.api.db) {
@@ -38,6 +46,15 @@
     loadClients();
   });
 
+  async function recargar() {
+    recargando = true;
+    try {
+      await loadClients();
+    } finally {
+      recargando = false;
+    }
+  }
+
   // El filtro de texto es en memoria: la consulta ya trajo todas las filas del
   // estado elegido, y la lista es corta. Mismos campos que busca Cloud.
   $: termino = busqueda.trim().toLowerCase();
@@ -48,26 +65,48 @@
       )
     : clients;
 
-  function cambiarEstado(_, valor) {
+  function cambiarEstado(valor) {
     viewState = Number(valor);
     loadClients();
   }
 </script>
 
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/" aria-label="Volver al inicio" title="Volver al inicio">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar la lista"
+      title="Recargar la lista"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
+  </div>
+
+  <div class="herramientas-datos">
+    <StatusSelect
+      value={viewState}
+      options={opcionesEstado}
+      label="Estado"
+      onchange={(e) => cambiarEstado(e.currentTarget.value)}
+    />
+    <a class="btn btn-primary btn-new" href="/clients/edit">Nuevo cliente</a>
+  </div>
+</div>
+
 <div class="card">
   <FilterBar
     search={{ placeholder: 'Nombre, documento, email o teléfono', value: busqueda }}
-    selects={[
-      { name: 'state', label: 'Estado', value: viewState, options: opcionesEstado, width: '11rem' }
-    ]}
     onSearch={(v) => (busqueda = v)}
-    onSelect={cambiarEstado}
-  >
-    <a slot="actions" class="btn btn-primary btn-new" href="/clients/edit">Nuevo cliente</a>
-  </FilterBar>
+  />
 
   <div class="table-wrapper">
-    <table class="table">
+    <table class="table table--acento">
       <thead>
         <tr>
           <th>Cliente</th>
