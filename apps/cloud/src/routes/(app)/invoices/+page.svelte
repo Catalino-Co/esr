@@ -213,7 +213,7 @@
 		<p class="empty-state">Ninguna factura en este rango de fechas.</p>
 	{:else}
 		<div class="tabla-scroll">
-			<table class="data-table">
+			<table class="data-table data-table--acento">
 				<thead>
 					<tr>
 						<th>Número</th>
