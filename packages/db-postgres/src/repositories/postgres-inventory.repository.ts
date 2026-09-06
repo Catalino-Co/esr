@@ -578,14 +578,27 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	 * peticiones a la vez —una que registra una entrada, otra que intenta
 	 * quitarlo— no deben poder cruzarse y borrar una fila que ya no esta en
 	 * cero.
+	 *
+	 * Si el DELETE no borra nada hay dos casos distintos: la fila tiene
+	 * existencias (error, no se quita) o LA FILA NUNCA EXISTIO —el almacen
+	 * sale en la tabla por el CROSS JOIN de `listStockByWarehouse` aunque el
+	 * articulo nunca tuvo un movimiento ahi—. Ese segundo caso ya esta en el
+	 * estado pedido (sin existencias en ese almacen): no es un error.
 	 */
 	async removeFromWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void> {
+		const companyId = requireCompanyId(ctx);
 		const result = await this.pool.query(
 			'DELETE FROM item_stock WHERE company_id = $1 AND item_id = $2 AND warehouse_id = $3 AND quantity = 0',
-			[requireCompanyId(ctx), itemId, warehouseId]
+			[companyId, itemId, warehouseId]
 		);
 		if (result.rowCount === 0) {
-			throw new Error('Solo se puede quitar un almacén sin existencias.');
+			const existente = await this.pool.query(
+				'SELECT 1 FROM item_stock WHERE company_id = $1 AND item_id = $2 AND warehouse_id = $3',
+				[companyId, itemId, warehouseId]
+			);
+			if ((existente.rowCount ?? 0) > 0) {
+				throw new Error('Solo se puede quitar un almacén sin existencias.');
+			}
 		}
 	}
 

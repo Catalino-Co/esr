@@ -10,7 +10,13 @@
 	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
-	const item = data.item;
+	/**
+	 * `$derived`, NO una desestructuración suelta: al guardar, `enhance` vuelve
+	 * a correr el `load` y `data` cambia, pero un `const` capturado una sola
+	 * vez se queda con el `item` de antes —el badge de estado no se enteraba
+	 * de su propio cambio. Calcado de `work-orders/[id=entero]/+page.svelte`.
+	 */
+	const item = $derived(data.item);
 
 	let recargando = $state(false);
 	async function recargar() {

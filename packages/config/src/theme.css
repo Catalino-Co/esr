@@ -1083,9 +1083,12 @@
 	}
 
 	/* ─── Toasts ──────────────────────────────────────────────────── */
+	/* Arriba, no abajo: es donde ya mira el usuario justo después de una
+	   acción (el botón que acaba de pulsar, la cabecera de la pantalla), a
+	   diferencia del pie, que rara vez está a la vista. */
 	.toast-container {
 		position: fixed;
-		bottom: var(--sp-6);
+		top: var(--sp-6);
 		right: var(--sp-6);
 		display: flex;
 		flex-direction: column;
