@@ -51,12 +51,16 @@ class SqliteCompanySettingsRepository {
     const ventanaFacturas = VENTANAS.includes(data.default_invoice_range)
       ? data.default_invoice_range
       : 'mes';
+    // Y un cuarto ajuste APARTE, para eventos.
+    const ventanaEventos = VENTANAS.includes(data.default_event_range)
+      ? data.default_event_range
+      : 'mes';
     await runQuery(
       `UPDATE company_info
        SET default_tax_rate = ?, default_valuation_rule = ?, default_order_range = ?,
-           default_quote_range = ?, default_invoice_range = ?
+           default_quote_range = ?, default_invoice_range = ?, default_event_range = ?
        WHERE id = 1`,
-      [tasa, regla, ventana, ventanaCotizaciones, ventanaFacturas]
+      [tasa, regla, ventana, ventanaCotizaciones, ventanaFacturas, ventanaEventos]
     );
     return await this.get();
   }

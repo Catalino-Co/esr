@@ -34,4 +34,6 @@ export type TenantCompanyDefaultsInput = {
 	default_quote_range?: string;
 	/** `mes` | `trimestre` | `anio`. Ver `CompanySettings.default_invoice_range`. */
 	default_invoice_range?: string;
+	/** `mes` | `trimestre` | `anio`. Ver `CompanySettings.default_event_range`. */
+	default_event_range?: string;
 };

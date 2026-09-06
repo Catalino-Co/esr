@@ -22,7 +22,7 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 		const result = await this.pool.query<CompanySettings>(
 			`SELECT id, company_id, name, rnc, phone, email, address, logo_base64,
 			        default_tax_rate, default_valuation_rule, default_order_range,
-			        default_quote_range, default_invoice_range
+			        default_quote_range, default_invoice_range, default_event_range
 			 FROM company_info
 			 WHERE company_id = $1 AND id = $2`,
 			[requireCompanyId(ctx), COMPANY_INFO_ROW_ID]
@@ -88,13 +88,15 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 		const ventanaCotizaciones = parsePeriodo(data.default_quote_range);
 		// Y un tercer ajuste APARTE, para facturas.
 		const ventanaFacturas = parsePeriodo(data.default_invoice_range);
+		// Y un cuarto ajuste APARTE, para eventos.
+		const ventanaEventos = parsePeriodo(data.default_event_range);
 
 		// El `INSERT ... ON CONFLICT` cubre la empresa que todavia no guardo sus
 		// datos y por tanto no tiene fila. El `name` sale del tenant y solo se usa
 		// en ese alta: si la fila ya existe, el `DO UPDATE` toca UNA columna y no
 		// roza el nombre ni la direccion.
 		const result = await this.pool.query<CompanySettings>(
-			`INSERT INTO company_info (company_id, id, name, default_tax_rate, default_valuation_rule, default_order_range, default_quote_range, default_invoice_range)
+			`INSERT INTO company_info (company_id, id, name, default_tax_rate, default_valuation_rule, default_order_range, default_quote_range, default_invoice_range, default_event_range)
 			 VALUES (
 				$1,
 				$2,
@@ -103,17 +105,19 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 				$4,
 				$5,
 				$6,
-				$7
+				$7,
+				$8
 			 )
 			 ON CONFLICT (company_id, id) DO UPDATE SET
 				default_tax_rate = EXCLUDED.default_tax_rate,
 				default_valuation_rule = EXCLUDED.default_valuation_rule,
 				default_order_range = EXCLUDED.default_order_range,
 				default_quote_range = EXCLUDED.default_quote_range,
-				default_invoice_range = EXCLUDED.default_invoice_range
+				default_invoice_range = EXCLUDED.default_invoice_range,
+				default_event_range = EXCLUDED.default_event_range
 			 RETURNING id, company_id, name, rnc, phone, email, address, logo_base64,
 			           default_tax_rate, default_valuation_rule, default_order_range,
-			           default_quote_range, default_invoice_range`,
+			           default_quote_range, default_invoice_range, default_event_range`,
 			[
 				requireCompanyId(ctx),
 				COMPANY_INFO_ROW_ID,
@@ -121,7 +125,8 @@ export class PostgresCompanySettingsRepository implements TenantCompanySettingsR
 				regla,
 				ventana,
 				ventanaCotizaciones,
-				ventanaFacturas
+				ventanaFacturas,
+				ventanaEventos
 			]
 		);
 		return result.rows[0];

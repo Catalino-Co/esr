@@ -35,8 +35,39 @@ export class PostgresEventRepository implements TenantEventRepository {
 			params.push(filters.date);
 			where.push(`date = $${params.length}`);
 		}
+		// La ventana de fechas. `date IS NULL` nunca se descarta: un evento sin
+		// fecha no debe desaparecer sin que nada lo diga. Gemelo del filtro de
+		// quotes/rentals/invoices. El `ORDER BY` no cambia.
+		if (filters.date_from) {
+			params.push(filters.date_from);
+			where.push(`(date IS NULL OR date >= $${params.length})`);
+		}
+		if (filters.date_to) {
+			params.push(filters.date_to);
+			where.push(`(date IS NULL OR date <= $${params.length})`);
+		}
 		const result = await this.pool.query<Event>(
 			`SELECT * FROM events WHERE ${where.join(' AND ')} ORDER BY date DESC, id DESC${appendPagination(params, filters)}`, params
+		);
+		return result.rows;
+	}
+
+	/**
+	 * Buscar por nombre, sin filtro de estado ni de circulacion: si se busca por
+	 * nombre es porque se sabe cual es, y uno cancelado tiene que aparecer.
+	 * Un evento no tiene numero de documento, asi que esto es ILIKE contra
+	 * `name`/`location`, no una igualdad exacta.
+	 */
+	async searchByName(ctx: RepositoryContext, termino: string, limite = 10): Promise<Event[]> {
+		const result = await this.pool.query<Event>(
+			`SELECT * FROM events
+			 WHERE company_id = $1 AND (name ILIKE '%' || $2 || '%' OR location ILIKE '%' || $2 || '%')
+			 ORDER BY
+			   (lower(name) = lower($2)) DESC,
+			   (name ILIKE $2 || '%') DESC,
+			   date DESC NULLS LAST, id DESC
+			 LIMIT $3`,
+			[requireCompanyId(ctx), termino, Math.min(50, Math.max(1, limite))]
 		);
 		return result.rows;
 	}

@@ -6,7 +6,10 @@ export type CreateEventInput = Omit<Event, 'id'>;
 export type TenantCreateEventInput = Omit<CreateEventInput, 'company_id'>;
 export type EventListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
-	state?: RecordStateFilter; search?: string; status?: string; date?: string; limit?: number; offset?: number };
+	state?: RecordStateFilter; search?: string; status?: string; date?: string;
+	/** `YYYY-MM-DD`, ambos inclusive. Ver el docblock de `list()`. */
+	date_from?: string; date_to?: string;
+	limit?: number; offset?: number };
 
 export interface EventRepository {
 	findById(id: ESRId): Promise<Event | null>;
@@ -27,6 +30,11 @@ export interface TenantEventRepository {
 	 * mover el registro en las dos direcciones.
 	 */
 	setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void>;
+	/**
+	 * Sin filtro de estado ni de circulacion: si se busca por nombre es porque
+	 * se sabe cual es, y uno cancelado tiene que aparecer.
+	 */
+	searchByName(ctx: RepositoryContext, termino: string, limite?: number): Promise<Event[]>;
 }
 
 export type EventConflictInput = {

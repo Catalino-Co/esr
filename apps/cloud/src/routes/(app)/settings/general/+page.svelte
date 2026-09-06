@@ -17,7 +17,8 @@
 			default_valuation_rule: data.defaults.default_valuation_rule,
 			default_order_range: data.defaults.default_order_range,
 			default_quote_range: data.defaults.default_quote_range,
-			default_invoice_range: data.defaults.default_invoice_range
+			default_invoice_range: data.defaults.default_invoice_range,
+			default_event_range: data.defaults.default_event_range
 		}
 	);
 </script>
@@ -106,6 +107,20 @@
 			<span class="field-hint">
 				La ventana de fechas con la que abre el listado de facturas. Ajuste aparte de las
 				anteriores: una empresa puede querer una ventana distinta para cada listado.
+			</span>
+		</div>
+		<div class="form-field">
+			<label for="default_event_range">Eventos que se cargan</label>
+			<select id="default_event_range" name="default_event_range">
+				{#each PERIODOS as periodo (periodo)}
+					<option value={periodo} selected={values.default_event_range === periodo}>
+						{PERIODO_LABELS[periodo]} en curso
+					</option>
+				{/each}
+			</select>
+			<span class="field-hint">
+				La ventana de fechas con la que abre la Tabla del listado de eventos. El Calendario no
+				usa este ajuste: siempre carga todos los eventos activos.
 			</span>
 		</div>
 		<div class="form-actions">

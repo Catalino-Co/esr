@@ -3,11 +3,18 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { EventCalendar, Icon } from '@esr/ui';
-	import { statusBadgeClass, statusLabel } from '@esr/core';
-	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import {
+		PERIODOS,
+		PERIODO_LABELS,
+		formatDateAbsolute,
+		rangoDelPeriodo,
+		statusBadgeClass,
+		statusLabel
+	} from '@esr/core';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import EventoCampos from './EventoCampos.svelte';
+	import BuscarEvento from './BuscarEvento.svelte';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
@@ -35,6 +42,24 @@
 		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
 	}
 
+	let temporizador = /** @type {any} */ (null);
+	function alBuscar(/** @type {Event & { currentTarget: HTMLInputElement }} */ evento) {
+		const valor = evento.currentTarget.value;
+		clearTimeout(temporizador);
+		temporizador = setTimeout(() => {
+			const url = new URL(page.url);
+			if (valor) url.searchParams.set('search', valor);
+			else url.searchParams.delete('search');
+			goto(url, { keepFocus: true, replaceState: true, noScroll: true, invalidateAll: true });
+		}, 300);
+	}
+
+	/** @param {string} periodo */
+	function aplicarPeriodo(periodo) {
+		const rango = rangoDelPeriodo(/** @type {any} */ (periodo));
+		irCon({ dateFrom: rango.desde, dateTo: rango.hasta });
+	}
+
 	let recargando = $state(false);
 
 	async function recargar() {
@@ -50,6 +75,13 @@
 	 *
 	 * Un interruptor en la barra, no una ruta aparte: así los filtros valen para
 	 * las dos vistas sin viajar entre pantallas ni volver a cargar los datos.
+	 *
+	 * El rango de fechas y el Quick range SOLO aplican a la Tabla: el
+	 * Calendario pagina de mes en mes en memoria, sin volver a pedir datos, y
+	 * si viera solo lo que la Tabla tiene cargado, un mes fuera del rango se
+	 * vería vacío aunque haya eventos reales ese mes. Por eso `data.eventsCalendario`
+	 * es una lista APARTE, sin fecha, y por eso el rango/Quick range se ocultan
+	 * en esta vista en vez de aplicarse sin efecto.
 	 */
 	let calendario = $state(false);
 
@@ -67,6 +99,10 @@
 	const GRIS = '#94a3b8';
 	/** @param {{ event_type?: string }} ev */
 	const colorDe = (ev) => colores.get(String(ev.event_type ?? '').trim().toLowerCase()) || GRIS;
+
+	/* El diálogo de buscar por nombre NO va en la URL: es una ayuda de
+	   navegación de paso, no un estado que compartir. */
+	let buscandoNombre = $state(false);
 
 	/* ── El alta, en un diálogo con URL propia ─────────────────────────────
 	 * Mismo patrón que el de cotizaciones: sobrevive a un refresco, se puede
@@ -127,6 +163,15 @@
 		<button
 			type="button"
 			class="grupo-btn"
+			onclick={() => (buscandoNombre = true)}
+			aria-label="Buscar un evento por su nombre"
+			title="Buscar un evento por su nombre"
+		>
+			<Icon name="search" size={18} />
+		</button>
+		<button
+			type="button"
+			class="grupo-btn"
 			class:encendido={calendario}
 			aria-pressed={calendario}
 			aria-label={calendario ? 'Ver como tabla' : 'Ver como calendario'}
@@ -138,6 +183,22 @@
 	</div>
 
 	<div class="herramientas-datos">
+		{#if !calendario}
+			<div class="grupo" role="group" aria-label="Rango rápido">
+				{#each PERIODOS as periodo (periodo)}
+					<button
+						type="button"
+						class="grupo-btn grupo-btn--texto"
+						class:encendido={data.rangoActivo === periodo}
+						aria-pressed={data.rangoActivo === periodo}
+						onclick={() => aplicarPeriodo(periodo)}
+					>
+						{PERIODO_LABELS[periodo]}
+					</button>
+				{/each}
+			</div>
+		{/if}
+
 		<StatusSelect
 			name="status"
 			value={data.status}
@@ -153,12 +214,77 @@
 </div>
 
 <section class="panel">
-	<FilterBar search={{ name: 'search', placeholder: 'Título o lugar', value: data.search }} />
+	<!-- El buscador de texto y su botón de limpiar quedan FUERA del `{#if
+	     !calendario}`: es el mismo buscador de siempre y también sirve al
+	     Calendario. Solo las fechas y el botón de aplicarlas son exclusivos de
+	     la Tabla. -->
+	<form class="filters" method="GET" data-sveltekit-keepfocus data-sveltekit-replacestate>
+		<input type="hidden" name="status" value={data.status} />
+
+		{#if !calendario}
+			<div class="filters-control filters-control--date">
+				<input type="date" name="dateFrom" value={data.dateFrom} aria-label="Desde" title="Desde" />
+			</div>
+			<div class="filters-control filters-control--date">
+				<input type="date" name="dateTo" value={data.dateTo} aria-label="Hasta" title="Hasta" />
+			</div>
+			<button type="submit" class="filters-btn" aria-label="Buscar en el rango" title="Buscar en el rango">
+				<Icon name="search" size={16} />
+			</button>
+		{/if}
+
+		<div class="filters-search">
+			<span class="filters-search-icon" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="15" height="15">
+					<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+					<path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+				</svg>
+			</span>
+			<input
+				type="search"
+				name="search"
+				value={data.search}
+				placeholder="Título o lugar"
+				aria-label="Buscar en la tabla"
+				oninput={alBuscar}
+			/>
+		</div>
+
+		<button
+			type="button"
+			class="filters-btn filters-btn--sm"
+			disabled={!data.search}
+			onclick={() => irCon({ search: null })}
+			aria-label="Limpiar la búsqueda"
+			title="Limpiar la búsqueda"
+		>
+			<Icon name="x" size={14} />
+		</button>
+	</form>
+
+	{#if !calendario}
+		<p class="rango">
+			{#if data.invertido}
+				<span class="aviso">La fecha «Hasta» es anterior a la de «Desde».</span>
+			{:else if data.dateFrom && data.dateTo}
+				Eventos del {formatDateAbsolute(data.dateFrom)} al {formatDateAbsolute(data.dateTo)}
+			{:else if data.dateFrom}
+				Eventos desde el {formatDateAbsolute(data.dateFrom)}
+			{:else if data.dateTo}
+				Eventos hasta el {formatDateAbsolute(data.dateTo)}
+			{:else}
+				Todos los eventos
+			{/if}
+			· {data.events.length}
+			{data.events.length === 1 ? 'resultado' : 'resultados'}
+			{#if data.hayMas}<span class="aviso">— hay más de 100: acote las fechas.</span>{/if}
+		</p>
+	{/if}
 
 	{#if calendario}
-		<EventCalendar events={data.events} colorOf={colorDe} onSelect={abrirFicha} />
+		<EventCalendar events={data.eventsCalendario} colorOf={colorDe} onSelect={abrirFicha} />
 	{:else if data.events.length === 0}
-		<p class="empty-state">No hay eventos para mostrar.</p>
+		<p class="empty-state">Ningún evento en este rango de fechas.</p>
 	{:else}
 		<table class="data-table data-table--acento">
 			<thead>
@@ -225,6 +351,10 @@
 	</Modal>
 {/if}
 
+{#if buscandoNombre}
+	<BuscarEvento onclose={() => (buscandoNombre = false)} />
+{/if}
+
 <style>
 	/* El filete de color del tipo. El grosor y el hueco van aquí; el COLOR lo
 	   pone el marcado, porque viene de la base. */
@@ -253,5 +383,15 @@
 		height: 8px;
 		border-radius: 50%;
 		flex-shrink: 0;
+	}
+
+	.rango {
+		margin: 0 0 var(--sp-3);
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.aviso {
+		color: var(--danger-text);
 	}
 </style>

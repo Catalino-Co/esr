@@ -2,9 +2,18 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { validateEventInput } from '@esr/schemas';
-  import { statusBadgeClass, statusLabel } from '@esr/core';
+  import {
+    PERIODOS,
+    PERIODO_LABELS,
+    formatDateAbsolute,
+    parsePeriodo,
+    periodoDeRango,
+    rangoDelPeriodo,
+    statusBadgeClass,
+    statusLabel
+  } from '@esr/core';
   import { EventCalendar, Icon, Modal } from '@esr/ui';
-  import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
   const ESTADOS = [
     { value: '', label: 'Cualquier estado' },
@@ -22,6 +31,13 @@
   let busqueda = '';
   let calendario = false;
   let recargando = false;
+
+  /* La ventana de fechas. Filtra EN MEMORIA sobre lo ya cargado —esta pantalla
+     ya trae todos los eventos activos de una vez—, así que cambiar el rango
+     no dispara ninguna consulta nueva. */
+  let desde = '';
+  let hasta = '';
+  $: rangoActivo = periodoDeRango(desde, hasta);
 
   /**
    * Los eventos VIVOS.
@@ -57,9 +73,26 @@
     eventTypes = t;
   }
 
-  onMount(() => {
-    loadEvents();
-    loadCatalogos();
+  function aplicarPeriodo(periodo) {
+    const rango = rangoDelPeriodo(periodo);
+    desde = rango.desde;
+    hasta = rango.hasta;
+  }
+
+  onMount(async () => {
+    // El rango por defecto sale del ajuste de empresa. Aqui NO viaja en la
+    // URL: los filtros de Desktop viven en la pantalla.
+    let periodo = 'mes';
+    try {
+      const fila = await window.api?.settings?.getCompany?.();
+      periodo = parsePeriodo(fila?.default_event_range);
+    } catch {
+      /* sin puente: queda el mes, que es el valor por defecto */
+    }
+    const rango = rangoDelPeriodo(periodo);
+    desde = rango.desde;
+    hasta = rango.hasta;
+    await Promise.all([loadEvents(), loadCatalogos()]);
   });
 
   async function recargar() {
@@ -74,14 +107,24 @@
   /**
    * El filtrado es EN MEMORIA, y es deliberado: la consulta ya trajo todas las
    * filas de SQLite. Misma decision que documenta el `FilterBar` de escritorio.
+   *
+   * `base` es lo que ve el Calendario: estado y texto, SIN fecha. Pagina de
+   * mes en mes en memoria y perdería un mes entero si solo viera lo que la
+   * Tabla tiene cargado. `visiblesTabla` añade la ventana de fechas encima,
+   * y es lo unico que ve la Tabla.
    */
   $: termino = busqueda.trim().toLowerCase();
-  $: visibles = events.filter((e) => {
+  $: base = events.filter((e) => {
     if (estado && e.status !== estado) return false;
     if (!termino) return true;
     return [e.name, e.client_name, e.location].some((v) =>
       (v ?? '').toLowerCase().includes(termino)
     );
+  });
+  $: visiblesTabla = base.filter((e) => {
+    if (desde && e.date && e.date < desde) return false;
+    if (hasta && e.date && e.date > hasta) return false;
+    return true;
   });
 
   /**
@@ -93,6 +136,59 @@
   const GRIS = '#94a3b8';
   $: colores = new Map(eventTypes.map((t) => [String(t.name).trim().toLowerCase(), t.color]));
   $: colorDe = (ev) => colores.get(String(ev?.event_type ?? '').trim().toLowerCase()) || GRIS;
+
+  /* ── Buscar un evento por su nombre ──────────────────────────────────────
+   * Sin IPC ni consulta nueva: `events` ya trae TODOS los eventos activos,
+   * asi que esto filtra en memoria, igual que `base`. A diferencia de
+   * Cotizaciones/Facturas, aqui no hace falta ir a buscar «lo que no esta en
+   * pantalla»: ya esta todo cargado.
+   */
+  let buscandoNombre = false;
+  let consultaNombre = '';
+  let elegidoNombre = -1;
+
+  function abrirBuscadorNombre() {
+    consultaNombre = '';
+    elegidoNombre = -1;
+    buscandoNombre = true;
+  }
+
+  $: resultadosNombre = (() => {
+    const t = consultaNombre.trim().toLowerCase();
+    if (t.length < 2) return [];
+    return events
+      .filter((e) =>
+        (e.name ?? '').toLowerCase().includes(t) ||
+        (e.client_name ?? '').toLowerCase().includes(t) ||
+        (e.location ?? '').toLowerCase().includes(t)
+      )
+      .slice(0, 10);
+  })();
+
+  function alTeclearNombre() {
+    elegidoNombre = resultadosNombre.length > 0 ? 0 : -1;
+  }
+
+  function alPulsarNombre(evento) {
+    if (resultadosNombre.length === 0) return;
+    if (evento.key === 'ArrowDown') {
+      evento.preventDefault();
+      elegidoNombre = (elegidoNombre + 1) % resultadosNombre.length;
+    } else if (evento.key === 'ArrowUp') {
+      evento.preventDefault();
+      elegidoNombre = (elegidoNombre - 1 + resultadosNombre.length) % resultadosNombre.length;
+    } else if (evento.key === 'Enter') {
+      evento.preventDefault();
+      abrirElegidoNombre();
+    }
+  }
+
+  function abrirElegidoNombre() {
+    const ev = resultadosNombre[elegidoNombre];
+    if (!ev) return;
+    buscandoNombre = false;
+    goto(`/events/edit?id=${ev.id}`);
+  }
 
   // ── Alta, en un dialogo ──────────────────────────────────────────────────
   //
@@ -174,6 +270,15 @@
     <button
       type="button"
       class="grupo-btn"
+      on:click={abrirBuscadorNombre}
+      aria-label="Buscar un evento por su nombre"
+      title="Buscar un evento por su nombre"
+    >
+      <Icon name="search" size={18} />
+    </button>
+    <button
+      type="button"
+      class="grupo-btn"
       class:encendido={calendario}
       aria-pressed={calendario}
       aria-label={calendario ? 'Ver como tabla' : 'Ver como calendario'}
@@ -183,24 +288,96 @@
       <Icon name="calendar" size={18} />
     </button>
   </div>
+
+  <div class="herramientas-datos">
+    {#if !calendario}
+      <div class="grupo" role="group" aria-label="Rango rápido">
+        {#each PERIODOS as periodo (periodo)}
+          <button
+            type="button"
+            class="grupo-btn grupo-btn--texto"
+            class:encendido={rangoActivo === periodo}
+            aria-pressed={rangoActivo === periodo}
+            on:click={() => aplicarPeriodo(periodo)}
+          >
+            {PERIODO_LABELS[periodo]}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <StatusSelect
+      value={estado}
+      options={ESTADOS}
+      label="Estado del evento"
+      onchange={(e) => (estado = e.currentTarget.value)}
+    />
+    <button type="button" class="btn btn-primary btn-new" on:click={abrirAlta}>
+      Nuevo evento
+    </button>
+  </div>
 </div>
 
 <div class="card">
-  <FilterBar
-    search={{ placeholder: 'Nombre, cliente o lugar', value: busqueda }}
-    selects={[
-      { name: 'status', label: 'Estado del evento', value: estado, options: ESTADOS, width: '11rem' }
-    ]}
-    onSearch={(v) => (busqueda = v)}
-    onSelect={(_, v) => (estado = v)}
-  >
-    <button slot="actions" type="button" class="btn btn-primary btn-new" on:click={abrirAlta}>
-      Nuevo evento
+  <!-- El buscador de texto y su botón de limpiar quedan fuera del `{#if
+       !calendario}`: es el mismo buscador de siempre y también sirve al
+       Calendario. Solo las fechas son exclusivas de la Tabla, y no hace
+       falta un botón «Buscar»: al escribir la fecha el `bind:value` ya
+       recalcula `visiblesTabla`. -->
+  <div class="filters">
+    {#if !calendario}
+      <div class="filters-control filters-control--date">
+        <input type="date" bind:value={desde} aria-label="Desde" title="Desde" />
+      </div>
+      <div class="filters-control filters-control--date">
+        <input type="date" bind:value={hasta} aria-label="Hasta" title="Hasta" />
+      </div>
+    {/if}
+
+    <div class="filters-search">
+      <span class="filters-search-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="15" height="15">
+          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+      </span>
+      <input
+        type="search"
+        bind:value={busqueda}
+        placeholder="Nombre, cliente o lugar"
+        aria-label="Buscar en la tabla"
+      />
+    </div>
+
+    <button
+      type="button"
+      class="filters-btn filters-btn--sm"
+      disabled={!busqueda}
+      on:click={() => (busqueda = '')}
+      aria-label="Limpiar la búsqueda"
+      title="Limpiar la búsqueda"
+    >
+      <Icon name="x" size={14} />
     </button>
-  </FilterBar>
+  </div>
+
+  {#if !calendario}
+    <p class="rango">
+      {#if desde && hasta}
+        Eventos del {formatDateAbsolute(desde)} al {formatDateAbsolute(hasta)}
+      {:else if desde}
+        Eventos desde el {formatDateAbsolute(desde)}
+      {:else if hasta}
+        Eventos hasta el {formatDateAbsolute(hasta)}
+      {:else}
+        Todos los eventos
+      {/if}
+      · {visiblesTabla.length} {visiblesTabla.length === 1 ? 'resultado' : 'resultados'}
+    </p>
+  {/if}
 
   {#if calendario}
-    <EventCalendar events={visibles} colorOf={colorDe} onSelect={abrirFicha} />
+    <EventCalendar events={base} colorOf={colorDe} onSelect={abrirFicha} />
   {:else}
     <div class="table-wrapper">
       <table class="table table--acento">
@@ -215,7 +392,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each visibles as ev (ev.id)}
+          {#each visiblesTabla as ev (ev.id)}
             <tr>
               <!-- El color del tipo entra por `style` porque sale de la base de
                    datos: no hay forma de tenerlo en una hoja de estilos. -->
@@ -250,7 +427,7 @@
                 <p class="empty-state">
                   {termino || estado
                     ? 'Ningún evento coincide con el filtro.'
-                    : 'No hay eventos en la agenda.'}
+                    : 'Ningún evento en este rango de fechas.'}
                 </p>
               </td>
             </tr>
@@ -343,6 +520,66 @@
   </div>
 </Modal>
 
+<!-- Buscar por nombre. Sin IPC: filtra en memoria sobre lo que `events` ya
+     tiene cargado. Mismo patrón combobox que Cotizaciones/Facturas. -->
+<Modal bind:show={buscandoNombre} title="Buscar evento por nombre" maxWidth="620px">
+  <!-- svelte-ignore a11y_autofocus -->
+  <input
+    class="buscador"
+    type="search"
+    role="combobox"
+    autofocus
+    bind:value={consultaNombre}
+    on:input={alTeclearNombre}
+    on:keydown={alPulsarNombre}
+    placeholder="Boda Rivas-Gómez"
+    aria-label="Nombre del evento"
+    aria-expanded={resultadosNombre.length > 0}
+    aria-controls="resultados-evento-nombre"
+    aria-autocomplete="list"
+    aria-activedescendant={elegidoNombre >= 0 ? `resultado-evento-nombre-${elegidoNombre}` : undefined}
+    autocomplete="off"
+  />
+
+  {#if consultaNombre.trim().length < 2}
+    <p class="form-hint">
+      Escriba al menos dos caracteres del nombre, el cliente o el lugar. Se busca en todos los
+      eventos, también fuera del rango de fechas.
+    </p>
+  {:else if resultadosNombre.length === 0}
+    <p class="empty-state">Ningún evento coincide con ese nombre.</p>
+  {:else}
+    <ul class="resultados" id="resultados-evento-nombre" role="listbox" aria-label="Eventos encontrados">
+      {#each resultadosNombre as ev, indice (ev.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <li
+          id="resultado-evento-nombre-{indice}"
+          class="resultado"
+          class:elegido={indice === elegidoNombre}
+          role="option"
+          aria-selected={indice === elegidoNombre}
+          on:click={() => (elegidoNombre = indice)}
+          on:dblclick={abrirElegidoNombre}
+        >
+          <span class="nombre">{ev.name}</span>
+          <span class="cliente">{ev.client_name || '—'}</span>
+          <span class="fecha">{formatDateAbsolute(ev.date)}</span>
+          <span class="badge {statusBadgeClass(ev.status)}">{statusLabel(ev.status)}</span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  <svelte:fragment slot="footer">
+    <button type="button" class="btn btn-secondary" on:click={() => (buscandoNombre = false)}>
+      Cancelar
+    </button>
+    <button type="button" class="btn btn-primary" on:click={abrirElegidoNombre} disabled={elegidoNombre < 0}>
+      Abrir evento
+    </button>
+  </svelte:fragment>
+</Modal>
+
 <style>
   .fecha {
     border-left: 3px solid transparent;
@@ -399,5 +636,76 @@
     flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: var(--border-radius-sm);
+  }
+
+  .rango {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+  }
+
+  /* Campos sueltos del diálogo de nombre: el estilo de campo cuelga de
+     `.form-grid`, y aquí no hay rejilla. */
+  .buscador {
+    width: 100%;
+    font-family: inherit;
+    font-size: var(--font-sm);
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  .resultados {
+    list-style: none;
+    margin: var(--sp-3) 0 0;
+    padding: 0;
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+  }
+
+  .resultado {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .resultado:last-child {
+    border-bottom: none;
+  }
+
+  .resultado:hover {
+    background: var(--bg-hover);
+  }
+
+  .resultado.elegido {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .cliente,
+  .fecha {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fecha {
+    font-size: var(--font-xs);
+  }
+
+  @media (max-width: 560px) {
+    .resultado {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
   }
 </style>

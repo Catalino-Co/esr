@@ -24,7 +24,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			default_valuation_rule: settings?.default_valuation_rule ?? 'ultimo',
 			default_order_range: parsePeriodo(settings?.default_order_range),
 			default_quote_range: parsePeriodo(settings?.default_quote_range),
-			default_invoice_range: parsePeriodo(settings?.default_invoice_range)
+			default_invoice_range: parsePeriodo(settings?.default_invoice_range),
+			default_event_range: parsePeriodo(settings?.default_event_range)
 		}
 	};
 };
@@ -49,6 +50,8 @@ export const actions: Actions = {
 		const ventanaCotizaciones = parsePeriodo(String(form.get('default_quote_range') ?? '').trim());
 		// Y un tercer ajuste APARTE, para facturas.
 		const ventanaFacturas = parsePeriodo(String(form.get('default_invoice_range') ?? '').trim());
+		// Y un cuarto ajuste APARTE, para eventos.
+		const ventanaEventos = parsePeriodo(String(form.get('default_event_range') ?? '').trim());
 
 		// `Number('')` es 0 y `Number('abc')` es NaN: los dos se rechazan aquí en
 		// vez de acabar escribiendo un 0 silencioso. Una action es un endpoint
@@ -61,7 +64,8 @@ export const actions: Actions = {
 					default_valuation_rule: regla,
 					default_order_range: ventana,
 					default_quote_range: ventanaCotizaciones,
-					default_invoice_range: ventanaFacturas
+					default_invoice_range: ventanaFacturas,
+					default_event_range: ventanaEventos
 				}
 			});
 		}
@@ -71,14 +75,15 @@ export const actions: Actions = {
 			default_valuation_rule: regla,
 			default_order_range: ventana,
 			default_quote_range: ventanaCotizaciones,
-			default_invoice_range: ventanaFacturas
+			default_invoice_range: ventanaFacturas,
+			default_event_range: ventanaEventos
 		});
 
 		await recordAuditLog({ locals, request, getClientAddress }, {
 			action: 'settings.company.updated',
 			entity_type: 'company_settings',
 			entity_id: companyId,
-			description: `Impuesto por defecto ${tasa}%, valoración «${regla}», órdenes por ${PERIODO_LABELS[ventana].toLowerCase()}, cotizaciones por ${PERIODO_LABELS[ventanaCotizaciones].toLowerCase()}, facturas por ${PERIODO_LABELS[ventanaFacturas].toLowerCase()}`
+			description: `Impuesto por defecto ${tasa}%, valoración «${regla}», órdenes por ${PERIODO_LABELS[ventana].toLowerCase()}, cotizaciones por ${PERIODO_LABELS[ventanaCotizaciones].toLowerCase()}, facturas por ${PERIODO_LABELS[ventanaFacturas].toLowerCase()}, eventos por ${PERIODO_LABELS[ventanaEventos].toLowerCase()}`
 		});
 
 		return {
@@ -88,7 +93,8 @@ export const actions: Actions = {
 				default_valuation_rule: regla,
 				default_order_range: ventana,
 				default_quote_range: ventanaCotizaciones,
-				default_invoice_range: ventanaFacturas
+				default_invoice_range: ventanaFacturas,
+				default_event_range: ventanaEventos
 			}
 		};
 	}
