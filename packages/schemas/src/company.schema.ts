@@ -28,6 +28,8 @@ export type CompanySettings = {
 	default_order_range?: string;
 	/** `mes` | `trimestre` | `anio`: la ventana que carga el listado de cotizaciones. */
 	default_quote_range?: string;
+	/** `mes` | `trimestre` | `anio`: la ventana que carga el listado de facturas. */
+	default_invoice_range?: string;
 };
 
 export function validateCompanySettingsInput(company: Pick<CompanySettings, 'name'>): ValidationResult {

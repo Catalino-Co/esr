@@ -97,6 +97,9 @@ function setupIpcHandlers() {
   // Devuelven `{ok, data|error}` en vez de lanzar: ver la cabecera de
   // `invoices.cjs`.
   ipcMain.handle('invoices:list', (event, filters) => facturacion.listInvoices(filters));
+  ipcMain.handle('invoices:searchByNumber', (event, termino, limite) =>
+    facturacion.searchInvoices(termino, limite)
+  );
   ipcMain.handle('invoices:findById', (event, id) => facturacion.findInvoice(id));
   ipcMain.handle('invoices:listItems', (event, id) => facturacion.listInvoiceItems(id));
   ipcMain.handle('invoices:listConduces', (event, id) => facturacion.listInvoiceConduces(id));

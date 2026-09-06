@@ -15,6 +15,7 @@ const roleAlignment = require('./versioned/0013_role_alignment.cjs');
 const companyDefaultOrderRange = require('./versioned/0014_company_default_order_range.cjs');
 const quotationsDateIdx = require('./versioned/0015_quotations_date_idx.cjs');
 const companyDefaultQuoteRange = require('./versioned/0016_company_default_quote_range.cjs');
+const companyDefaultInvoiceRange = require('./versioned/0017_company_default_invoice_range.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -32,7 +33,8 @@ const MIGRATIONS = [
   roleAlignment,
   companyDefaultOrderRange,
   quotationsDateIdx,
-  companyDefaultQuoteRange
+  companyDefaultQuoteRange,
+  companyDefaultInvoiceRange
 ];
 
 /**

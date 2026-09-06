@@ -85,6 +85,18 @@ class SqliteInvoiceRepository {
       where.push('(inv.invoice_number LIKE ? OR c.name LIKE ?)');
       params.push(`%${filters.search}%`, `%${filters.search}%`);
     }
+    // `inv.date` es TEXT `YYYY-MM-DD`: comparar cadenas coincide con comparar
+    // fechas. Una factura sin fecha no desaparece nunca, igual que en
+    // Ordenes/Cotizaciones: esconderla dejaria invisible una a la que se le
+    // olvido la fecha.
+    if (filters.date_from) {
+      where.push('(inv.date IS NULL OR inv.date >= ?)');
+      params.push(filters.date_from);
+    }
+    if (filters.date_to) {
+      where.push('(inv.date IS NULL OR inv.date <= ?)');
+      params.push(filters.date_to);
+    }
 
     // El cobrado sale por subconsulta correlacionada: una sola ida a la base en
     // vez de N consultas dentro del bucle de la pantalla.
@@ -98,6 +110,28 @@ class SqliteInvoiceRepository {
        WHERE ${where.join(' AND ')}
        ORDER BY inv.id DESC`,
       params
+    );
+  }
+
+  /**
+   * Buscar por numero de factura, sin ventana de fechas ni `is_active`: si se
+   * busca por numero es porque se sabe cual es, y una anulada tiene que
+   * aparecer. `invoice_number` es NOT NULL en SQLite igual que en Postgres.
+   */
+  async searchByNumber(termino, limite = 10) {
+    const t = String(termino || '').trim();
+    if (!t) return [];
+    const tope = Math.min(50, Math.max(1, Number(limite) || 10));
+    return await getQuery(
+      `SELECT ${INVOICE_COLUMNS}
+       ${INVOICE_JOINS}
+       WHERE inv.invoice_number LIKE '%' || ? || '%'
+       ORDER BY
+         (LOWER(inv.invoice_number) = LOWER(?)) DESC,
+         (inv.invoice_number LIKE ? || '%') DESC,
+         inv.date DESC, inv.id DESC
+       LIMIT ?`,
+      [t, t, t, tope]
     );
   }
 

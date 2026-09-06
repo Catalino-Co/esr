@@ -29,6 +29,8 @@
   let ventana = 'mes';
   /** Ajuste APARTE del anterior, para el listado de cotizaciones. */
   let ventanaCotizaciones = 'mes';
+  /** Ajuste APARTE de los dos anteriores, para el listado de facturas. */
+  let ventanaFacturas = 'mes';
   let guardando = false;
 
   onMount(async () => {
@@ -41,6 +43,7 @@
     regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
     ventana = parsePeriodo(fila?.default_order_range);
     ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
+    ventanaFacturas = parsePeriodo(fila?.default_invoice_range);
   });
 
   async function guardar() {
@@ -63,12 +66,14 @@
         default_tax_rate: valor,
         default_valuation_rule: regla,
         default_order_range: ventana,
-        default_quote_range: ventanaCotizaciones
+        default_quote_range: ventanaCotizaciones,
+        default_invoice_range: ventanaFacturas
       });
       tasa = Number(fila?.default_tax_rate) || 0;
       regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
       ventana = parsePeriodo(fila?.default_order_range);
       ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
+      ventanaFacturas = parsePeriodo(fila?.default_invoice_range);
       toasts.success('Ajustes generales guardados.');
     } catch (e) {
       dangerModal.show(String(e?.message || 'No se pudo guardar.'));
@@ -140,6 +145,19 @@
       <span class="field-hint">
         La ventana de fechas con la que abre el listado de cotizaciones. Ajuste aparte del de
         órdenes.
+      </span>
+    </div>
+
+    <div class="form-field">
+      <label for="ventana-facturas">Facturas que se cargan</label>
+      <select id="ventana-facturas" bind:value={ventanaFacturas}>
+        {#each PERIODOS as periodo (periodo)}
+          <option value={periodo}>{PERIODO_LABELS[periodo]} en curso</option>
+        {/each}
+      </select>
+      <span class="field-hint">
+        La ventana de fechas con la que abre el listado de facturas. Ajuste aparte de las
+        anteriores.
       </span>
     </div>
   </div>

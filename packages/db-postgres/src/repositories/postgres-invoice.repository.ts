@@ -15,6 +15,9 @@ export type InvoiceListFilters = {
 	work_order_id?: ESRId;
 	/** Numero de factura o nombre de cliente. */
 	search?: string;
+	/** `YYYY-MM-DD`, ambos inclusive. Ver el docblock de `list()`. */
+	date_from?: string;
+	date_to?: string;
 	limit?: number;
 	offset?: number;
 };
@@ -87,6 +90,25 @@ export class PostgresInvoiceRepository {
 			where.push(`(inv.invoice_number ILIKE $${params.length} OR c.name ILIKE $${params.length})`);
 		}
 
+		/*
+		 * La ventana de fechas.
+		 *
+		 * `inv.date` es TEXT `YYYY-MM-DD`, comparacion lexicografica correcta con
+		 * ceros a la izquierda. `date IS NULL` nunca se descarta: una factura sin
+		 * fecha no debe desaparecer sin que nada lo diga. Gemelo del de
+		 * `postgres-quote.repository.ts` y `postgres-rental.repository.ts`.
+		 *
+		 * El `ORDER BY` no cambia: sigue siendo `inv.id DESC`. Esto solo filtra.
+		 */
+		if (filters.date_from) {
+			params.push(filters.date_from);
+			where.push(`(inv.date IS NULL OR inv.date >= $${params.length})`);
+		}
+		if (filters.date_to) {
+			params.push(filters.date_to);
+			where.push(`(inv.date IS NULL OR inv.date <= $${params.length})`);
+		}
+
 		// El cobrado se calcula aqui y no en el bucle de la pantalla: una
 		// subconsulta por fila es una sola ida a la base, N consultas son N.
 		const result = await this.db().query<Invoice>(
@@ -99,6 +121,26 @@ export class PostgresInvoiceRepository {
 			 WHERE ${where.join(' AND ')}
 			 ORDER BY inv.id DESC${appendPagination(params, filters)}`,
 			params
+		);
+		return result.rows;
+	}
+
+	/**
+	 * Buscar por numero, sin filtro de estado ni de circulacion: si se busca por
+	 * numero es porque se sabe cual es, y una anulada tiene que aparecer.
+	 * `invoice_number` es NOT NULL, asi que a diferencia de
+	 * `postgres-rental.repository.ts` no hace falta el respaldo `OR id::text = $2`.
+	 */
+	async searchByNumber(ctx: RepositoryContext, termino: string, limite = 10): Promise<Invoice[]> {
+		const result = await this.pool.query<Invoice>(
+			`SELECT ${INVOICE_COLUMNS} ${INVOICE_JOINS}
+			 WHERE inv.company_id = $1 AND inv.invoice_number ILIKE '%' || $2 || '%'
+			 ORDER BY
+			   (lower(inv.invoice_number) = lower($2)) DESC,
+			   (inv.invoice_number ILIKE $2 || '%') DESC,
+			   inv.date DESC NULLS LAST, inv.id DESC
+			 LIMIT $3`,
+			[requireCompanyId(ctx), termino, Math.min(50, Math.max(1, limite))]
 		);
 		return result.rows;
 	}

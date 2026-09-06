@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('api', {
   },
   invoices: {
     list: (filters) => ipcRenderer.invoke('invoices:list', filters),
+    searchByNumber: (termino, limite) => ipcRenderer.invoke('invoices:searchByNumber', termino, limite),
     findById: (id) => ipcRenderer.invoke('invoices:findById', id),
     listItems: (id) => ipcRenderer.invoke('invoices:listItems', id),
     listConduces: (id) => ipcRenderer.invoke('invoices:listConduces', id),

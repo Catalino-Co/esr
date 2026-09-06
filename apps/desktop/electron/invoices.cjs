@@ -27,6 +27,7 @@ const payments = repositories.payments;
 
 module.exports = {
   listInvoices: envolver((filters) => invoices.list(filters)),
+  searchInvoices: envolver((termino, limite) => invoices.searchByNumber(termino, limite)),
   findInvoice: envolver((id) => invoices.findById(id)),
   listInvoiceItems: envolver((id) => invoices.listItems(id)),
   listInvoiceConduces: envolver((id) => invoices.listConduces(id)),

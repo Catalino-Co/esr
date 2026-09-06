@@ -16,7 +16,8 @@
 			default_tax_rate: String(data.defaults.default_tax_rate),
 			default_valuation_rule: data.defaults.default_valuation_rule,
 			default_order_range: data.defaults.default_order_range,
-			default_quote_range: data.defaults.default_quote_range
+			default_quote_range: data.defaults.default_quote_range,
+			default_invoice_range: data.defaults.default_invoice_range
 		}
 	);
 </script>
@@ -91,6 +92,20 @@
 			<span class="field-hint">
 				La ventana de fechas con la que abre el listado de cotizaciones. Ajuste aparte del de
 				órdenes: una empresa puede querer una ventana distinta para cada una.
+			</span>
+		</div>
+		<div class="form-field">
+			<label for="default_invoice_range">Facturas que se cargan</label>
+			<select id="default_invoice_range" name="default_invoice_range">
+				{#each PERIODOS as periodo (periodo)}
+					<option value={periodo} selected={values.default_invoice_range === periodo}>
+						{PERIODO_LABELS[periodo]} en curso
+					</option>
+				{/each}
+			</select>
+			<span class="field-hint">
+				La ventana de fechas con la que abre el listado de facturas. Ajuste aparte de las
+				anteriores: una empresa puede querer una ventana distinta para cada listado.
 			</span>
 		</div>
 		<div class="form-actions">
