@@ -31,6 +31,14 @@
   let recargando = false;
 
   let currentItem = { id: null, name: '', is_active: 1 };
+  /**
+   * El estado CON el que se abrió la ficha (o con el que quedó tras guardar),
+   * no el que el `<select>` tenga a medio elegir: bloquear según el valor que
+   * el usuario apenas está escogiendo dejaría la ficha destrabándose sola
+   * mientras decide.
+   */
+  let estadoOriginal = 1;
+  $: puedeEditarCampos = estadoOriginal === 1;
   let categories = [];
   let subcategories = [];
   let suppliers = [];
@@ -78,6 +86,7 @@
       return;
     }
     currentItem = { ...item };
+    estadoOriginal = item.is_active;
 
     if (currentItem.category_id) {
       subcategories = await window.api.db.get(
@@ -162,8 +171,42 @@
     );
   }
 
+  /**
+   * La Condición (`item_inventory.physical_status`) sigue al estado de
+   * circulación: inactivar/archivar la aparta de forma automática, y
+   * reactivar la regresa a «disponible». Gemela de la de Cloud.
+   */
+  async function aplicarCondicionPorEstado(estado) {
+    const physicalStatus = estado === 2 ? 'no_disponible' : estado === 0 ? 'retirado' : 'disponible';
+    await window.api.db.run(
+      `INSERT INTO item_inventory (item_id, min_stock, physical_status) VALUES (?, 0, ?)
+       ON CONFLICT(item_id) DO UPDATE SET physical_status = excluded.physical_status`,
+      [itemId, physicalStatus]
+    );
+  }
+
   // ── Guardar la ficha ──────────────────────────────────────────────────────
   async function guardar() {
+    /*
+     * Inactivo/Archivado: la ficha llegó bloqueada. No se lee el resto del
+     * formulario —aunque esté editado en pantalla, se ignora— porque «no
+     * permite que se realicen actualizaciones» es la regla; lo único que
+     * puede pasar aquí es reactivarlo.
+     */
+    if (!puedeEditarCampos) {
+      guardando = true;
+      try {
+        if (currentItem.is_active !== estadoOriginal) {
+          await window.api.db.run('UPDATE items SET is_active=? WHERE id=?', [currentItem.is_active, itemId]);
+          await aplicarCondicionPorEstado(currentItem.is_active);
+        }
+        await cargarTodo();
+      } finally {
+        guardando = false;
+      }
+      return;
+    }
+
     if (!validateInventoryItemInput(currentItem).valid) {
       dangerModal.show('Nombre y Categoría son obligatorios');
       return;
@@ -208,6 +251,10 @@
       valores.push(itemId);
 
       await window.api.db.run(`UPDATE items SET ${columnas} WHERE id=?`, valores);
+
+      if (currentItem.is_active !== estadoOriginal) {
+        await aplicarCondicionPorEstado(currentItem.is_active);
+      }
 
       if (usesSerial) {
         /*
@@ -453,22 +500,28 @@
           </span>
         </div>
         <div class="ficha-divider"></div>
+        {#if !puedeEditarCampos}
+          <p class="panel-hint" style="margin-bottom: 15px;">
+            Este artículo está {recordStateLabel(currentItem.is_active).toLowerCase()}: no se puede usar ni editar.
+            Reactívelo abajo para volver a editarlo.
+          </p>
+        {/if}
         <div style="display: flex; flex-direction: column; gap: 15px;">
           <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
               <label for="itm-code">Código Interno</label>
-              <input id="itm-code" type="text" bind:value={currentItem.internal_code} class="form-control">
+              <input id="itm-code" type="text" bind:value={currentItem.internal_code} class="form-control" disabled={!puedeEditarCampos}>
             </div>
             <div style="flex: 2;">
               <label for="itm-name">Nombre *</label>
-              <input id="itm-name" type="text" bind:value={currentItem.name} class="form-control">
+              <input id="itm-name" type="text" bind:value={currentItem.name} class="form-control" disabled={!puedeEditarCampos}>
             </div>
           </div>
 
           <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
               <label for="itm-cat">Categoría *</label>
-              <select id="itm-cat" class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange}>
+              <select id="itm-cat" class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange} disabled={!puedeEditarCampos}>
                 <option value="">Seleccione...</option>
                 {#each categories as cat}
                   <option value={cat.id}>{cat.name}</option>
@@ -477,7 +530,7 @@
             </div>
             <div style="flex: 1;">
               <label for="itm-subcat">Subcategoría</label>
-              <select id="itm-subcat" class="form-control" bind:value={currentItem.subcategory_id} disabled={!currentItem.category_id}>
+              <select id="itm-subcat" class="form-control" bind:value={currentItem.subcategory_id} disabled={!puedeEditarCampos || !currentItem.category_id}>
                 <option value="">Ninguna</option>
                 {#each subcategories as sub}
                   <option value={sub.id}>{sub.name}</option>
@@ -489,25 +542,25 @@
           <div style="display: flex; gap: 15px; align-items: flex-start;">
             <div style="flex: 1;">
               <label for="itm-type">Tipo de Ítem</label>
-              <select id="itm-type" class="form-control" bind:value={currentItem.item_type}>
+              <select id="itm-type" class="form-control" bind:value={currentItem.item_type} disabled={!puedeEditarCampos}>
                 <option value="cantidad">General (Por Cantidad)</option>
                 <option value="serializado">Unitario (Serializado)</option>
               </select>
             </div>
             <div style="flex: 1;">
               <label for="itm-price">Precio de alquiler</label>
-              <input id="itm-price" type="number" step="any" min="0" bind:value={currentItem.rental_price} class="form-control">
+              <input id="itm-price" type="number" step="any" min="0" bind:value={currentItem.rental_price} class="form-control" disabled={!puedeEditarCampos}>
             </div>
             <div style="flex: 1;">
               <label for="itm-cost">Precio de compra</label>
-              <input id="itm-cost" type="number" step="any" min="0" bind:value={currentItem.internal_cost} class="form-control">
+              <input id="itm-cost" type="number" step="any" min="0" bind:value={currentItem.internal_cost} class="form-control" disabled={!puedeEditarCampos}>
             </div>
           </div>
 
           <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
               <label for="itm-uom">Unidad de Medida</label>
-              <select id="itm-uom" bind:value={currentItem.uom_id} class="form-control">
+              <select id="itm-uom" bind:value={currentItem.uom_id} class="form-control" disabled={!puedeEditarCampos}>
                 <option value="">(Ninguna)</option>
                 {#each units as unidad (unidad.id)}
                   <option value={unidad.id}>{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}</option>
@@ -524,7 +577,7 @@
             </div>
           </div>
 
-          {#if isSerializedInventoryItem(currentItem)}
+          {#if isSerializedInventoryItem(currentItem) && puedeEditarCampos}
             <div>
               <label for="itm-serials">Seriales individuales</label>
               <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="4"
@@ -548,7 +601,7 @@
 
           <div>
             <label for="itm-notes">Notas</label>
-            <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
+            <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2" disabled={!puedeEditarCampos}></textarea>
           </div>
 
           <div style="display:flex; justify-content:flex-end;">
@@ -585,7 +638,7 @@
                   <button type="button" class="btn-link" on:click={() => verEnInventario(fila.warehouse_id)}>
                     Ver en Inventario
                   </button>
-                  {#if !isSerializedInventoryItem(currentItem)}
+                  {#if !isSerializedInventoryItem(currentItem) && puedeEditarCampos}
                     {#if fila.quantity > 0}
                       <button type="button" class="btn-link" on:click={() => alternarTraslado(fila.warehouse_id)}>
                         Trasladar
@@ -629,7 +682,7 @@
       <div class="card">
         <div class="book-header">
           <div class="section-title">Proveedores</div>
-          {#if proveedoresDisponibles.length > 0}
+          {#if proveedoresDisponibles.length > 0 && puedeEditarCampos}
             <button type="button" class="btn btn-primary btn-sm" on:click={alternarAgregarProveedor}>
               Agregar proveedor
             </button>
@@ -637,7 +690,7 @@
         </div>
         <p class="panel-hint">Quién suministra este artículo. Puede haber más de uno.</p>
 
-        {#if mostrandoAgregarProveedor}
+        {#if mostrandoAgregarProveedor && puedeEditarCampos}
           <div class="inline-form">
             <div class="field">
               <label for="add-sup">Proveedor</label>
@@ -671,14 +724,16 @@
                   <td>{fila.supplier_name}</td>
                   <td>{fila.is_primary ? '★ Principal' : '—'}</td>
                   <td style="text-align:right; white-space:nowrap;">
-                    {#if !fila.is_primary}
-                      <button type="button" class="btn-link" on:click={() => marcarPrincipal(fila.supplier_id)}>
-                        ★ Principal
+                    {#if puedeEditarCampos}
+                      {#if !fila.is_primary}
+                        <button type="button" class="btn-link" on:click={() => marcarPrincipal(fila.supplier_id)}>
+                          ★ Principal
+                        </button>
+                      {/if}
+                      <button type="button" class="btn-link text-danger" on:click={() => quitarProveedor(fila.supplier_id)}>
+                        Quitar
                       </button>
                     {/if}
-                    <button type="button" class="btn-link text-danger" on:click={() => quitarProveedor(fila.supplier_id)}>
-                      Quitar
-                    </button>
                   </td>
                 </tr>
               {/each}
@@ -709,17 +764,21 @@
                 <td>{unidad.serial_number}</td>
                 <td>{unidad.status}</td>
                 <td>
-                  <select
-                    class="form-control"
-                    style="width:auto;"
-                    value={String(unidad.warehouse_id ?? '')}
-                    on:change={(e) => moverUnidad(unidad, e.currentTarget.value)}
-                  >
-                    {#if !unidad.warehouse_id}<option value="">Sin almacén</option>{/if}
-                    {#each almacenes as almacen (almacen.id)}
-                      <option value={String(almacen.id)}>{almacen.name}</option>
-                    {/each}
-                  </select>
+                  {#if puedeEditarCampos}
+                    <select
+                      class="form-control"
+                      style="width:auto;"
+                      value={String(unidad.warehouse_id ?? '')}
+                      on:change={(e) => moverUnidad(unidad, e.currentTarget.value)}
+                    >
+                      {#if !unidad.warehouse_id}<option value="">Sin almacén</option>{/if}
+                      {#each almacenes as almacen (almacen.id)}
+                        <option value={String(almacen.id)}>{almacen.name}</option>
+                      {/each}
+                    </select>
+                  {:else}
+                    {almacenes.find((a) => String(a.id) === String(unidad.warehouse_id))?.name ?? 'Sin almacén'}
+                  {/if}
                 </td>
               </tr>
             {/each}

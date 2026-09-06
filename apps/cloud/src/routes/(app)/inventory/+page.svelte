@@ -48,7 +48,8 @@
 	const CONDICIONES = {
 		disponible: 'Disponible',
 		mantenimiento: 'Mantenimiento',
-		retirado: 'Retirado'
+		retirado: 'Retirado',
+		no_disponible: 'No disponible'
 	};
 
 	const opcionesCondicion = [

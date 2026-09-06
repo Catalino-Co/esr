@@ -30,7 +30,8 @@
   const CONDICIONES = {
     disponible: 'Disponible',
     mantenimiento: 'Mantenimiento',
-    retirado: 'Retirado'
+    retirado: 'Retirado',
+    no_disponible: 'No disponible'
   };
 
   let almacenes = [];
@@ -99,7 +100,9 @@
     }
     localStorage.setItem(CLAVE_ALMACEN, almacenId);
 
-    const where = ['i.is_active = 1'];
+    // Inactivo se queda: inactivar un artículo no lo saca del inventario,
+    // solo impide usarlo y editarlo. Archivado sí se quita de esta vista.
+    const where = ['i.is_active != 0'];
     const params = [];
 
     if (busqueda.trim()) {

@@ -25,7 +25,7 @@ const COOKIE_ALMACEN = 'esr_almacen';
 const UN_AÑO = 60 * 60 * 24 * 365;
 
 const TIPOS_MOVIMIENTO = ['entrada', 'salida', 'ajuste'] as const;
-const ESTADOS_FISICOS = ['disponible', 'mantenimiento', 'retirado'] as const;
+const ESTADOS_FISICOS = ['disponible', 'mantenimiento', 'retirado', 'no_disponible'] as const;
 
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	const { companyId } = requirePermission(locals, 'inventory.view');

@@ -1,5 +1,5 @@
 import type { RepositoryContext } from '@esr/core';
-import { directOrderErrorMessage, validateDirectOrderDraft } from '@esr/core';
+import { directOrderErrorMessage, RECORD_STATE, validateDirectOrderDraft } from '@esr/core';
 import type { ESRId, RentalOrder } from '@esr/schemas';
 import { withTransaction } from '../transaction';
 import { PostgresCustomerRepository } from '../repositories/postgres-customer.repository';
@@ -68,6 +68,9 @@ export class WorkOrderCreationService {
 		for (const linea of lineas) {
 			const item = await this.inventory.findById(ctx, linea.item_id as ESRId);
 			if (!item) throw new Error('Uno de los artículos no pertenece a su empresa.');
+			if (item.is_active !== RECORD_STATE.ACTIVE) {
+				throw new Error(`El artículo "${item.name}" está inactivo o archivado y no puede usarse en una orden.`);
+			}
 			articulos.set(String(linea.item_id), item.name ?? `#${linea.item_id}`);
 		}
 

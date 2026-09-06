@@ -234,7 +234,9 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		filters: InventoryStockFilters = {}
 	): Promise<InventoryStockRow[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
-		const where = ['i.company_id = $1', 'i.is_active = 1'];
+		// Inactivo se queda: inactivar un artículo no lo saca del inventario,
+		// solo impide usarlo y editarlo. Archivado sí se quita de esta vista.
+		const where = ['i.company_id = $1', 'i.is_active != 0'];
 
 		if (filters.search) {
 			params.push(`%${filters.search}%`);

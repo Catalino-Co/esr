@@ -18,6 +18,14 @@
 	 */
 	const item = $derived(data.item);
 
+	/**
+	 * Inactivo/Archivado bloquea la ficha entera: no se puede usar y no se
+	 * puede editar, salvo el propio Estado (para reactivarlo). El servidor
+	 * ya lo hace cumplir de verdad —ver `update` en `+page.server.ts`—; esto
+	 * solo evita que se vea editable algo que en realidad no se va a guardar.
+	 */
+	const puedeEditarCampos = $derived(item.is_active === 1);
+
 	let recargando = $state(false);
 	async function recargar() {
 		recargando = true;
@@ -76,17 +84,23 @@
 			</div>
 
 			<form method="POST" action="?/update" class="form-grid" use:enhance={alGuardar}>
+				{#if !puedeEditarCampos}
+					<p class="panel-hint form-field full">
+						Este artículo está {recordStateLabel(item.is_active).toLowerCase()}: no se puede usar ni editar.
+						{#if data.puedeArchivar}Reactívelo abajo para volver a editarlo.{/if}
+					</p>
+				{/if}
 				<div class="form-field">
 					<label for="name">Nombre *</label>
-					<input id="name" name="name" value={item.name} required />
+					<input id="name" name="name" value={item.name} disabled={!puedeEditarCampos} required />
 				</div>
 				<div class="form-field">
 					<label for="internal_code">Código / SKU</label>
-					<input id="internal_code" name="internal_code" value={item.internal_code ?? ''} />
+					<input id="internal_code" name="internal_code" value={item.internal_code ?? ''} disabled={!puedeEditarCampos} />
 				</div>
 				<div class="form-field">
 					<label for="category_id">Categoría</label>
-					<select id="category_id" name="category_id">
+					<select id="category_id" name="category_id" disabled={!puedeEditarCampos}>
 						<option value="">Sin categoría</option>
 						{#each data.categories as category (category.id)}
 							<option value={category.id} selected={String(item.category_id) === String(category.id)}>
@@ -97,7 +111,7 @@
 				</div>
 				<div class="form-field">
 					<label for="item_type">Tipo de control</label>
-					<select id="item_type" name="item_type">
+					<select id="item_type" name="item_type" disabled={!puedeEditarCampos}>
 						<option value="cantidad" selected={!data.isSerialized}>Por cantidad</option>
 						<option value="serializado" selected={data.isSerialized}>Por número de serie</option>
 					</select>
@@ -107,7 +121,7 @@
 				</div>
 				<div class="form-field">
 					<label for="uom_id">Unidad de medida</label>
-					<select id="uom_id" name="uom_id">
+					<select id="uom_id" name="uom_id" disabled={!puedeEditarCampos}>
 						<option value="">(Ninguna)</option>
 						{#each data.units as unidad (unidad.id)}
 							<option value={unidad.id} selected={String(item.uom_id) === String(unidad.id)}>
@@ -118,11 +132,11 @@
 				</div>
 				<div class="form-field">
 					<label for="rental_price">Precio de alquiler</label>
-					<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} />
+					<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} disabled={!puedeEditarCampos} />
 				</div>
 				<div class="form-field">
 					<label for="internal_cost">Precio de compra</label>
-					<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} />
+					<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} disabled={!puedeEditarCampos} />
 					<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 				</div>
 				<!--
@@ -142,7 +156,7 @@
 				{/if}
 				<div class="form-field full">
 					<label for="notes">Notas</label>
-					<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
+					<textarea id="notes" name="notes" rows="2" disabled={!puedeEditarCampos}>{item.notes ?? ''}</textarea>
 				</div>
 				<div class="form-actions">
 					{#if can('inventory.update')}
@@ -161,10 +175,16 @@
 			warehouses={data.warehouses}
 			isSerialized={data.isSerialized}
 			searchTerm={item.internal_code || item.name}
+			readOnly={!puedeEditarCampos}
 			{form}
 		/>
 
-		<ItemSupplierBook itemSuppliers={data.itemSuppliers} suppliers={data.suppliers} {form} />
+		<ItemSupplierBook
+			itemSuppliers={data.itemSuppliers}
+			suppliers={data.suppliers}
+			readOnly={!puedeEditarCampos}
+			{form}
+		/>
 	</div>
 </div>
 
@@ -176,7 +196,7 @@
 			salen; vuelven a estar disponibles al registrar la devolución.
 		</p>
 
-		{#if can('inventory.update')}
+		{#if can('inventory.update') && puedeEditarCampos}
 			<form method="POST" action="?/addSerials" class="form-grid" use:enhance>
 				<div class="form-field full">
 					<label for="serials">Agregar seriales (uno por línea)</label>
@@ -244,7 +264,7 @@
 							<td>
 								<!-- Editable: aquí ya no es solo lectura. Reasignar el almacén
 								     de una unidad es el «trasladar» de un serializado. -->
-								{#if can('inventory.update')}
+								{#if can('inventory.update') && puedeEditarCampos}
 									<form method="POST" action="?/moveSerial" use:enhance>
 										<input type="hidden" name="serial_id" value={serial.id} />
 										<select
@@ -271,7 +291,7 @@
 								{/if}
 							</td>
 							<td>
-								{#if can('inventory.update') && !entregado}
+								{#if can('inventory.update') && puedeEditarCampos && !entregado}
 									<form method="POST" action="?/setSerialStatus" class="linea" use:enhance>
 										<input type="hidden" name="serial_id" value={serial.id} />
 										<select name="status" aria-label={`Estado de ${serial.serial_number}`}>

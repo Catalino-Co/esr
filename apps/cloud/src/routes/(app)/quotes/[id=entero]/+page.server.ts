@@ -1,7 +1,7 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { validateAddQuoteItemInput } from '@esr/schemas';
-import { SELECTABLE_STATES, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
+import { RECORD_STATE, SELECTABLE_STATES, validateQuoteCanApprove, validateQuoteCanEdit } from '@esr/core';
 import {
 	getCompanySettingsRepository,
 	getCustomerRepository,
@@ -48,7 +48,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
 			getCustomerRepository().findById(ctx, quote.client_id),
-			getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: TOPE_INVENTARIO, offset: 0 }),
+			// Solo Activos: un inactivo/archivado no se puede usar en una
+			// cotización nueva (a diferencia de clientes/categorías, que sí
+			// siguen ofreciendo Inactivo — `SELECTABLE_STATES` es de ellos).
+			getInventoryRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: TOPE_INVENTARIO, offset: 0 }),
 			getRentalRepository().findByQuotationId(ctx, params.id),
 			getPackageRepository().list(ctx),
 			getPackageRepository().listAllItems(ctx),
@@ -143,6 +146,13 @@ export const actions: Actions = {
 		const validation = validateAddQuoteItemInput({ item_id, quantity, price });
 		if (!validation.valid) return fail(400, { error: 'Artículo, cantidad y precio inválidos.' });
 
+		// El selector ya solo ofrece Activos, pero esto no confía en eso: una
+		// petición aparte podría mandar cualquier id.
+		const item = await getInventoryRepository().findById(ctx, item_id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { error: 'Este artículo está inactivo o archivado y no puede agregarse.' });
+		}
+
 		await getQuoteRepository().addItem(ctx, params.id, {
 			item_id,
 			quantity,
@@ -175,6 +185,18 @@ export const actions: Actions = {
 		const lines = await getPackageRepository().listItems(ctx, packageId);
 		if (!lines.length) {
 			return fail(400, { error: `El paquete «${pkg.name}» está vacío.` });
+		}
+
+		// Se comprueban TODOS antes de insertar el primero: si uno solo del
+		// paquete está inactivo/archivado, se rechaza el paquete entero en vez
+		// de agregar la mitad y dejar la otra mitad afuera sin avisar por qué.
+		for (const line of lines) {
+			const item = await getInventoryRepository().findById(ctx, line.item_id);
+			if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+				return fail(400, {
+					error: `El paquete «${pkg.name}» tiene un artículo inactivo o archivado (${item?.name ?? line.item_id}); no se puede agregar así.`
+				});
+			}
 		}
 
 		// Se explota en líneas sueltas con el precio VIGENTE de cada artículo,

@@ -19,6 +19,7 @@
 		warehouses = [],
 		isSerialized = false,
 		searchTerm = '',
+		readOnly = false,
 		form = null
 	} = $props();
 
@@ -71,7 +72,7 @@
 							>
 								Ver en Inventario
 							</a>
-							{#if !isSerialized}
+							{#if !isSerialized && !readOnly}
 								{#if fila.quantity > 0}
 									<button
 										type="button"

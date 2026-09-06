@@ -1,5 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
-import { SELECTABLE_STATES, mergePackageItem } from '@esr/core';
+import { mergePackageItem, RECORD_STATE } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -15,7 +15,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const [items, inventory] = await Promise.all([
 		getPackageRepository().listItems(ctx, params.id),
-		getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 300, offset: 0 })
+		// Solo Activos: un inactivo/archivado no se puede agregar a un paquete.
+		getInventoryRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: 300, offset: 0 })
 	]);
 
 	return { pkg, items, inventory };
@@ -62,6 +63,11 @@ export const actions: Actions = {
 		if (!itemId) return fail(400, { error: 'Seleccione un artículo.' });
 		if (!Number.isFinite(quantity) || quantity < 1) {
 			return fail(400, { error: 'La cantidad debe ser al menos 1.' });
+		}
+
+		const item = await getInventoryRepository().findById(ctx, itemId);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { error: 'Este artículo está inactivo o archivado y no puede agregarse.' });
 		}
 
 		const current = await getPackageRepository().listItems(ctx, event.params.id);

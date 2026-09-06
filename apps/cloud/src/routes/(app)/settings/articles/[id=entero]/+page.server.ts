@@ -1,6 +1,14 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { can, isRecordState, isSerializedInventoryItem, parseSerialLines, uniqueSerialLines } from '@esr/core';
+import {
+	can,
+	isRecordState,
+	isSerializedInventoryItem,
+	parseSerialLines,
+	RECORD_STATE,
+	type RecordState,
+	uniqueSerialLines
+} from '@esr/core';
 import {
 	getCategoryRepository,
 	getInventoryRepository,
@@ -15,6 +23,18 @@ import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
+
+/**
+ * La Condición (`item_inventory.physical_status`) sigue al estado de
+ * circulación: inactivar/archivar la aparta de forma automática, y
+ * reactivar la regresa a «disponible» para que no se quede diciendo «No
+ * disponible»/«Retirado» de un artículo que ya volvió a estar Activo.
+ */
+function physicalStatusForState(state: number): string {
+	if (state === RECORD_STATE.INACTIVE) return 'no_disponible';
+	if (state === RECORD_STATE.ARCHIVED) return 'retirado';
+	return 'disponible';
+}
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'inventory.view');
@@ -67,6 +87,9 @@ export const actions: Actions = {
 
 		const item = await getInventoryRepository().findById(ctx, event.params.id);
 		if (!item) return fail(404, { scope: 'seriales', error: 'Artículo no encontrado.' });
+		if (item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'seriales', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
 		if (!isSerializedInventoryItem(item)) {
 			return fail(400, { scope: 'seriales', error: 'Este artículo no se lleva por número de serie.' });
 		}
@@ -140,6 +163,11 @@ export const actions: Actions = {
 			return fail(400, { scope: 'seriales', error: 'Ese estado solo lo cambia la operación de entrega o devolución.' });
 		}
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'seriales', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		const serials = await getSerialRepository().findByItem(ctx, event.params.id);
 		const serial = serials.find((s) => String(s.id) === serialId);
 		if (!serial) return fail(404, { scope: 'seriales', error: 'Serial no encontrado.' });
@@ -172,6 +200,11 @@ export const actions: Actions = {
 		const serialId = String(form.get('serial_id') ?? '').trim();
 		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
 		if (!serialId || !warehouseId) return fail(400, { scope: 'seriales', error: 'Falta la unidad o el almacén.' });
+
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'seriales', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
 
 		try {
 			const { serial, from } = await getSerialRepository().setWarehouse(ctx, serialId, warehouseId);
@@ -231,6 +264,11 @@ export const actions: Actions = {
 			return fail(400, { scope: 'almacenes', error: 'La cantidad debe ser mayor que cero.' });
 		}
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'almacenes', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		try {
 			await getInventoryRepository().transferStock(ctx, {
 				item_id: event.params.id,
@@ -266,6 +304,11 @@ export const actions: Actions = {
 		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
 		if (!warehouseId) return fail(400, { scope: 'almacenes', error: 'Falta el almacén.' });
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'almacenes', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		try {
 			await getInventoryRepository().removeFromWarehouse(ctx, event.params.id, warehouseId);
 
@@ -296,6 +339,11 @@ export const actions: Actions = {
 		const isPrimary = form.get('is_primary') === '1';
 		if (!supplierId) return fail(400, { scope: 'proveedores', error: 'Elija el proveedor.' });
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'proveedores', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		await getInventoryRepository().addSupplier(ctx, event.params.id, supplierId, isPrimary);
 
 		await recordAuditLog(event, {
@@ -318,6 +366,11 @@ export const actions: Actions = {
 		const supplierId = String(form.get('supplier_id') ?? '').trim();
 		if (!supplierId) return fail(400, { scope: 'proveedores', error: 'Falta el proveedor.' });
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'proveedores', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		try {
 			await getInventoryRepository().setPrimarySupplier(ctx, event.params.id, supplierId);
 			return { scope: 'proveedores', success: true };
@@ -338,6 +391,11 @@ export const actions: Actions = {
 		const supplierId = String(form.get('supplier_id') ?? '').trim();
 		if (!supplierId) return fail(400, { scope: 'proveedores', error: 'Falta el proveedor.' });
 
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'proveedores', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+
 		await getInventoryRepository().removeSupplier(ctx, event.params.id, supplierId);
 
 		await recordAuditLog(event, {
@@ -355,6 +413,47 @@ export const actions: Actions = {
 		const { companyId, role } = requirePermission(locals, 'inventory.update');
 		const ctx = toTenantContext(companyId);
 		const form = await request.formData();
+
+		const current = await getInventoryRepository().findById(ctx, params.id);
+		if (!current) error(404, 'Artículo no encontrado');
+
+		/*
+		 * El estado NO viaja gratis dentro de esta action.
+		 *
+		 * Antes vivía en `?/setState`, protegido con `inventory.archive`. Al
+		 * mudarlo al formulario principal, que exige `inventory.update`, un rol
+		 * con permiso de editar y sin permiso de archivar podría archivar
+		 * artículos. Ocultar el select en la página no es un control: se lee
+		 * solo si el llamante puede, y si no, se ignora. Calcado de
+		 * `customers/[id=entero]/+page.server.ts`.
+		 */
+		const puedeArchivar = can(role, 'inventory.archive');
+		const estadoPedido = Number(form.get('is_active'));
+		const nextState = ((puedeArchivar && isRecordState(estadoPedido) ? estadoPedido : current.is_active) ??
+			RECORD_STATE.ACTIVE) as RecordState;
+
+		/*
+		 * Inactivo/Archivado: la ficha llegó bloqueada. Ni siquiera se lee el
+		 * resto del formulario —aunque venga en el POST, se ignora— porque
+		 * «no permite que se realicen actualizaciones» es la regla, y la
+		 * pantalla ya deshabilita esos campos en el cliente: esto es lo que lo
+		 * hace cumplir de verdad. Lo único que puede pasar aquí es reactivarlo.
+		 */
+		if (current.is_active !== RECORD_STATE.ACTIVE) {
+			if (nextState !== current.is_active) {
+				await getInventoryRepository().setState(ctx, params.id, nextState);
+				await getInventoryRepository().saveInventory(ctx, params.id, {
+					physical_status: physicalStatusForState(nextState)
+				});
+				await recordAuditLog({ locals, request, getClientAddress }, {
+					action: 'record.state_changed',
+					entity_type: 'inventory_item',
+					entity_id: String(params.id),
+					description: `Artículo «${current.name}» → estado ${nextState}`
+				});
+			}
+			return { scope: 'articulo', success: true };
+		}
 
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
@@ -379,27 +478,9 @@ export const actions: Actions = {
 			});
 		}
 
-		const current = await getInventoryRepository().findById(ctx, params.id);
-		if (!current) error(404, 'Artículo no encontrado');
-
 		// Pasar a serializado no se puede deshacer a la ligera: si ya hay
 		// unidades registradas, volver a «por cantidad» las dejaría huérfanas.
 		const wantsSerial = String(form.get('item_type') ?? 'cantidad') === 'serializado';
-
-		/*
-		 * El estado NO viaja gratis dentro de esta action.
-		 *
-		 * Antes vivía en `?/setState`, protegido con `inventory.archive`. Al
-		 * mudarlo al formulario principal, que exige `inventory.update`, un rol
-		 * con permiso de editar y sin permiso de archivar podría archivar
-		 * artículos. Ocultar el select en la página no es un control: se lee
-		 * solo si el llamante puede, y si no, se ignora. Calcado de
-		 * `customers/[id=entero]/+page.server.ts`.
-		 */
-		const puedeArchivar = can(role, 'inventory.archive');
-		const estadoPedido = Number(form.get('is_active'));
-		const nextState =
-			puedeArchivar && isRecordState(estadoPedido) ? estadoPedido : current.is_active;
 
 		// NO se toca ni una existencia. Guardar la ficha de un artículo no puede
 		// mover stock: para eso está el movimiento de Inventario, que además deja
@@ -424,6 +505,9 @@ export const actions: Actions = {
 		});
 
 		if (nextState !== current.is_active) {
+			await getInventoryRepository().saveInventory(ctx, params.id, {
+				physical_status: physicalStatusForState(nextState)
+			});
 			await recordAuditLog({ locals, request, getClientAddress }, {
 				action: 'record.state_changed',
 				entity_type: 'inventory_item',

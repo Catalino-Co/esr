@@ -11,6 +11,7 @@
 	let {
 		itemSuppliers = [],
 		suppliers = [],
+		readOnly = false,
 		form = null
 	} = $props();
 
@@ -42,7 +43,7 @@
 			<h2>Proveedores</h2>
 			<p class="panel-hint">Quién suministra este artículo. Puede haber más de uno.</p>
 		</div>
-		{#if disponibles.length > 0}
+		{#if disponibles.length > 0 && !readOnly}
 			<button type="button" class="btn-primary btn-new btn-sm" onclick={alternarAgregar}>
 				Agregar proveedor
 			</button>
@@ -92,16 +93,18 @@
 							{/if}
 						</td>
 						<td class="row-actions">
-							{#if !fila.is_primary}
-								<form method="POST" action="?/setPrimarySupplier" use:enhance={alEnviar}>
+							{#if !readOnly}
+								{#if !fila.is_primary}
+									<form method="POST" action="?/setPrimarySupplier" use:enhance={alEnviar}>
+										<input type="hidden" name="supplier_id" value={fila.supplier_id} />
+										<button type="submit" class="btn-secondary btn-sm">★ Principal</button>
+									</form>
+								{/if}
+								<form method="POST" action="?/removeSupplier" use:enhance={alEnviar}>
 									<input type="hidden" name="supplier_id" value={fila.supplier_id} />
-									<button type="submit" class="btn-secondary btn-sm">★ Principal</button>
+									<button type="submit" class="btn-danger btn-sm">Quitar</button>
 								</form>
 							{/if}
-							<form method="POST" action="?/removeSupplier" use:enhance={alEnviar}>
-								<input type="hidden" name="supplier_id" value={fila.supplier_id} />
-								<button type="submit" class="btn-danger btn-sm">Quitar</button>
-							</form>
 						</td>
 					</tr>
 				{/each}

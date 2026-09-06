@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { SELECTABLE_STATES, todayISO } from '@esr/core';
+import { RECORD_STATE, SELECTABLE_STATES, todayISO } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -33,7 +33,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const [customers, events, inventory, categories] = await Promise.all([
 		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
 		getEventRepository().list(ctx, { limit: 200, offset: 0 }),
-		getInventoryRepository().list(ctx, { state: SELECTABLE_STATES, limit: 300, offset: 0 }),
+		// Solo Activos: un inactivo/archivado no se puede usar en una orden
+		// nueva (a diferencia de clientes/categorías, que sí siguen ofreciendo
+		// Inactivo — `SELECTABLE_STATES` es de ellos).
+		getInventoryRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: 300, offset: 0 }),
 		// Los catalogos no paginan: `CatalogListOptions` solo acepta el estado.
 		getCategoryRepository().list(ctx, { state: SELECTABLE_STATES })
 	]);
