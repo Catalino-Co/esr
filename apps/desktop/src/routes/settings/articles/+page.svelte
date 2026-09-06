@@ -7,15 +7,16 @@
    * Aqui viven el alta, la baja y el archivado; alli no, porque activar o
    * archivar un articulo no es algo que se decida mirando existencias.
    *
+   * El ALTA se queda en un modal simple (el articulo aun no existe: no hay
+   * almacenes ni proveedores que gestionar todavia). La EDICION es su propia
+   * pagina, `settings/articles/edit?id=`, calcada de `packages/edit` —ahi es
+   * donde vive la gestion de almacenes y proveedores, que no cabia comoda en
+   * un modal.
+   *
    * Gemelo de Configuracion › Articulos en ESR Cloud.
    */
   import { onMount } from 'svelte';
-  import {
-    isSerializedInventoryItem,
-    normalizeSerializedInventoryInput,
-    parseSerialLines,
-    validateSerialCatalogInput
-  } from '@esr/core';
+  import { goto } from '$app/navigation';
   import { validateInventoryItemInput } from '@esr/schemas';
   import { BackLink, Modal } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
@@ -25,25 +26,10 @@
   let viewState = "1";
   let items = [];
   let categories = [];
-  let subcategories = [];
-  let suppliers = [];
-  let units = [];
-  let almacenes = [];
   let filterCategory = '';
 
   let showModal = false;
-  let isEditing = false;
-  let serialLines = '';
-  /**
-   * A que almacen entran las unidades que se den de alta AHORA.
-   *
-   * Una unidad fisica esta en algun sitio: las que nacian sin almacen no se
-   * contaban en ninguno —el articulo salia en cero en todo el inventario
-   * mientras su total si las veia—. A las unidades que YA existen no se les
-   * toca el suyo: moverlas de sitio es trabajo de Inventario.
-   */
-  let serialWarehouseId = '';
-  
+
   /**
    * La ficha del articulo: QUE ES y CUANTO VALE. Ni cantidad ni minimo ni
    * condicion fisica —eso es inventario y vive en su pantalla—.
@@ -53,14 +39,11 @@
    * mantiene restandolas al comprometer. Lo que desaparece es su presencia AQUI:
    * esta pantalla no las muestra, no las edita y no las pide al crear.
    */
-  let currentItem = {
-    id: null,
+  let nuevo = {
     internal_code: '',
     name: '',
     category_id: '',
-    subcategory_id: '',
     item_type: 'cantidad',
-    uses_serial: 0,
     rental_price: 0,
     internal_cost: 0,
     notes: ''
@@ -69,15 +52,6 @@
   async function loadData() {
     if (window.api && window.api.db) {
       categories = await window.api.db.get("SELECT * FROM categories ORDER BY name ASC");
-      suppliers = await window.api.db.get(
-        'SELECT id, name FROM suppliers WHERE is_active = 1 ORDER BY name ASC'
-      );
-      units = await window.api.db.get(
-        'SELECT id, name, abbr FROM units_of_measure WHERE is_active = 1 ORDER BY name ASC'
-      );
-      almacenes = await window.api.db.get(
-        "SELECT id, name FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, name"
-      );
       loadItems();
     }
   }
@@ -91,13 +65,12 @@
     let query = `
       SELECT i.id, i.internal_code, i.name, i.category_id, i.subcategory_id,
              i.item_type, i.uses_serial, i.rental_price,
-             i.internal_cost, i.supplier_id, i.uom_id, i.notes, i.is_active,
+             i.internal_cost, i.uom_id, i.notes, i.is_active,
              c.name as cat_name, s.name as subcat_name,
-             p.name as supplier_name, COALESCE(u.abbr, u.name) as uom_abbr
-      FROM items i 
+             COALESCE(u.abbr, u.name) as uom_abbr
+      FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN subcategories s ON i.subcategory_id = s.id
-      LEFT JOIN suppliers p ON p.id = i.supplier_id
       LEFT JOIN units_of_measure u ON u.id = i.uom_id
       WHERE i.is_active = ?
     `;
@@ -107,17 +80,8 @@
       params.push(filterCategory);
     }
     query += ` ORDER BY i.name ASC`;
-    
-    items = await window.api.db.get(query, params);
-  }
 
-  async function onCategoryChange() {
-    if (currentItem.category_id) {
-      subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
-    } else {
-      subcategories = [];
-    }
-    currentItem.subcategory_id = '';
+    items = await window.api.db.get(query, params);
   }
 
   onMount(() => {
@@ -125,169 +89,45 @@
   });
 
   function openCreate() {
-    isEditing = false;
-    currentItem = {
-      id: null, internal_code: '', name: '', category_id: '', subcategory_id: '',
-      item_type: 'cantidad', uses_serial: 0,
-      rental_price: 0, internal_cost: 0, notes: '',
-      supplier_id: '', uom_id: ''
+    nuevo = {
+      internal_code: '', name: '', category_id: '',
+      item_type: 'cantidad', rental_price: 0, internal_cost: 0, notes: ''
     };
-    serialLines = '';
-    serialWarehouseId = almacenes[0] ? String(almacenes[0].id) : '';
-    subcategories = [];
     showModal = true;
   }
 
-  async function openEdit(item) {
-    isEditing = true;
-    currentItem = { ...item };
-    const serials = await window.api.db.get(
-      'SELECT serial_number FROM item_serials WHERE item_id = ? ORDER BY serial_number ASC',
-      [item.id]
-    );
-    serialLines = serials.map(s => s.serial_number).join('\n');
-    serialWarehouseId = almacenes[0] ? String(almacenes[0].id) : '';
-    if (currentItem.category_id) {
-      subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
-    }
-    showModal = true;
-  }
-
-  async function saveItem() {
-    if (!validateInventoryItemInput(currentItem).valid) {
+  async function crear() {
+    if (!validateInventoryItemInput(nuevo).valid) {
       dangerModal.show("Nombre y Categoría son obligatorios");
       return;
     }
 
-    const usesSerial = isSerializedInventoryItem(currentItem);
-    const serialNumbers = parseSerialLines(serialLines);
-    let catalogSerialNumbers = [];
+    // Nace EN CERO, sin almacen ni proveedor: eso se decide en su propia
+    // ficha, que es donde vive esa gestion. El campo de cantidad inicial que
+    // habia escribia cien sillas sin dejar rastro de quien ni cuando, y ese
+    // rastro es lo que hace auditable un almacen.
+    const res = await window.api.db.run(`
+      INSERT INTO items (internal_code, name, category_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes)
+      VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`,
+      [nuevo.internal_code, nuevo.name, nuevo.category_id, nuevo.item_type,
+       nuevo.rental_price, nuevo.internal_cost, nuevo.notes]
+    );
+    const itemId = res.id;
 
-    if (usesSerial) {
-      const serialValidation = validateSerialCatalogInput(serialNumbers);
-      if (!serialValidation.ok) {
-        dangerModal.show('Agregue al menos un serial para equipos unitarios.');
-        return;
-      }
-      catalogSerialNumbers = serialValidation.value;
-      currentItem = normalizeSerializedInventoryInput(currentItem, catalogSerialNumbers);
-    } else {
-      currentItem = normalizeSerializedInventoryInput(currentItem, []);
-    }
+    // Su fila de existencias, para que aparezca en Inventario desde el primer
+    // dia: un articulo en cero tiene que verse igual que uno lleno.
+    await window.api.db.run(
+      `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
+       VALUES (?, 0, 'disponible')`,
+      [itemId]
+    );
 
-    // En un SERIALIZADO la existencia SI se deriva aqui, porque registrar sus
-    // seriales es definir sus unidades: darlas de alta es catalogo, no almacen.
-    // En uno de cantidad, esta pantalla no toca ni `total_quantity` ni
-    // `available_quantity`: el stock entra por un movimiento de Inventario.
-    let itemId = currentItem.id;
-    if (isEditing) {
-      const columnas = usesSerial
-        ? `internal_code=?, name=?, category_id=?, subcategory_id=?,
-           item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
-           supplier_id=?, uom_id=?, total_quantity=?, available_quantity=?`
-        : `internal_code=?, name=?, category_id=?, subcategory_id=?,
-           item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
-           supplier_id=?, uom_id=?`;
-      const valores = [
-        currentItem.internal_code, currentItem.name, currentItem.category_id,
-        currentItem.subcategory_id || null,
-        currentItem.item_type, currentItem.uses_serial,
-        currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
-        currentItem.supplier_id || null, currentItem.uom_id || null
-      ];
-      if (usesSerial) valores.push(catalogSerialNumbers.length, catalogSerialNumbers.length);
-      valores.push(currentItem.id);
-
-      await window.api.db.run(`UPDATE items SET ${columnas} WHERE id=?`, valores);
-    } else {
-      // Nace EN CERO. El campo de cantidad inicial que habia escribia cien
-      // sillas sin dejar rastro de quien ni cuando, y ese rastro es lo que hace
-      // auditable un almacen.
-      const inicial = usesSerial ? catalogSerialNumbers.length : 0;
-      const res = await window.api.db.run(`
-        INSERT INTO items (internal_code, name, category_id, subcategory_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes, supplier_id, uom_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.item_type, currentItem.uses_serial, inicial, inicial,
-         currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
-         currentItem.supplier_id || null, currentItem.uom_id || null]
-      );
-      itemId = res.id;
-
-      // Su fila de existencias, para que aparezca en Inventario desde el primer
-      // dia: un articulo en cero tiene que verse igual que uno lleno.
-      await window.api.db.run(
-        `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
-         VALUES (?, 0, 'disponible')`,
-        [itemId]
-      );
-    }
-
-    if (usesSerial) {
-      /*
-       * Se RECONCILIA en vez de borrar y volver a crear.
-       *
-       * El DELETE + INSERT de antes reescribia cada unidad en cada guardado, y
-       * con ella su almacen y su estado: abrir la ficha y pulsar Guardar dejaba
-       * sin almacen a todas y devolvia a `disponible` una que estaba entregada.
-       * Lo que ya existe no se toca; el almacen elegido es solo para las que
-       * nacen aqui.
-       */
-      const existentes = await window.api.db.get(
-        'SELECT id, serial_number, status FROM item_serials WHERE item_id = ?',
-        [itemId]
-      );
-      const clave = (valor) => String(valor ?? '').trim().toUpperCase();
-      const pedidos = new Set(catalogSerialNumbers.map(clave));
-      const yaEstaban = new Set(existentes.map((fila) => clave(fila.serial_number)));
-
-      // Una unidad que esta fuera —entregada o reservada— no se puede quitar
-      // desde el catalogo: primero vuelve. Borrarla dejaria a su orden
-      // apuntando a algo que ya no existe.
-      const bloqueada = existentes.find(
-        (fila) => !pedidos.has(clave(fila.serial_number)) && fila.status && fila.status !== 'disponible'
-      );
-      if (bloqueada) {
-        dangerModal.show(
-          `No se puede quitar el serial ${bloqueada.serial_number}: está ${bloqueada.status}.`
-        );
-        return;
-      }
-
-      for (const fila of existentes) {
-        if (pedidos.has(clave(fila.serial_number))) continue;
-        await window.api.db.run('DELETE FROM item_serials WHERE id = ?', [fila.id]);
-      }
-
-      const nuevos = catalogSerialNumbers.filter((serialNumber) => !yaEstaban.has(clave(serialNumber)));
-      for (const serialNumber of nuevos) {
-        await window.api.db.run(
-          'INSERT INTO item_serials (item_id, serial_number, status, warehouse_id) VALUES (?, ?, ?, ?)',
-          [itemId, serialNumber, 'disponible', serialWarehouseId || null]
-        );
-      }
-
-      // Registrar unidades SUBE las existencias de ese almacen: deja su asiento,
-      // como cualquier otra entrada. No descuadra nada, porque la cantidad de un
-      // serializado se cuenta de sus unidades y no de la bitacora.
-      if (nuevos.length && serialWarehouseId) {
-        const usuario = JSON.parse(sessionStorage.getItem('esr_user') || 'null');
-        await window.api.db.run(
-          `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
-           VALUES (?, ?, ?, 'entrada', ?, ?)`,
-          [itemId, serialWarehouseId, usuario?.id ?? null, nuevos.length,
-           `Alta de ${nuevos.length} unidad(es): ${nuevos.join(', ')}`]
-        );
-      }
-    } else if (isEditing) {
-      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
-    }
     showModal = false;
-    loadItems();
+    goto(`/settings/articles/edit?id=${itemId}`);
   }
 
   async function changeState(id, newState) {
-    let msg = newState === 0 ? "¿Archivar este ítem?" 
+    let msg = newState === 0 ? "¿Archivar este ítem?"
             : newState === 1 ? "¿Marcar este ítem como Activo?"
             : "¿Marcar este ítem como Inactivo?";
     if (await confirmDialog.ask(msg)) {
@@ -330,7 +170,6 @@
           <th>Categoría</th>
           <th>Tipo</th>
           <th>Unidad</th>
-          <th>Proveedor</th>
           <th>Precio alquiler</th>
           <th>Acciones</th>
         </tr>
@@ -353,10 +192,9 @@
                  Cuánto hay se ve en Inventario, y repetirlo aquí acabaría
                  enseñando dos números distintos para lo mismo. -->
             <td>{item.uom_abbr || '-'}</td>
-            <td>{item.supplier_name || '-'}</td>
             <td>${fmt(item.rental_price)}</td>
             <td>
-              <button class="btn-icon" title="Editar" on:click={() => openEdit(item)}>✏️</button>
+              <a class="btn-icon" href="/settings/articles/edit?id={item.id}" title="Editar">✏️</a>
               {#if viewState === '1'}
                 <button class="btn-icon text-warning" title="Inactivar" on:click={() => changeState(item.id, 2)}>⏸️</button>
                 <button class="btn-icon text-danger" title="Archivar" on:click={() => changeState(item.id, 0)}>📁</button>
@@ -370,7 +208,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay ítems registrados.</td>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay ítems registrados.</td>
           </tr>
         {/each}
       </tbody>
@@ -378,23 +216,23 @@
   </div>
 </div>
 
-<Modal bind:show={showModal} title={isEditing ? 'Editar Ítem' : 'Nuevo Ítem'}>
+<Modal bind:show={showModal} title="Nuevo Ítem">
   <div style="display: flex; flex-direction: column; gap: 15px;">
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
         <label for="itm-code">Código Interno</label>
-        <input id="itm-code" type="text" bind:value={currentItem.internal_code} class="form-control" placeholder="Ej. AUD-001">
+        <input id="itm-code" type="text" bind:value={nuevo.internal_code} class="form-control" placeholder="Ej. AUD-001">
       </div>
       <div style="flex: 2;">
         <label for="itm-name">Nombre *</label>
-        <input id="itm-name" type="text" bind:value={currentItem.name} class="form-control" placeholder="Ej. Bocina Activa 15&quot;">
+        <input id="itm-name" type="text" bind:value={nuevo.name} class="form-control" placeholder="Ej. Bocina Activa 15&quot;">
       </div>
     </div>
 
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
         <label for="itm-cat">Categoría *</label>
-        <select id="itm-cat" class="form-control" bind:value={currentItem.category_id} on:change={onCategoryChange}>
+        <select id="itm-cat" class="form-control" bind:value={nuevo.category_id}>
           <option value="">Seleccione...</option>
           {#each categories as cat}
             <option value={cat.id}>{cat.name}</option>
@@ -402,119 +240,48 @@
         </select>
       </div>
       <div style="flex: 1;">
-        <label for="itm-subcat">Subcategoría</label>
-        <select id="itm-subcat" class="form-control" bind:value={currentItem.subcategory_id} disabled={!currentItem.category_id}>
-          <option value="">Ninguna</option>
-          {#each subcategories as sub}
-            <option value={sub.id}>{sub.name}</option>
-          {/each}
-        </select>
-      </div>
-    </div>
-
-    <div style="display: flex; gap: 15px; align-items: flex-start;">
-      <div style="flex: 1;">
         <label for="itm-type">Tipo de Ítem</label>
-        <select id="itm-type" class="form-control" bind:value={currentItem.item_type}>
+        <select id="itm-type" class="form-control" bind:value={nuevo.item_type}>
           <option value="cantidad">General (Por Cantidad)</option>
           <option value="serializado">Unitario (Serializado)</option>
         </select>
+        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+          Subcategoría, proveedor, unidad y seriales se agregan editando, ya con el artículo creado.
+        </span>
       </div>
-      <!--
-        Los dos precios VIGENTES. Son valores por defecto: la cotización copia
-        el de alquiler en su línea y la entrada de stock copia el de compra en
-        el movimiento. Cambiarlos aquí no reescribe ninguna de las dos cosas.
+    </div>
 
-        `step="any"` y no `step="0.01"`: con un paso declarado, un valor que no
-        sea múltiplo suyo da `stepMismatch` y el campo se queda mudo.
-      -->
+    <!--
+      Los dos precios VIGENTES. Son valores por defecto: la cotización copia
+      el de alquiler en su línea y la entrada de stock copia el de compra en
+      el movimiento. Cambiarlos aquí no reescribe ninguna de las dos cosas.
+
+      `step="any"` y no `step="0.01"`: con un paso declarado, un valor que no
+      sea múltiplo suyo da `stepMismatch` y el campo se queda mudo.
+    -->
+    <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
         <label for="itm-price">Precio de alquiler</label>
-        <input id="itm-price" type="number" step="any" min="0" bind:value={currentItem.rental_price} class="form-control">
+        <input id="itm-price" type="number" step="any" min="0" bind:value={nuevo.rental_price} class="form-control">
       </div>
       <div style="flex: 1;">
         <label for="itm-cost">Precio de compra</label>
-        <input id="itm-cost" type="number" step="any" min="0" bind:value={currentItem.internal_cost} class="form-control">
+        <input id="itm-cost" type="number" step="any" min="0" bind:value={nuevo.internal_cost} class="form-control">
         <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
           Se propone como costo al registrar una entrada.
         </span>
       </div>
     </div>
 
-    <div style="display: flex; gap: 15px;">
-      <div style="flex: 1;">
-        <label for="itm-supplier">Proveedor</label>
-        <select id="itm-supplier" bind:value={currentItem.supplier_id} class="form-control">
-          <option value="">(Ninguno)</option>
-          {#each suppliers as proveedor (proveedor.id)}
-            <option value={proveedor.id}>{proveedor.name}</option>
-          {/each}
-        </select>
-      </div>
-      <div style="flex: 1;">
-        <label for="itm-uom">Unidad de Medida</label>
-        <select id="itm-uom" bind:value={currentItem.uom_id} class="form-control">
-          <option value="">(Ninguna)</option>
-          {#each units as unidad (unidad.id)}
-            <option value={unidad.id}>{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}</option>
-          {/each}
-        </select>
-      </div>
-    </div>
-
-    <div>
-      <span style="display:block; font-size:0.85rem; font-weight:500; color:var(--text-muted); margin-bottom:5px;">¿Controla Seriales Individuales?</span>
-      <div style="display: flex; gap: 10px; margin-top: 5px;">
-        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
-          <input type="radio" bind:group={currentItem.uses_serial} value={0}> No
-        </label>
-        <label style="display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0;">
-          <input type="radio" bind:group={currentItem.uses_serial} value={1}> Sí
-        </label>
-      </div>
-    </div>
-
-    {#if isSerializedInventoryItem(currentItem)}
-      <div>
-        <label for="itm-serials">Seriales individuales</label>
-        <textarea id="itm-serials" bind:value={serialLines} class="form-control" rows="5"
-                  placeholder="Un serial por línea. Ej. QSC-K12-001"></textarea>
-        <small style="color:var(--text-muted);display:block;margin-top:4px;">
-          Registrar un serial es DEFINIR una unidad, no moverla de sitio: por eso
-          se hace aquí. La cantidad total sale de cuántos haya registrados.
-        </small>
-      </div>
-
-      <!-- A que almacen entran las unidades NUEVAS. Las que ya existen conservan
-           el suyo: cambiarlas de sitio se hace en Inventario. -->
-      <div>
-        <label for="itm-serial-almacen">Almacén de las unidades nuevas</label>
-        <select id="itm-serial-almacen" bind:value={serialWarehouseId} class="form-control">
-          {#each almacenes as almacen (almacen.id)}
-            <option value={String(almacen.id)}>{almacen.name}</option>
-          {/each}
-        </select>
-        <small style="color:var(--text-muted);display:block;margin-top:4px;">
-          {#if almacenes.length === 0}
-            No hay almacenes: cree el primero en Ajustes › Almacenes, o las unidades
-            no se contarán en ninguno.
-          {:else}
-            Solo aplica a los seriales que se agreguen ahora. Los que ya estaban
-            siguen donde están.
-          {/if}
-        </small>
-      </div>
-    {/if}
-
     <div>
       <label for="itm-notes">Notas</label>
-      <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
+      <textarea id="itm-notes" bind:value={nuevo.notes} class="form-control" rows="2"></textarea>
     </div>
   </div>
 
   <div slot="footer">
     <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveItem}>Guardar Ítem</button>
+    <button class="btn btn-primary" on:click={crear}>Crear ítem</button>
   </div>
 </Modal>
 
@@ -522,7 +289,7 @@
   .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
   .form-control:focus { border-color: var(--primary); }
   label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
-  .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s;}
+  .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s; display: inline-flex; text-decoration: none; }
   .btn-icon:hover { opacity: 1; transform: scale(1.1); }
   .text-danger { color: var(--danger); }
 </style>

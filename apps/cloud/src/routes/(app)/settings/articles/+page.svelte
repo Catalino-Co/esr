@@ -145,10 +145,7 @@
 		<div class="alert-error" role="alert">{errorGuardar}</div>
 	{/if}
 
-	<form id="articulo-form" method="POST" action="?/create" class="form-grid" use:enhance={alGuardar}>
-		<div class="form-field full sec-titulo">
-			<h2 class="sec-title">Identificación</h2>
-		</div>
+	<form id="articulo-form" method="POST" action="?/create" class="form-grid form-grid--3" use:enhance={alGuardar}>
 		<div class="form-field">
 			<label for="a-name">Nombre *</label>
 			<input id="a-name" name="name" value={values.name ?? ''} required />
@@ -156,10 +153,6 @@
 		<div class="form-field">
 			<label for="a-internal_code">Código / SKU</label>
 			<input id="a-internal_code" name="internal_code" value={values.internal_code ?? ''} />
-		</div>
-
-		<div class="form-field full sec-titulo">
-			<h2 class="sec-title">Clasificación</h2>
 		</div>
 		<div class="form-field">
 			<label for="a-category_id">Categoría</label>
@@ -208,18 +201,9 @@
 			</select>
 		</div>
 
-		<!--
-			Los dos precios VIGENTES, juntos y dichos por su nombre. Son valores por
-			defecto: cada transacción copia el que necesita al hacerse, así que
-			cambiarlos aquí no reescribe ninguna ya emitida.
-		-->
-		<div class="form-field full sec-titulo">
-			<h2 class="sec-title">Precios vigentes</h2>
-			<span class="form-hint">
-				Se proponen al cotizar y al registrar una entrada. Cada documento guarda su
-				propia copia, así que cambiarlos aquí no altera nada ya emitido.
-			</span>
-		</div>
+		<!-- Los dos precios VIGENTES, juntos y dichos por su nombre. Son valores
+		     por defecto: cada transacción copia el que necesita al hacerse, así
+		     que cambiarlos aquí no reescribe ninguna ya emitida. -->
 		<div class="form-field">
 			<label for="a-rental_price">Precio de alquiler</label>
 			<input
@@ -244,9 +228,6 @@
 			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 		</div>
 
-		<div class="form-field full sec-titulo">
-			<h2 class="sec-title">Notas</h2>
-		</div>
 		<div class="form-field full">
 			<label for="a-notes">Notas</label>
 			<textarea id="a-notes" name="notes" rows="2">{values.notes ?? ''}</textarea>
@@ -273,21 +254,13 @@
 		text-align: right;
 	}
 
-	.sec-title {
-		margin: 0 0 var(--sp-1);
-		font-size: var(--font-md);
-		font-weight: 600;
-	}
-
-	.sec-titulo {
-		margin-top: var(--sp-3);
-		border-top: 1px solid var(--border);
-		padding-top: var(--sp-4);
-	}
-	.sec-titulo:first-child {
-		margin-top: 0;
-		border-top: none;
-		padding-top: 0;
+	/* Tres columnas fijas y no `auto-fit`: con ocho campos, el reparto
+	   irregular de `.form-grid` (que a veces cae en 2 columnas, a veces en 3)
+	   dejaba el formulario más alto y menos compacto de lo necesario. `.full`
+	   de `theme.css` sigue funcionando igual encima: `grid-column: 1 / -1` no
+	   depende de cuántas columnas tenga el grid. */
+	.form-grid--3 {
+		grid-template-columns: repeat(3, 1fr);
 	}
 
 	.nota {

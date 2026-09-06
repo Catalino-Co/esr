@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { formatMoney, formatNumber } from '@esr/core';
+  import { formatNumber } from '@esr/core';
   import { EmptyState, Icon, Modal } from '@esr/ui';
   import FilterBar from '$lib/components/list/FilterBar.svelte';
   import StatusSelect from '$lib/components/list/StatusSelect.svelte';
@@ -129,7 +129,6 @@
               COALESCE(inv.physical_status, 'disponible') AS physical_status,
               inv.location,
               c.name AS cat_name,
-              p.name AS supplier_name,
               COALESCE(u.abbr, u.name) AS uom_abbr,
               CASE WHEN i.item_type = 'serializado' THEN (
                      SELECT COUNT(*) FROM item_serials s
@@ -150,7 +149,6 @@
          -- asi tiene que verse. Sin fila, minimo cero y «disponible».
          LEFT JOIN item_inventory inv ON inv.item_id = i.id
          LEFT JOIN categories c ON c.id = i.category_id
-         LEFT JOIN suppliers p ON p.id = i.supplier_id
          LEFT JOIN units_of_measure u ON u.id = i.uom_id
         WHERE ${where.join(' AND ')}
         ORDER BY i.name ASC`,
@@ -525,8 +523,6 @@
             <th class="num">Disponible</th>
             <th class="num">Mínimo</th>
             <th>Condición</th>
-            <th class="num">Valor</th>
-            <th>Proveedor</th>
             <th style="width: 90px; text-align: right;">Acciones</th>
           </tr>
         </thead>
@@ -554,16 +550,6 @@
               <td class:atencion={item.physical_status !== 'disponible'}>
                 {CONDICIONES[item.physical_status] || '—'}
               </td>
-              <!-- Existencias x costo, con el costo que diga la regla de la
-                   empresa. «—» y no cero cuando no lo hay: las entradas
-                   anteriores a esta reforma no guardaban costo, y un cero seria
-                   inventarselo. -->
-              <td class="num">
-                {item.valuation_cost == null
-                  ? '—'
-                  : formatMoney(Number(item.valuation_cost) * Number(item.warehouse_quantity ?? 0))}
-              </td>
-              <td>{item.supplier_name || '—'}</td>
               <td style="text-align: right; white-space: nowrap;">
                 <div class="row-actions" style="justify-content: flex-end;">
                   <button
@@ -613,7 +599,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">
+              <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">
                 {soloBajo
                   ? 'Ningún artículo está por debajo de su mínimo.'
                   : 'No hay artículos para mostrar.'}

@@ -1,6 +1,27 @@
 import type { RecordState, RecordStateFilter } from '../shared/record-state';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemWarehouseStock, PhysicalStatus, ValuationRule } from '@esr/schemas';
+import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock, PhysicalStatus, ValuationRule } from '@esr/schemas';
 import type { RepositoryContext } from '../shared/tenant';
+
+/** Lo que se sabe al mover existencias de un articulo DE CANTIDAD. */
+export type MoveStockInput = {
+	item_id: ESRId;
+	warehouse_id: ESRId;
+	type: 'entrada' | 'salida' | 'ajuste';
+	quantity: number;
+	notes?: string | null;
+	user_id?: ESRId | null;
+	unit_cost?: number | null;
+};
+
+/** Lo que se sabe al trasladar existencias de un almacen a otro. */
+export type TransferStockInput = {
+	item_id: ESRId;
+	from_warehouse_id: ESRId;
+	to_warehouse_id: ESRId;
+	quantity: number;
+	notes?: string | null;
+	user_id?: ESRId | null;
+};
 
 export type AvailabilityInput = {
 	item_id?: ESRId;
@@ -70,6 +91,31 @@ export interface TenantInventoryRepository {
 	 * articulos.
 	 */
 	listStockByWarehouse(ctx: RepositoryContext, itemId: ESRId): Promise<ItemWarehouseStock[]>;
+	/**
+	 * Entrada, salida o ajuste EN UN ALMACEN. No aplica a serializados: alli las
+	 * existencias son sus unidades, y mover un numero no moveria ninguna.
+	 */
+	moveStock(ctx: RepositoryContext, input: MoveStockInput): Promise<{ quantity: number; delta: number }>;
+	/**
+	 * Traslada cantidad de un almacen a otro EN UNA transaccion: dos asientos de
+	 * bitacora (salida del origen, entrada del destino) que se dan juntos o no
+	 * se da ninguno.
+	 */
+	transferStock(ctx: RepositoryContext, input: TransferStockInput): Promise<void>;
+	/**
+	 * Saca al articulo de un almacen donde ya no le queda nada. Solo procede con
+	 * `quantity = 0`: no es un camino para borrar existencias, es limpiar un
+	 * almacen que dejo de tener alguna.
+	 */
+	removeFromWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void>;
+	/** Los proveedores registrados para UN articulo, el principal primero. */
+	listSuppliersForItem(ctx: RepositoryContext, itemId: ESRId): Promise<ItemSupplier[]>;
+	/** Agrega un proveedor a la lista del articulo. */
+	addSupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId, isPrimary?: boolean): Promise<void>;
+	/** Quita un proveedor de la lista del articulo. */
+	removeSupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId): Promise<void>;
+	/** Marca un proveedor como el preferido de ESE articulo; desmarca al resto. */
+	setPrimarySupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId): Promise<void>;
 	/** Las existencias de un articulo que no son cantidad, sin tocar el catalogo. */
 	findInventory(ctx: RepositoryContext, itemId: ESRId): Promise<ItemInventory | null>;
 	/**

@@ -1,141 +1,144 @@
 <script>
-	import RecordStateControl from '$lib/components/list/RecordStateControl.svelte';
 	import { BackLink } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import ItemSupplierBook from '$lib/components/inventory/ItemSupplierBook.svelte';
+	import ItemWarehouseBook from '$lib/components/inventory/ItemWarehouseBook.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
 	const item = data.item;
 
+	// El mensaje del articulo y el de almacenes/proveedores/seriales comparten
+	// el objeto `form`: el `scope` decide sobre cual tarjeta se pinta. Calcado
+	// de `customers/[id=entero]/+page.svelte`.
+	const mensajeArticulo = $derived(!form?.scope || form.scope === 'articulo' ? form : null);
+	const mensajeSeriales = $derived(form?.scope === 'seriales' ? form : null);
+
 	$effect(() => {
-		if (form?.error) dangerModal.show(form.error);
-		if (form?.success) toasts.success('Cambios guardados.');
+		if (mensajeArticulo?.error) dangerModal.show(mensajeArticulo.error);
+		if (mensajeArticulo?.success) toasts.success('Cambios guardados.');
 	});
+	$effect(() => {
+		if (mensajeSeriales?.error) dangerModal.show(mensajeSeriales.error);
+		if (mensajeSeriales?.success) toasts.success(mensajeSeriales.success);
+	});
+
+	/** `reset: false`: ver el comentario de `customers/[id=entero]/+page.svelte`. */
+	const alGuardar = () => async ({ update }) => update({ reset: false });
 </script>
 
-<section class="panel">
-	<div class="page-header">
-		<!-- Vuelve a la LISTA de artículos, no a Configuración: es de donde se
-		     viene. El layout de Configuración solo pone el suyo en la raíz de
-		     cada sección, para que aquí no salgan dos flechas. -->
-		<div class="titulo">
-			<BackLink href="/settings/articles" label="Volver al catálogo de artículos" />
-			<h1>{item.name}</h1>
-		</div>
-		<div class="page-actions">
-			<!-- Un enlace, no datos: desde aquí se va a ver cuánto hay. -->
-			<a class="btn-secondary" href="/inventory?search={encodeURIComponent(item.internal_code || item.name)}">
-				Ver en Inventario
-			</a>
-		</div>
+<div class="record-header">
+	<h1>{item.name}</h1>
+	<span class="badge {recordStateBadgeClass(item.is_active)}">
+		{recordStateLabel(item.is_active)}
+	</span>
+</div>
+
+<div class="record-layout">
+	<div class="record-col">
+		<section class="panel">
+			<div class="page-actions">
+				<!-- Un enlace, no datos: desde aquí se va a ver cuánto hay. -->
+				<a class="btn-secondary" href="/inventory?search={encodeURIComponent(item.internal_code || item.name)}">
+					Ver en Inventario
+				</a>
+			</div>
+
+			<form method="POST" action="?/update" class="form-grid" use:enhance={alGuardar}>
+				<div class="form-field">
+					<label for="name">Nombre *</label>
+					<input id="name" name="name" value={item.name} required />
+				</div>
+				<div class="form-field">
+					<label for="internal_code">Código / SKU</label>
+					<input id="internal_code" name="internal_code" value={item.internal_code ?? ''} />
+				</div>
+				<div class="form-field">
+					<label for="category_id">Categoría</label>
+					<select id="category_id" name="category_id">
+						<option value="">Sin categoría</option>
+						{#each data.categories as category (category.id)}
+							<option value={category.id} selected={String(item.category_id) === String(category.id)}>
+								{category.name}
+							</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-field">
+					<label for="item_type">Tipo de control</label>
+					<select id="item_type" name="item_type">
+						<option value="cantidad" selected={!data.isSerialized}>Por cantidad</option>
+						<option value="serializado" selected={data.isSerialized}>Por número de serie</option>
+					</select>
+					<span class="form-hint">
+						Serializado permite saber qué unidad concreta salió a cada evento.
+					</span>
+				</div>
+				<div class="form-field">
+					<label for="uom_id">Unidad de medida</label>
+					<select id="uom_id" name="uom_id">
+						<option value="">(Ninguna)</option>
+						{#each data.units as unidad (unidad.id)}
+							<option value={unidad.id} selected={String(item.uom_id) === String(unidad.id)}>
+								{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}
+							</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-field">
+					<label for="rental_price">Precio de alquiler</label>
+					<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} />
+				</div>
+				<div class="form-field">
+					<label for="internal_cost">Precio de compra</label>
+					<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} />
+					<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
+				</div>
+				<!--
+					El select solo aparece con permiso de archivar, y el servidor lo
+					vuelve a comprobar antes de aplicarlo: ocultarlo aquí es cortesía,
+					no el control real. Calcado de `CustomerFormFields`.
+				-->
+				{#if data.puedeArchivar}
+					<div class="form-field">
+						<label for="is_active">Estado</label>
+						<select id="is_active" name="is_active">
+							<option value="1" selected={item.is_active === 1}>Activo</option>
+							<option value="2" selected={item.is_active === 2}>Inactivo</option>
+							<option value="0" selected={item.is_active === 0}>Archivado</option>
+						</select>
+					</div>
+				{/if}
+				<div class="form-field full">
+					<label for="notes">Notas</label>
+					<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
+				</div>
+				<div class="form-actions">
+					<a class="btn-secondary back-link" href="/settings/articles">Volver al catálogo de artículos</a>
+					{#if can('inventory.update')}
+						<button type="submit" class="btn-primary">Guardar cambios</button>
+					{:else}
+						<p class="panel-hint">Su rol no permite editar este registro.</p>
+					{/if}
+				</div>
+			</form>
+		</section>
 	</div>
 
-	<RecordStateControl
-		state={item.is_active}
-		editable={can('inventory.archive')}
-		noun="artículo"
-	/>
+	<div class="record-col">
+		<ItemWarehouseBook
+			distribution={data.distribution}
+			warehouses={data.warehouses}
+			isSerialized={data.isSerialized}
+			{form}
+		/>
 
-
-
-	<!-- Ni tarjetas de existencias ni aviso de sobrecompromiso: esta pantalla es
-	     el CATÁLOGO. Cuánto hay, cuánto está comprometido y dónde se guarda se ve
-	     en Inventario, y se llega por el enlace de abajo. Repetir aquí esas cifras
-	     acabaría enseñando dos números distintos para lo mismo. -->
-
-	<form method="POST" action="?/update" class="form-grid" use:enhance>
-		<div class="form-field">
-			<label for="name">Nombre *</label>
-			<input id="name" name="name" value={item.name} required />
-		</div>
-		<div class="form-field">
-			<label for="internal_code">Código / SKU</label>
-			<input id="internal_code" name="internal_code" value={item.internal_code ?? ''} />
-		</div>
-		<div class="form-field">
-			<label for="category_id">Categoría</label>
-			<select id="category_id" name="category_id">
-				<option value="">Sin categoría</option>
-				{#each data.categories as category (category.id)}
-					<option value={category.id} selected={String(item.category_id) === String(category.id)}>
-						{category.name}
-					</option>
-				{/each}
-			</select>
-		</div>
-		<div class="form-field">
-			<label for="item_type">Tipo de control</label>
-			<select id="item_type" name="item_type">
-				<option value="cantidad" selected={!data.isSerialized}>Por cantidad</option>
-				<option value="serializado" selected={data.isSerialized}>Por número de serie</option>
-			</select>
-			<span class="form-hint">
-				Serializado permite saber qué unidad concreta salió a cada evento.
-			</span>
-		</div>
-		<div class="form-field">
-			<label for="supplier_id">Proveedor</label>
-			<select id="supplier_id" name="supplier_id">
-				<option value="">(Ninguno)</option>
-				{#each data.suppliers as proveedor (proveedor.id)}
-					<option value={proveedor.id} selected={String(item.supplier_id) === String(proveedor.id)}>
-						{proveedor.name}
-					</option>
-				{/each}
-			</select>
-		</div>
-		<div class="form-field">
-			<label for="uom_id">Unidad de medida</label>
-			<select id="uom_id" name="uom_id">
-				<option value="">(Ninguna)</option>
-				{#each data.units as unidad (unidad.id)}
-					<option value={unidad.id} selected={String(item.uom_id) === String(unidad.id)}>
-						{unidad.name}{unidad.abbr ? ` (${unidad.abbr})` : ''}
-					</option>
-				{/each}
-			</select>
-		</div>
-		<!--
-			Los dos precios VIGENTES, juntos y dichos por su nombre.
-
-			Son valores por defecto: la cotización copia el de alquiler en su línea
-			y la entrada de stock copia el de compra en el movimiento. Cambiarlos
-			aquí no reescribe ninguna de las dos cosas, y esa es justamente la
-			propiedad que la nota explica, porque de otro modo nadie se atrevería a
-			corregir una tarifa.
-		-->
-		<div class="form-field full precios-titulo">
-			<h2 class="sec-title">Precios vigentes</h2>
-			<span class="form-hint">
-				Se proponen al cotizar y al registrar una entrada. Cada documento guarda su
-				propia copia, así que cambiarlos aquí no altera nada ya emitido.
-			</span>
-		</div>
-		<div class="form-field">
-			<label for="rental_price">Precio de alquiler</label>
-			<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} />
-		</div>
-		<div class="form-field">
-			<label for="internal_cost">Precio de compra</label>
-			<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} />
-			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
-		</div>
-		<div class="form-field full">
-			<label for="notes">Notas</label>
-			<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
-		</div>
-		<div class="form-actions">
-			{#if can('inventory.update')}
-				<button type="submit" class="btn-primary">Guardar cambios</button>
-			{:else}
-				<p class="panel-hint">Su rol no permite editar este registro.</p>
-			{/if}
-		</div>
-	</form>
-
-</section>
+		<ItemSupplierBook itemSuppliers={data.itemSuppliers} suppliers={data.suppliers} {form} />
+	</div>
+</div>
 
 {#if data.isSerialized}
 	<section class="panel">
@@ -210,9 +213,28 @@
 									{serial.status}
 								</span>
 							</td>
-							<!-- Solo lectura: aquí se define QUÉ unidades existen; dónde están
-							     y moverlas de sitio es Inventario. -->
-							<td>{serial.warehouse_name ?? 'Sin almacén'}</td>
+							<td>
+								<!-- Editable: aquí ya no es solo lectura. Reasignar el almacén
+								     de una unidad es el «trasladar» de un serializado. -->
+								{#if can('inventory.update')}
+									<form method="POST" action="?/moveSerial" use:enhance>
+										<input type="hidden" name="serial_id" value={serial.id} />
+										<select
+											name="warehouse_id"
+											value={String(serial.warehouse_id ?? '')}
+											aria-label={`Almacén de ${serial.serial_number}`}
+											onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										>
+											{#if !serial.warehouse_id}<option value="">Sin almacén</option>{/if}
+											{#each data.warehouses as almacen (almacen.id)}
+												<option value={String(almacen.id)}>{almacen.name}</option>
+											{/each}
+										</select>
+									</form>
+								{:else}
+									{serial.warehouse_name ?? 'Sin almacén'}
+								{/if}
+							</td>
 							<td>
 								{#if entregado && serial.work_order_id}
 									<a href="/work-orders/{serial.work_order_id}">#{serial.work_order_id}</a>
@@ -250,25 +272,50 @@
 {/if}
 
 <style>
-	/* El icono de volver y el título, como una sola unidad a la izquierda: si
-	   fueran hermanos sueltos de `.page-header`, su `space-between` los
-	   separaría a los dos extremos. */
-	.titulo {
+	.record-header {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
+		justify-content: space-between;
 		gap: var(--sp-3);
+		margin-bottom: var(--sp-5);
 	}
 
-	/* Separa los dos precios del resto de la ficha sin encerrarlos en otra
-	   tarjeta: son campos del mismo formulario, no una seccion aparte. */
-	.precios-titulo {
-		margin-top: var(--sp-3);
-		border-top: 1px solid var(--border);
-		padding-top: var(--sp-4);
+	.record-header h1 {
+		margin: 0;
+		font-size: 1.6rem;
 	}
 
-	.precios-titulo .sec-title {
-		margin-bottom: var(--sp-1);
+	/* Calcado de `.client-layout` (ficha de Cliente), con los lados invertidos
+	   a propósito: izquierda los almacenes, derecha el formulario y sus
+	   proveedores. */
+	.record-layout {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--sp-4);
+		align-items: start;
+	}
+
+	.record-col {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
+	}
+
+	@media (max-width: 1100px) {
+		.record-layout {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.page-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: var(--sp-3);
+	}
+
+	.back-link {
+		margin-right: auto;
 	}
 
 	.sec-title {

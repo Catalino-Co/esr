@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { formatMoney, formatNumber } from '@esr/core';
+	import { formatNumber } from '@esr/core';
 	import { EmptyState, Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
@@ -311,8 +311,6 @@
 					<th class="num">Disponible</th>
 					<th class="num">Mínimo</th>
 					<th>Condición</th>
-					<th class="num">Valor</th>
-					<th>Proveedor</th>
 					{#if puedeMover}<th><span class="sr-only">Acciones</span></th>{/if}
 				</tr>
 			</thead>
@@ -337,17 +335,6 @@
 						<td class:atencion={item.physical_status !== 'disponible'}>
 							{CONDICIONES[item.physical_status ?? ''] ?? '—'}
 						</td>
-						<!--
-							Existencias × costo, con el costo que diga la regla de la
-							empresa. «—» y no cero cuando no lo hay: las entradas anteriores
-							a esta reforma no guardaban costo, y un cero sería inventárselo.
-						-->
-						<td class="num">
-							{item.valuation_cost == null
-								? '—'
-								: formatMoney(Number(item.valuation_cost) * Number(item.warehouse_quantity ?? 0))}
-						</td>
-						<td>{item.supplier_name || '—'}</td>
 						{#if puedeMover}
 							<td>
 								<div class="row-actions">

@@ -19,6 +19,7 @@ const companyDefaultInvoiceRange = require('./versioned/0017_company_default_inv
 const companyDefaultEventRange = require('./versioned/0018_company_default_event_range.cjs');
 const packagesCode = require('./versioned/0019_packages_code.cjs');
 const serialWarehouseBackfill = require('./versioned/0020_serial_warehouse_backfill.cjs');
+const itemSuppliers = require('./versioned/0021_item_suppliers.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -40,7 +41,8 @@ const MIGRATIONS = [
   companyDefaultInvoiceRange,
   companyDefaultEventRange,
   packagesCode,
-  serialWarehouseBackfill
+  serialWarehouseBackfill,
+  itemSuppliers
 ];
 
 /**

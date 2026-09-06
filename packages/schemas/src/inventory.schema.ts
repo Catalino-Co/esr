@@ -108,6 +108,21 @@ export type ItemWarehouseStock = {
 	quantity: number;
 };
 
+/**
+ * Un proveedor registrado para UN articulo.
+ *
+ * `items.supplier_id` era un solo proveedor por articulo; esta es la tabla
+ * puente que permite varios. `is_primary` es el preferido de ESE articulo, no
+ * del catalogo de proveedores en general: el mismo proveedor puede ser
+ * principal en un articulo y secundario en otro.
+ */
+export type ItemSupplier = {
+	item_id: ESRId;
+	supplier_id: ESRId;
+	supplier_name: string;
+	is_primary: boolean;
+};
+
 export function validateInventoryItemInput(item: Pick<InventoryItem, 'name' | 'category_id'>): ValidationResult {
 	return isPresent(item.name) && isPresent(item.category_id) ? valid() : invalid('inventory_item.required_fields');
 }

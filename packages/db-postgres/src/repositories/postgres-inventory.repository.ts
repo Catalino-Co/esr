@@ -1,6 +1,6 @@
-import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
+import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, MoveStockInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository, TransferStockInput } from '@esr/core';
 import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemWarehouseStock } from '@esr/schemas';
+import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { appendStateFilter } from './state-filter';
@@ -441,97 +441,208 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	 * mover un numero no daria de alta ninguna. La pantalla lo deshabilita y
 	 * esto lo rechaza, porque una accion es un endpoint y el boton no protege.
 	 */
-	async moveStock(
-		ctx: RepositoryContext,
-		input: {
-			item_id: ESRId;
-			warehouse_id: ESRId;
-			type: 'entrada' | 'salida' | 'ajuste';
-			quantity: number;
-			notes?: string | null;
-			user_id?: ESRId | null;
-			/**
-			 * Lo que costo la unidad EN ESTA ENTRADA. Copia, igual que el precio de
-			 * una linea de cotizacion: cambiar `items.internal_cost` manana no puede
-			 * reescribir lo que costo una compra de hace tres meses.
-			 */
-			unit_cost?: number | null;
-		}
+	/**
+	 * El cuerpo de `moveStock`, sobre un `client` ya abierto.
+	 *
+	 * Separado de `moveStock` para que `transferStock` pueda llamarlo DOS veces
+	 * —salida del origen, entrada del destino— dentro de la MISMA transaccion,
+	 * sin duplicar el `INSERT ... ON CONFLICT` ni el asiento de bitacora. Si
+	 * cualquiera de las dos mitades falla, no queda ninguna a medias.
+	 */
+	private async moveStockWithClient(
+		client: pg.PoolClient,
+		companyId: string,
+		input: MoveStockInput
 	): Promise<{ quantity: number; delta: number }> {
-		const companyId = requireCompanyId(ctx);
 		const pedida = Math.max(0, Math.trunc(Number(input.quantity) || 0));
 
-		return withTransaction(async (client) => {
-			const item = await client.query<{ item_type: string }>(
-				'SELECT item_type FROM items WHERE company_id = $1 AND id = $2',
-				[companyId, input.item_id]
+		const item = await client.query<{ item_type: string }>(
+			'SELECT item_type FROM items WHERE company_id = $1 AND id = $2',
+			[companyId, input.item_id]
+		);
+		if (!item.rows[0]) throw new Error('El artículo no existe.');
+		if (item.rows[0].item_type === 'serializado') {
+			throw new Error(
+				'Las existencias de un artículo serializado son sus unidades: regístrelas o retírelas desde su ficha.'
 			);
-			if (!item.rows[0]) throw new Error('El artículo no existe.');
-			if (item.rows[0].item_type === 'serializado') {
-				throw new Error(
-					'Las existencias de un artículo serializado son sus unidades: regístrelas o retírelas desde su ficha.'
+		}
+
+		// `FOR UPDATE` y no una lectura suelta: dos entradas a la vez sobre el
+		// mismo articulo se leerian el mismo valor de partida y una pisaria a
+		// la otra.
+		const actual = await client.query<{ quantity: number }>(
+			`SELECT quantity FROM item_stock
+			  WHERE company_id = $1 AND item_id = $2 AND warehouse_id = $3
+			  FOR UPDATE`,
+			[companyId, input.item_id, input.warehouse_id]
+		);
+		const antes = Number(actual.rows[0]?.quantity ?? 0);
+
+		const despues =
+			input.type === 'ajuste'
+				? pedida
+				: input.type === 'entrada'
+					? antes + pedida
+					: antes - pedida;
+
+		// Las existencias no bajan de cero: no se puede sacar lo que no hay.
+		if (despues < 0) {
+			throw new Error(`No hay tanto que sacar: en este almacén hay ${antes}.`);
+		}
+
+		await client.query(
+			`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (company_id, item_id, warehouse_id)
+			 DO UPDATE SET quantity = EXCLUDED.quantity`,
+			[companyId, input.item_id, input.warehouse_id, despues]
+		);
+
+		// El costo solo tiene sentido en lo que ENTRA: una salida no compra
+		// nada, y un ajuste corrige un recuento. Guardarlo en los tres
+		// ensuciaria la valoracion con numeros que no son precios de compra.
+		//
+		// NULL y no 0 cuando no se sabe: «costo cero» es un dato inventado, y
+		// la valoracion prefiere decir «—» a decir una cifra falsa.
+		const costo =
+			input.type === 'entrada' && input.unit_cost !== null && input.unit_cost !== undefined
+				? Number(input.unit_cost)
+				: null;
+
+		await client.query(
+			`INSERT INTO stock_movements
+				(company_id, item_id, warehouse_id, user_id, type, quantity, notes, unit_cost)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[
+				companyId,
+				input.item_id,
+				input.warehouse_id,
+				input.user_id || null,
+				input.type,
+				despues - antes,
+				input.notes || null,
+				Number.isFinite(costo as number) ? costo : null
+			]
+		);
+
+		return { quantity: despues, delta: despues - antes };
+	}
+
+	async moveStock(
+		ctx: RepositoryContext,
+		input: MoveStockInput
+	): Promise<{ quantity: number; delta: number }> {
+		const companyId = requireCompanyId(ctx);
+		return withTransaction((client) => this.moveStockWithClient(client, companyId, input));
+	}
+
+	/**
+	 * Traslada cantidad de un almacen a otro EN UNA transaccion.
+	 *
+	 * Es una salida del origen y una entrada del destino, la misma pareja que
+	 * ya deja `moveSerial` para los seriales, pero atomica: si el origen no
+	 * alcanza, `moveStockWithClient` lanza y las dos escrituras se revierten
+	 * juntas —no queda una salida sin su entrada.
+	 */
+	async transferStock(ctx: RepositoryContext, input: TransferStockInput): Promise<void> {
+		if (String(input.from_warehouse_id) === String(input.to_warehouse_id)) {
+			throw new Error('El almacén de origen y destino no pueden ser el mismo.');
+		}
+		const companyId = requireCompanyId(ctx);
+		const nota = input.notes || `Traslado de almacén`;
+
+		await withTransaction(async (client) => {
+			await this.moveStockWithClient(client, companyId, {
+				item_id: input.item_id,
+				warehouse_id: input.from_warehouse_id,
+				type: 'salida',
+				quantity: input.quantity,
+				notes: nota,
+				user_id: input.user_id
+			});
+			await this.moveStockWithClient(client, companyId, {
+				item_id: input.item_id,
+				warehouse_id: input.to_warehouse_id,
+				type: 'entrada',
+				quantity: input.quantity,
+				notes: nota,
+				user_id: input.user_id
+			});
+		});
+	}
+
+	/**
+	 * Saca al articulo de un almacen sin existencias.
+	 *
+	 * El `AND quantity = 0` va en el propio DELETE, no solo validado antes: dos
+	 * peticiones a la vez —una que registra una entrada, otra que intenta
+	 * quitarlo— no deben poder cruzarse y borrar una fila que ya no esta en
+	 * cero.
+	 */
+	async removeFromWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void> {
+		const result = await this.pool.query(
+			'DELETE FROM item_stock WHERE company_id = $1 AND item_id = $2 AND warehouse_id = $3 AND quantity = 0',
+			[requireCompanyId(ctx), itemId, warehouseId]
+		);
+		if (result.rowCount === 0) {
+			throw new Error('Solo se puede quitar un almacén sin existencias.');
+		}
+	}
+
+	/** Los proveedores de un articulo, el principal primero. */
+	async listSuppliersForItem(ctx: RepositoryContext, itemId: ESRId): Promise<ItemSupplier[]> {
+		const result = await this.pool.query<ItemSupplier>(
+			`SELECT its.item_id, its.supplier_id, s.name AS supplier_name,
+			        its.is_primary::boolean AS is_primary
+			   FROM item_suppliers its
+			   INNER JOIN suppliers s ON s.id = its.supplier_id AND s.company_id = its.company_id
+			  WHERE its.company_id = $1 AND its.item_id = $2
+			  ORDER BY its.is_primary DESC, s.name`,
+			[requireCompanyId(ctx), itemId]
+		);
+		return result.rows;
+	}
+
+	async addSupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId, isPrimary = false): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		await withTransaction(async (client) => {
+			if (isPrimary) {
+				await client.query(
+					'UPDATE item_suppliers SET is_primary = 0 WHERE company_id = $1 AND item_id = $2',
+					[companyId, itemId]
 				);
 			}
-
-			// `FOR UPDATE` y no una lectura suelta: dos entradas a la vez sobre el
-			// mismo articulo se leerian el mismo valor de partida y una pisaria a
-			// la otra.
-			const actual = await client.query<{ quantity: number }>(
-				`SELECT quantity FROM item_stock
-				  WHERE company_id = $1 AND item_id = $2 AND warehouse_id = $3
-				  FOR UPDATE`,
-				[companyId, input.item_id, input.warehouse_id]
-			);
-			const antes = Number(actual.rows[0]?.quantity ?? 0);
-
-			const despues =
-				input.type === 'ajuste'
-					? pedida
-					: input.type === 'entrada'
-						? antes + pedida
-						: antes - pedida;
-
-			// Las existencias no bajan de cero: no se puede sacar lo que no hay.
-			if (despues < 0) {
-				throw new Error(`No hay tanto que sacar: en este almacén hay ${antes}.`);
-			}
-
 			await client.query(
-				`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
+				`INSERT INTO item_suppliers (company_id, item_id, supplier_id, is_primary)
 				 VALUES ($1, $2, $3, $4)
-				 ON CONFLICT (company_id, item_id, warehouse_id)
-				 DO UPDATE SET quantity = EXCLUDED.quantity`,
-				[companyId, input.item_id, input.warehouse_id, despues]
+				 ON CONFLICT (company_id, item_id, supplier_id) DO UPDATE SET is_primary = EXCLUDED.is_primary`,
+				[companyId, itemId, supplierId, isPrimary ? 1 : 0]
 			);
+		});
+	}
 
-			// El costo solo tiene sentido en lo que ENTRA: una salida no compra
-			// nada, y un ajuste corrige un recuento. Guardarlo en los tres
-			// ensuciaria la valoracion con numeros que no son precios de compra.
-			//
-			// NULL y no 0 cuando no se sabe: «costo cero» es un dato inventado, y
-			// la valoracion prefiere decir «—» a decir una cifra falsa.
-			const costo =
-				input.type === 'entrada' && input.unit_cost !== null && input.unit_cost !== undefined
-					? Number(input.unit_cost)
-					: null;
+	async removeSupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId): Promise<void> {
+		await this.pool.query(
+			'DELETE FROM item_suppliers WHERE company_id = $1 AND item_id = $2 AND supplier_id = $3',
+			[requireCompanyId(ctx), itemId, supplierId]
+		);
+	}
 
+	/** Marca UN proveedor como el preferido del articulo; desmarca al resto. */
+	async setPrimarySupplier(ctx: RepositoryContext, itemId: ESRId, supplierId: ESRId): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		await withTransaction(async (client) => {
 			await client.query(
-				`INSERT INTO stock_movements
-					(company_id, item_id, warehouse_id, user_id, type, quantity, notes, unit_cost)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				[
-					companyId,
-					input.item_id,
-					input.warehouse_id,
-					input.user_id || null,
-					input.type,
-					despues - antes,
-					input.notes || null,
-					Number.isFinite(costo as number) ? costo : null
-				]
+				'UPDATE item_suppliers SET is_primary = 0 WHERE company_id = $1 AND item_id = $2',
+				[companyId, itemId]
 			);
-
-			return { quantity: despues, delta: despues - antes };
+			const result = await client.query(
+				'UPDATE item_suppliers SET is_primary = 1 WHERE company_id = $1 AND item_id = $2 AND supplier_id = $3',
+				[companyId, itemId, supplierId]
+			);
+			if (result.rowCount === 0) {
+				throw new Error('Ese proveedor no está registrado para este artículo.');
+			}
 		});
 	}
 }
