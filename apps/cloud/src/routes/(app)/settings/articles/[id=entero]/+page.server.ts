@@ -16,8 +16,6 @@ import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
 
-const TIPOS_MOVIMIENTO = ['entrada', 'salida', 'ajuste'] as const;
-
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'inventory.view');
 	const ctx = toTenantContext(companyId);
@@ -213,45 +211,6 @@ export const actions: Actions = {
 			return fail(400, {
 				scope: 'seriales',
 				error: err instanceof Error ? err.message : 'No se pudo mover la unidad.'
-			});
-		}
-	},
-
-	/** Da entrada al artículo (de cantidad) en un almacén donde no estaba, o le suma existencias donde ya estaba. */
-	addToWarehouse: async (event) => {
-		const { companyId } = requirePermission(event.locals, 'inventory.update');
-		const ctx = toTenantContext(companyId);
-		const form = await event.request.formData();
-
-		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
-		const quantity = Number(form.get('quantity') ?? 0);
-		if (!warehouseId) return fail(400, { scope: 'almacenes', error: 'Elija el almacén.' });
-		if (!Number.isFinite(quantity) || quantity <= 0) {
-			return fail(400, { scope: 'almacenes', error: 'La cantidad debe ser mayor que cero.' });
-		}
-
-		try {
-			await getInventoryRepository().moveStock(ctx, {
-				item_id: event.params.id,
-				warehouse_id: warehouseId,
-				type: 'entrada',
-				quantity,
-				user_id: event.locals.user?.id ?? null
-			});
-
-			await recordAuditLog(event, {
-				action: 'inventory.stock_moved',
-				entity_type: 'inventory',
-				entity_id: String(event.params.id),
-				description: `Entrada de ${quantity} en almacén nuevo`,
-				metadata: { type: 'entrada', quantity, warehouseId }
-			});
-
-			return { scope: 'almacenes', success: true };
-		} catch (err) {
-			return fail(400, {
-				scope: 'almacenes',
-				error: err instanceof Error ? err.message : 'No se pudo registrar la entrada.'
 			});
 		}
 	},

@@ -1,7 +1,8 @@
 <script>
-	import { BackLink } from '@esr/ui';
+	import { Icon } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
 	import ItemSupplierBook from '$lib/components/inventory/ItemSupplierBook.svelte';
 	import ItemWarehouseBook from '$lib/components/inventory/ItemWarehouseBook.svelte';
@@ -10,6 +11,16 @@
 
 	let { data, form } = $props();
 	const item = data.item;
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
 
 	// El mensaje del articulo y el de almacenes/proveedores/seriales comparten
 	// el objeto `form`: el `scope` decide sobre cual tarjeta se pinta. Calcado
@@ -30,21 +41,32 @@
 	const alGuardar = () => async ({ update }) => update({ reset: false });
 </script>
 
-<div class="record-header">
-	<h1>{item.name}</h1>
-	<span class="badge {recordStateBadgeClass(item.is_active)}">
-		{recordStateLabel(item.is_active)}
-	</span>
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings/articles" aria-label="Volver al catálogo de artículos" title="Volver al catálogo de artículos">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar el artículo"
+			title="Recargar el artículo"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
 </div>
 
 <div class="record-layout">
 	<div class="record-col">
 		<section class="panel">
-			<div class="page-actions">
-				<!-- Un enlace, no datos: desde aquí se va a ver cuánto hay. -->
-				<a class="btn-secondary" href="/inventory?search={encodeURIComponent(item.internal_code || item.name)}">
-					Ver en Inventario
-				</a>
+			<div class="ficha-titulo">
+				<h2 class="panel-titulo">{item.name}</h2>
+				<span class="badge {recordStateBadgeClass(item.is_active)}">
+					{recordStateLabel(item.is_active)}
+				</span>
 			</div>
 
 			<form method="POST" action="?/update" class="form-grid" use:enhance={alGuardar}>
@@ -117,7 +139,6 @@
 					<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
 				</div>
 				<div class="form-actions">
-					<a class="btn-secondary back-link" href="/settings/articles">Volver al catálogo de artículos</a>
 					{#if can('inventory.update')}
 						<button type="submit" class="btn-primary">Guardar cambios</button>
 					{:else}
@@ -133,6 +154,7 @@
 			distribution={data.distribution}
 			warehouses={data.warehouses}
 			isSerialized={data.isSerialized}
+			searchTerm={item.internal_code || item.name}
 			{form}
 		/>
 
@@ -272,23 +294,29 @@
 {/if}
 
 <style>
-	.record-header {
+	/* El nombre del artículo vive DENTRO del panel que describe —igual que
+	   «Almacenes»/«Proveedores» titulan el suyo—, no suelto arriba de la
+	   página. El borde de abajo es el único divisor entre el título y el
+	   formulario: sin título de sección genérico que lo reemplace, hacía
+	   falta algo que marcara dónde termina uno y empieza el otro. */
+	.ficha-titulo {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
 		gap: var(--sp-3);
-		margin-bottom: var(--sp-5);
+		flex-wrap: wrap;
+		margin-bottom: var(--sp-4);
+		padding-bottom: var(--sp-4);
+		border-bottom: 1px solid var(--border);
 	}
 
-	.record-header h1 {
+	.panel-titulo {
 		margin: 0;
-		font-size: 1.6rem;
+		font-size: var(--font-lg);
+		font-weight: 600;
 	}
 
-	/* Calcado de `.client-layout` (ficha de Cliente), con los lados invertidos
-	   a propósito: izquierda los almacenes, derecha el formulario y sus
-	   proveedores. */
+	/* Calcado de `.client-layout` (ficha de Cliente): izquierda el formulario,
+	   derecha los almacenes y sus proveedores. */
 	.record-layout {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -306,16 +334,6 @@
 		.record-layout {
 			grid-template-columns: 1fr;
 		}
-	}
-
-	.page-actions {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: var(--sp-3);
-	}
-
-	.back-link {
-		margin-right: auto;
 	}
 
 	.sec-title {

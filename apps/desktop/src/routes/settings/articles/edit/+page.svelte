@@ -11,6 +11,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { Icon } from '@esr/ui';
   import {
     formatNumber,
     isSerializedInventoryItem,
@@ -27,6 +28,7 @@
   let itemId = null;
   let cargando = true;
   let guardando = false;
+  let recargando = false;
 
   let currentItem = { id: null, name: '', is_active: 1 };
   let categories = [];
@@ -87,6 +89,15 @@
     await cargarSeriales();
     await cargarDistribucion();
     await cargarProveedores();
+  }
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await cargarTodo();
+    } finally {
+      recargando = false;
+    }
   }
 
   async function onCategoryChange() {
@@ -253,48 +264,21 @@
   }
 
   // ── Almacenes ─────────────────────────────────────────────────────────────
-  let mostrandoAgregarAlmacen = false;
-  let agregarWarehouseId = '';
-  let agregarCantidad = 1;
   let trasladando = null;
   let trasladarDestino = '';
   let trasladarCantidad = 1;
 
-  function alternarAgregarAlmacen() {
-    mostrandoAgregarAlmacen = !mostrandoAgregarAlmacen;
-    agregarWarehouseId = almacenes[0] ? String(almacenes[0].id) : '';
-    agregarCantidad = 1;
-    trasladando = null;
-  }
-
-  /** Entrada de existencias EN UN ALMACEN: sube el total de la empresa. */
-  async function agregarAlmacen() {
-    const cantidad = Math.max(0, Math.trunc(Number(agregarCantidad) || 0));
-    if (!agregarWarehouseId || cantidad <= 0) return;
-    const fila = distribution.find((d) => String(d.warehouse_id) === agregarWarehouseId);
-    const actual = fila ? Number(fila.quantity) || 0 : 0;
-
-    await window.api.db.run(
-      `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)
-       ON CONFLICT (item_id, warehouse_id) DO UPDATE SET quantity = excluded.quantity`,
-      [itemId, agregarWarehouseId, actual + cantidad]
+  /**
+   * `/items` no lee la URL: recuerda el almacén elegido solo en `localStorage`.
+   * Se deja la intención en `sessionStorage`, de un solo uso, para que la
+   * próxima carga de `/items` filtre por este almacén y este artículo.
+   */
+  function verEnInventario(warehouseId) {
+    sessionStorage.setItem(
+      'esr_items_focus',
+      JSON.stringify({ warehouseId: String(warehouseId), search: currentItem.internal_code || currentItem.name })
     );
-    await window.api.db.run(
-      'UPDATE items SET total_quantity = MAX(0, COALESCE(total_quantity, 0) + ?) WHERE id = ?',
-      [cantidad, itemId]
-    );
-    await window.api.db.run(
-      'UPDATE items SET available_quantity = MAX(0, COALESCE(available_quantity, 0) + ?) WHERE id = ?',
-      [cantidad, itemId]
-    );
-    await window.api.db.run(
-      `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
-       VALUES (?, ?, ?, 'entrada', ?, ?)`,
-      [itemId, agregarWarehouseId, usuario()?.id ?? null, cantidad, null]
-    );
-
-    mostrandoAgregarAlmacen = false;
-    await cargarDistribucion();
+    goto('/items');
   }
 
   function alternarTraslado(warehouseId) {
@@ -303,7 +287,6 @@
       ? String(almacenes.find((a) => String(a.id) !== String(warehouseId)).id)
       : '';
     trasladarCantidad = 1;
-    mostrandoAgregarAlmacen = false;
   }
 
   /**
@@ -440,17 +423,21 @@
   }
 </script>
 
-<div class="page-header">
-  <div class="header-left">
-    <button class="btn-back" on:click={() => goto('/settings/articles')} title="Volver">
-      ← Catálogo de artículos
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/settings/articles" aria-label="Volver al catálogo de artículos" title="Volver al catálogo de artículos">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar el artículo"
+      title="Recargar el artículo"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
     </button>
-    {#if !cargando}
-      <h2 class="page-title">{currentItem.name}</h2>
-      <span class="badge {recordStateBadgeClass(currentItem.is_active)}">
-        {recordStateLabel(currentItem.is_active)}
-      </span>
-    {/if}
   </div>
 </div>
 
@@ -459,7 +446,13 @@
     <!-- ── Formulario ───────────────────────────────────────────────────── -->
     <div class="record-col">
       <div class="card">
-        <div class="section-title">Datos del artículo</div>
+        <div class="book-header">
+          <div class="section-title">{currentItem.name}</div>
+          <span class="badge {recordStateBadgeClass(currentItem.is_active)}">
+            {recordStateLabel(currentItem.is_active)}
+          </span>
+        </div>
+        <div class="ficha-divider"></div>
         <div style="display: flex; flex-direction: column; gap: 15px;">
           <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
@@ -572,38 +565,15 @@
       <div class="card">
         <div class="book-header">
           <div class="section-title">Almacenes</div>
-          {#if !isSerializedInventoryItem(currentItem)}
-            <button type="button" class="btn btn-primary btn-sm" on:click={alternarAgregarAlmacen}>
-              Agregar existencia
-            </button>
-          {/if}
         </div>
         <p class="panel-hint">En qué almacenes está este artículo y cuánto hay en cada uno.</p>
-
-        {#if mostrandoAgregarAlmacen}
-          <div class="inline-form">
-            <div class="field">
-              <label for="add-wh">Almacén</label>
-              <select id="add-wh" class="form-control" bind:value={agregarWarehouseId}>
-                {#each almacenes as almacen (almacen.id)}
-                  <option value={String(almacen.id)}>{almacen.name}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="field">
-              <label for="add-qty">Cantidad</label>
-              <input id="add-qty" class="form-control" type="number" min="1" step="1" bind:value={agregarCantidad} />
-            </div>
-            <button type="button" class="btn btn-primary btn-sm" on:click={agregarAlmacen}>Agregar</button>
-          </div>
-        {/if}
 
         <table class="table">
           <thead>
             <tr>
               <th>Almacén</th>
               <th class="num">Cantidad</th>
-              {#if !isSerializedInventoryItem(currentItem)}<th></th>{/if}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -611,8 +581,11 @@
               <tr>
                 <td>{fila.warehouse_name}</td>
                 <td class="num">{formatNumber(fila.quantity)}</td>
-                {#if !isSerializedInventoryItem(currentItem)}
-                  <td style="text-align:right; white-space:nowrap;">
+                <td style="text-align:right; white-space:nowrap;">
+                  <button type="button" class="btn-link" on:click={() => verEnInventario(fila.warehouse_id)}>
+                    Ver en Inventario
+                  </button>
+                  {#if !isSerializedInventoryItem(currentItem)}
                     {#if fila.quantity > 0}
                       <button type="button" class="btn-link" on:click={() => alternarTraslado(fila.warehouse_id)}>
                         Trasladar
@@ -622,8 +595,8 @@
                         Quitar
                       </button>
                     {/if}
-                  </td>
-                {/if}
+                  {/if}
+                </td>
               </tr>
               {#if trasladando === fila.warehouse_id}
                 <tr>
@@ -758,28 +731,13 @@
 {/if}
 
 <style>
-  .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 15px;
-  }
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .btn-back {
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 4px 0;
-  }
-  .page-title {
-    margin: 0;
-    font-size: 1.2rem;
+  /* El nombre del artículo vive DENTRO de su propia tarjeta —igual que
+     «Almacenes»/«Proveedores» titulan la suya—, no suelto arriba de la
+     página. El divisor de abajo marca dónde termina el título y empieza
+     el formulario, ya que no queda ningún texto de sección genérico ahí. */
+  .ficha-divider {
+    border-bottom: 1px solid var(--border-color);
+    margin: 10px 0 15px;
   }
 
   .record-layout {

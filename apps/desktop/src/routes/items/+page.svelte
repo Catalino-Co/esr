@@ -20,6 +20,8 @@
 
   /** El almacen elegido se recuerda entre visitas. */
   const CLAVE_ALMACEN = 'esr_almacen';
+  /** Intención de un solo uso desde la ficha del artículo: ver un almacén. */
+  const CLAVE_FOCO = 'esr_items_focus';
 
   /**
    * Las tres condiciones fisicas. Sentence case, como el resto del sistema.
@@ -66,9 +68,28 @@
     );
     reglaValoracion = empresa?.[0]?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
 
-    const recordado = localStorage.getItem(CLAVE_ALMACEN);
-    const existe = almacenes.some((a) => String(a.id) === recordado);
-    almacenId = existe ? recordado : almacenes[0] ? String(almacenes[0].id) : '';
+    /**
+     * La ficha del artículo deja aquí una intención de una sola vez —a qué
+     * almacén y con qué búsqueda llegar— porque esta pantalla no lee la URL.
+     * Tiene prioridad sobre el almacén recordado: es una navegación explícita.
+     */
+    const foco = sessionStorage.getItem(CLAVE_FOCO);
+    if (foco) {
+      sessionStorage.removeItem(CLAVE_FOCO);
+      try {
+        const { warehouseId, search } = JSON.parse(foco);
+        if (warehouseId && almacenes.some((a) => String(a.id) === warehouseId)) almacenId = warehouseId;
+        if (search) busqueda = search;
+      } catch {
+        // Valor corrupto: se ignora, no se rompe la carga de la pantalla.
+      }
+    }
+
+    if (!almacenId) {
+      const recordado = localStorage.getItem(CLAVE_ALMACEN);
+      const existe = almacenes.some((a) => String(a.id) === recordado);
+      almacenId = existe ? recordado : almacenes[0] ? String(almacenes[0].id) : '';
+    }
   }
 
   async function cargarItems() {

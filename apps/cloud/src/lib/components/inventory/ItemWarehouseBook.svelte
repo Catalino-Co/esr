@@ -18,6 +18,7 @@
 		distribution = [],
 		warehouses = [],
 		isSerialized = false,
+		searchTerm = '',
 		form = null
 	} = $props();
 
@@ -27,22 +28,14 @@
 		if (mensaje?.error) dangerModal.show(mensaje.error);
 	});
 
-	let mostrandoAgregar = $state(false);
 	let trasladando = $state(null); // warehouse_id de origen, o null
-
-	function alternarAgregar() {
-		mostrandoAgregar = !mostrandoAgregar;
-		trasladando = null;
-	}
 
 	function alternarTraslado(warehouseId) {
 		trasladando = trasladando === warehouseId ? null : warehouseId;
-		mostrandoAgregar = false;
 	}
 
 	const alEnviar = () => async ({ update }) => {
 		await update({ reset: false });
-		mostrandoAgregar = false;
 		trasladando = null;
 	};
 </script>
@@ -53,32 +46,7 @@
 			<h2>Almacenes</h2>
 			<p class="panel-hint">En qué almacenes está este artículo y cuánto hay en cada uno.</p>
 		</div>
-		{#if !isSerialized}
-			<button type="button" class="btn-primary btn-new btn-sm" onclick={alternarAgregar}>
-				Agregar existencia
-			</button>
-		{/if}
 	</div>
-
-	{#if mostrandoAgregar}
-		<form method="POST" action="?/addToWarehouse" class="sunken-card inline-form" use:enhance={alEnviar}>
-			<div class="form-field">
-				<label for="add-warehouse">Almacén</label>
-				<select id="add-warehouse" name="warehouse_id" required>
-					{#each warehouses as almacen (almacen.id)}
-						<option value={almacen.id}>{almacen.name}</option>
-					{/each}
-				</select>
-			</div>
-			<div class="form-field">
-				<label for="add-quantity">Cantidad</label>
-				<input id="add-quantity" name="quantity" type="number" min="1" step="1" value="1" required />
-			</div>
-			<div class="form-field form-field--action">
-				<button type="submit" class="btn-primary btn-sm">Agregar</button>
-			</div>
-		</form>
-	{/if}
 
 	{#if distribution.length === 0}
 		<p class="empty-state">No hay almacenes creados.</p>
@@ -88,7 +56,7 @@
 				<tr>
 					<th>Almacén</th>
 					<th class="num">Cantidad</th>
-					{#if !isSerialized}<th><span class="sr-only">Acciones</span></th>{/if}
+					<th><span class="sr-only">Acciones</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -96,8 +64,14 @@
 					<tr>
 						<td>{fila.warehouse_name}</td>
 						<td class="num">{formatNumber(fila.quantity)}</td>
-						{#if !isSerialized}
-							<td class="row-actions">
+						<td class="row-actions">
+							<a
+								class="btn-secondary btn-sm"
+								href="/inventory?almacen={fila.warehouse_id}&search={encodeURIComponent(searchTerm)}"
+							>
+								Ver en Inventario
+							</a>
+							{#if !isSerialized}
 								{#if fila.quantity > 0}
 									<button
 										type="button"
@@ -112,12 +86,12 @@
 										<button type="submit" class="btn-danger btn-sm">Quitar</button>
 									</form>
 								{/if}
-							</td>
-						{/if}
+							{/if}
+						</td>
 					</tr>
 					{#if trasladando === fila.warehouse_id}
 						<tr>
-							<td colspan={isSerialized ? 2 : 3}>
+							<td colspan="3">
 								<form
 									method="POST"
 									action="?/transferStock"
