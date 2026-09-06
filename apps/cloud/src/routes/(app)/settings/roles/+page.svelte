@@ -1,8 +1,39 @@
 <script>
+	import { invalidateAll } from '$app/navigation';
+	import { Icon } from '@esr/ui';
+
 	let { data } = $props();
 
 	const extrasPorRol = $derived(Object.fromEntries(data.extras.map((e) => [e.role, e])));
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
 </script>
+
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar la lista"
+			title="Recargar la lista"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+</div>
 
 <section class="panel">
 	<p class="panel-hint">
@@ -45,7 +76,7 @@
 	</p>
 
 	<div class="matriz-scroll">
-		<table class="data-table matriz">
+		<table class="data-table data-table--acento matriz">
 			<thead>
 				<tr>
 					<th class="col-permiso">Permiso</th>

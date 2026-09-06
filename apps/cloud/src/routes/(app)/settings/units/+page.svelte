@@ -21,5 +21,6 @@
 	size="sm"
 	entries={data.entries}
 	currentState={data.state}
+	search={data.search}
 	{form}
 />

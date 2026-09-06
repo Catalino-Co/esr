@@ -25,8 +25,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// e inactivos juntos porque no habia forma de llegar a los inactivos; ahora
 	// el filtro es el camino, y ademas da acceso a los archivados.
 	const state = parseRecordState(url.searchParams.get('state'));
+	const search = url.searchParams.get('search') ?? '';
 	const entries = await getEventTypeRepository().list(toTenantContext(companyId), { state });
-	return { entries, state };
+
+	// El repositorio no filtra por texto y la lista es corta: se filtra aquí,
+	// igual que /settings/categories y /packages.
+	const termino = search.trim().toLowerCase();
+	const filtered = termino ? entries.filter((e) => (e.name ?? '').toLowerCase().includes(termino)) : entries;
+
+	return { entries: filtered, state, search };
 };
 
 export const actions: Actions = {

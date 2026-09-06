@@ -22,8 +22,15 @@ const NAMES: CatalogAuditNames = {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'settings.catalogs.manage');
 	const state = parseRecordState(url.searchParams.get('state'));
+	const search = url.searchParams.get('search') ?? '';
 	const entries = await getClientAddressTypeRepository().list(toTenantContext(companyId), { state });
-	return { entries, state };
+
+	// El repositorio no filtra por texto y la lista es corta: se filtra aquí,
+	// igual que /settings/categories y /packages.
+	const termino = search.trim().toLowerCase();
+	const filtered = termino ? entries.filter((e) => (e.name ?? '').toLowerCase().includes(termino)) : entries;
+
+	return { entries: filtered, state, search };
 };
 
 export const actions: Actions = {

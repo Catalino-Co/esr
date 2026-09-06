@@ -1,12 +1,35 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
+	import { Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { stateSelect } from '$lib/list-filters';
 	import { formatMoney } from '@esr/core';
 	import { can } from '$lib/can';
 	let { data, form } = $props();
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
+
+	/** @param {Record<string, string | null>} cambios */
+	function irCon(cambios) {
+		const url = new URL(page.url);
+		for (const [clave, valor] of Object.entries(cambios)) {
+			if (valor === null || valor === '') url.searchParams.delete(clave);
+			else url.searchParams.set(clave, String(valor));
+		}
+		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
+	}
 
 	/**
 	 * Los tres estados de circulación, escritos aquí y no traídos de
@@ -74,6 +97,34 @@
 	);
 </script>
 
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar la lista"
+			title="Recargar la lista"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+	<div class="herramientas-datos">
+		<StatusSelect
+			{...stateSelect(data.state)}
+			onchange={(/** @type {Event & { currentTarget: HTMLSelectElement }} */ e) =>
+				irCon({ state: e.currentTarget.value })}
+		/>
+		{#if can('inventory.create')}
+			<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nuevo artículo</button>
+		{/if}
+	</div>
+</div>
+
 <section class="panel">
 	<p class="panel-hint">
 		Qué artículos existen y cómo se describen. Cuánto hay de cada uno y dónde está se ve en
@@ -92,21 +143,14 @@
 					{ value: '', label: 'Cualquier categoría' },
 					...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
 				]
-			},
-			stateSelect(data.state)
+			}
 		]}
-	>
-		{#snippet actions()}
-			{#if can('inventory.create')}
-				<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nuevo artículo</button>
-			{/if}
-		{/snippet}
-	</FilterBar>
+	/>
 
 	{#if data.items.length === 0}
 		<p class="empty-state">No hay artículos para mostrar.</p>
 	{:else}
-		<table class="data-table">
+		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
 					<th>Código</th>

@@ -1,5 +1,8 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
+	import { Icon } from '@esr/ui';
 	import {
 		RECORD_STATE,
 		RECORD_STATE_FILTER_LABELS,
@@ -8,6 +11,7 @@
 		recordStateLabel
 	} from '@esr/core';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -38,13 +42,35 @@
 		 */
 		currentState = RECORD_STATE.ACTIVE,
 		/** Ancho del dialogo: 'sm' una columna, 'md' dos. */
-		size = 'md'
+		size = 'md',
+		/** Termino de busqueda actual (el `load` de cada pagina ya lo filtra). */
+		search = ''
 	} = $props();
 
 	$effect(() => {
 		if (form?.error) dangerModal.show(form.error);
 		if (form?.success) toasts.success(form.success);
 	});
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
+
+	/** @param {Record<string, string | null>} cambios */
+	function irCon(cambios) {
+		const url = new URL(page.url);
+		for (const [clave, valor] of Object.entries(cambios)) {
+			if (valor === null || valor === '') url.searchParams.delete(clave);
+			else url.searchParams.set(clave, String(valor));
+		}
+		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
+	}
 
 	const TONES = {
 		[RECORD_STATE.ACTIVE]: 'ok',
@@ -135,28 +161,41 @@
 	};
 </script>
 
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar la lista"
+			title="Recargar la lista"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+	<div class="herramientas-datos">
+		<StatusSelect
+			name="state"
+			value={String(currentState)}
+			options={stateOptions}
+			label="Estado"
+			onchange={(/** @type {Event & { currentTarget: HTMLSelectElement }} */ e) =>
+				irCon({ state: e.currentTarget.value })}
+		/>
+		<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva entrada</button>
+	</div>
+</div>
+
 <section class="panel">
-	<FilterBar
-		selects={[
-			{
-				name: 'state',
-				label: 'Estado',
-				value: String(currentState),
-				options: stateOptions,
-				width: '11rem'
-			}
-		]}
-	>
-		{#snippet actions()}
-			<button type="button" class="btn-primary btn-new" onclick={abrirAlta}>Nueva entrada</button>
-		{/snippet}
-	</FilterBar>
+	<FilterBar search={{ name: 'search', placeholder: 'Buscar por nombre…', value: search }} />
 
 	{#if hint}
 		<p class="panel-hint">{hint}</p>
 	{/if}
-
-
 
 	{#if entries.length === 0}
 		<p class="empty-state">
@@ -167,7 +206,7 @@
 			{/if}
 		</p>
 	{:else}
-		<table class="data-table">
+		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
 					{#each columns as column (column.field)}

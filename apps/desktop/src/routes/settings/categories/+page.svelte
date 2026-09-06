@@ -1,12 +1,22 @@
 <script>
   import { onMount } from 'svelte';
-  import { BackLink } from '@esr/ui';
+  import { Icon } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
+  import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
+
+  const ESTADOS = [
+    { value: '1', label: 'Activas', tone: 'ok' },
+    { value: '2', label: 'Inactivas', tone: 'warn' },
+    { value: '0', label: 'Archivadas', tone: 'off' }
+  ];
 
   let categories = [];
   let subcategories = [];
   let viewState = "1";
+  let busqueda = '';
+  let recargando = false;
   let selectedCategoryId = null;
 
   // Modal state
@@ -18,10 +28,26 @@
 
   async function loadCategories() {
     if (window.api && window.api.db) {
+      const where = ['is_active = ?'];
+      const params = [parseInt(viewState)];
+      if (busqueda.trim()) {
+        where.push('(name LIKE ?)');
+        params.push(`%${busqueda.trim()}%`);
+      }
       categories = await window.api.db.get(
-        "SELECT * FROM categories WHERE is_active = ? ORDER BY name ASC",
-        [parseInt(viewState)]
+        `SELECT * FROM categories WHERE ${where.join(' AND ')} ORDER BY name ASC`,
+        params
       );
+    }
+  }
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await loadCategories();
+      await loadSubcategories(selectedCategoryId);
+    } finally {
+      recargando = false;
     }
   }
 
@@ -167,24 +193,43 @@
   </div>
 {/if}
 
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar la lista"
+      title="Recargar la lista"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
+  </div>
+  <div class="herramientas-datos">
+    <StatusSelect
+      value={viewState}
+      options={ESTADOS}
+      label="Estado"
+      onchange={(e) => { viewState = e.currentTarget.value; loadCategories(); loadSubcategories(selectedCategoryId); }}
+    />
+    <button class="btn btn-primary btn-new" on:click={openAddModal}>+ Nueva</button>
+  </div>
+</div>
+
 <div style="display: flex; gap: 20px;">
 
   <!-- Categorías -->
   <div class="card" style="flex: 1;">
-    <div class="card-title" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <BackLink href="/settings" label="Volver a Ajustes" />
-        <span>Categorías Principales</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <select bind:value={viewState} on:change={() => { loadCategories(); loadSubcategories(selectedCategoryId); }} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.85em;">
-          <option value="1">🟢 Activas</option>
-          <option value="2">🟠 Inactivas</option>
-          <option value="0">📁 Archivadas</option>
-        </select>
-        <button class="btn btn-primary" on:click={openAddModal} style="white-space: nowrap;">+ Nueva</button>
-      </div>
-    </div>
+    <div class="card-title">Categorías Principales</div>
+
+    <FilterBar
+      search={{ placeholder: 'Buscar por nombre…', value: busqueda }}
+      onSearch={(v) => { busqueda = v; loadCategories(); }}
+    />
 
     <div class="list-group">
       {#each categories as cat}

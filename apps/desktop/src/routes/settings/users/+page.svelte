@@ -3,14 +3,24 @@
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { validateUserInput } from '@esr/schemas';
-  import { BackLink, Modal } from '@esr/ui';
+  import { Icon, Modal } from '@esr/ui';
   import { COMPANY_ROLES, ROLE_DESCRIPTIONS, roleLabel } from '@esr/core';
+  import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
+
+  const ESTADOS = [
+    { value: '1', label: 'Activos', tone: 'ok' },
+    { value: '2', label: 'Inactivos', tone: 'warn' },
+    { value: '0', label: 'Archivados', tone: 'off' }
+  ];
 
   let viewState = "1";
+  let busqueda = '';
   let users = [];
   let showModal = false;
   let isEditing = false;
-  
+  let recargando = false;
+
   let currentUser = {
     id: null,
     username: '',
@@ -21,8 +31,25 @@
 
   async function loadData() {
     if (window.api && window.api.db) {
-      let query = "SELECT id, username, name, role FROM users WHERE is_active = ? ORDER BY name ASC";
-      users = await window.api.db.get(query, [parseInt(viewState)]);
+      const where = ['is_active = ?'];
+      const params = [parseInt(viewState)];
+      if (busqueda.trim()) {
+        where.push('(name LIKE ? OR username LIKE ?)');
+        params.push(`%${busqueda.trim()}%`, `%${busqueda.trim()}%`);
+      }
+      users = await window.api.db.get(
+        `SELECT id, username, name, role FROM users WHERE ${where.join(' AND ')} ORDER BY name ASC`,
+        params
+      );
+    }
+  }
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await loadData();
+    } finally {
+      recargando = false;
     }
   }
 
@@ -76,22 +103,41 @@
   }
 </script>
 
-<div class="card">
-  <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <BackLink href="/settings" label="Volver a Ajustes" />
-    <span>Gestión de Usuarios</span>
-    
-    <select bind:value={viewState} on:change={loadData} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em; margin-left: 20px;">
-      <option value="1">🟢 Activos</option>
-      <option value="2">🟠 Inactivos</option>
-      <option value="0">📁 Archivados</option>
-    </select>
-    
-    <button class="btn btn-primary" style="margin-left: auto;" on:click={openCreate}>+ Crear Usuario</button>
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar la lista"
+      title="Recargar la lista"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
   </div>
+  <div class="herramientas-datos">
+    <StatusSelect
+      value={viewState}
+      options={ESTADOS}
+      label="Estado"
+      onchange={(e) => { viewState = e.currentTarget.value; loadData(); }}
+    />
+    <button class="btn btn-primary btn-new" on:click={openCreate}>+ Crear Usuario</button>
+  </div>
+</div>
+
+<div class="card">
+  <FilterBar
+    search={{ placeholder: 'Nombre o usuario…', value: busqueda }}
+    onSearch={(v) => { busqueda = v; loadData(); }}
+  />
 
   <div class="table-wrapper">
-    <table class="table">
+    <table class="table table--acento">
       <thead>
         <tr>
           <th>Nombre Completo</th>

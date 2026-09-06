@@ -19,14 +19,30 @@ const PRIVILEGED_ROLES: CompanyRole[] = ['admin'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId, user } = requirePermission(locals, 'settings.members.manage');
 	const members = await getMemberRepository().list(toTenantContext(companyId));
 
+	// El repositorio no filtra por texto ni por estado, y la lista de una
+	// empresa es corta: se filtra aquí, igual que /settings/categories.
+	const search = url.searchParams.get('search') ?? '';
+	const status = url.searchParams.get('status') ?? '';
+	const termino = search.trim().toLowerCase();
+	const filtered = members.filter((m) => {
+		if (status && m.status !== status) return false;
+		if (!termino) return true;
+		return (
+			(m.user_name ?? '').toLowerCase().includes(termino) ||
+			(m.user_email ?? '').toLowerCase().includes(termino)
+		);
+	});
+
 	return {
-		members,
+		members: filtered,
 		assignableRoles: COMPANY_ROLES,
-		currentUserId: user.id
+		currentUserId: user.id,
+		search,
+		status
 	};
 };
 

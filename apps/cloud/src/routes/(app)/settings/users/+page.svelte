@@ -1,11 +1,43 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
+	import { Icon } from '@esr/ui';
 	import { roleLabel } from '@esr/core';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	const ESTADOS = [
+		{ value: '', label: 'Cualquier estado' },
+		{ value: 'active', label: 'Activo', tone: 'ok' },
+		{ value: 'inactive', label: 'Inactivo', tone: 'off' },
+		{ value: 'invited', label: 'Invitado', tone: 'warn' }
+	];
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
+
+	/** @param {Record<string, string | null>} cambios */
+	function irCon(cambios) {
+		const url = new URL(page.url);
+		for (const [clave, valor] of Object.entries(cambios)) {
+			if (valor === null || valor === '') url.searchParams.delete(clave);
+			else url.searchParams.set(clave, String(valor));
+		}
+		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
+	}
 
 	$effect(() => {
 		if (form?.error) dangerModal.show(form.error);
@@ -80,22 +112,47 @@
 	const estadoTexto = (s) => (s === 'active' ? 'Activo' : s === 'invited' ? 'Invitado' : 'Inactivo');
 </script>
 
-<section class="panel">
-	<div class="page-header">
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar la lista"
+			title="Recargar la lista"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+	<div class="herramientas-datos">
+		<StatusSelect
+			name="status"
+			value={data.status}
+			options={ESTADOS}
+			label="Estado"
+			onchange={(/** @type {Event & { currentTarget: HTMLSelectElement }} */ e) =>
+				irCon({ status: e.currentTarget.value })}
+		/>
 		<button type="button" class="btn-primary btn-new" onclick={abrirInvitar}>Agregar usuario</button>
 	</div>
+</div>
 
+<section class="panel">
 	<p class="panel-hint">
 		Quién tiene acceso a esta empresa y con qué rol. Para saber qué puede hacer cada rol, mira
 		<a href="/settings/roles">Roles y permisos</a>.
 	</p>
 
-
+	<FilterBar search={{ name: 'search', placeholder: 'Nombre o email', value: data.search }} />
 
 	{#if data.members.length === 0}
 		<p class="empty-state">Aún no hay usuarios registrados.</p>
 	{:else}
-		<table class="data-table">
+		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
 					<th>Usuario</th>
