@@ -342,7 +342,7 @@
     />
   {:else}
     <div class="table-wrapper">
-      <table class="table">
+      <table class="table table--acento">
         <thead>
           <tr>
             <th>Código</th>

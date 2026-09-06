@@ -190,7 +190,7 @@
 				: 'No hay artículos para mostrar.'}
 		</p>
 	{:else}
-		<table class="data-table">
+		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
 					<th>Código</th>

@@ -78,7 +78,7 @@
 	{#if data.packages.length === 0}
 		<p class="empty-state">Todavía no hay paquetes. Crea el primero con «Nuevo paquete».</p>
 	{:else}
-		<table class="data-table">
+		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
 					<th>Nombre</th>
