@@ -1,5 +1,5 @@
 import type { RecordState, RecordStateFilter } from '../shared/record-state';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, PhysicalStatus, ValuationRule } from '@esr/schemas';
+import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemWarehouseStock, PhysicalStatus, ValuationRule } from '@esr/schemas';
 import type { RepositoryContext } from '../shared/tenant';
 
 export type AvailabilityInput = {
@@ -64,6 +64,12 @@ export interface TenantInventoryRepository {
 	 * fisico de cada articulo.
 	 */
 	listStock(ctx: RepositoryContext, filters?: InventoryStockFilters): Promise<InventoryStockRow[]>;
+	/**
+	 * Donde esta repartido UN articulo: una fila por almacen activo, las de cero
+	 * incluidas. La vuelta de `listStock`, que fija el almacen y recorre los
+	 * articulos.
+	 */
+	listStockByWarehouse(ctx: RepositoryContext, itemId: ESRId): Promise<ItemWarehouseStock[]>;
 	/** Las existencias de un articulo que no son cantidad, sin tocar el catalogo. */
 	findInventory(ctx: RepositoryContext, itemId: ESRId): Promise<ItemInventory | null>;
 	/**

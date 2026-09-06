@@ -155,10 +155,32 @@
 					<label for="serials">Agregar seriales (uno por línea)</label>
 					<textarea id="serials" name="serials" rows="4" placeholder="SN-0001&#10;SN-0002"></textarea>
 				</div>
+				<!--
+					A qué almacén entran. Es obligatorio porque una unidad física está
+					en algún sitio: sin almacén no se contaba en ninguno y el artículo
+					aparecía en cero en todo el inventario. Registrando dos tandas se
+					reparte el mismo artículo entre varios almacenes.
+				-->
+				<div class="form-field">
+					<label for="serials_warehouse">Almacén al que entran</label>
+					<select id="serials_warehouse" name="warehouse_id" required>
+						{#each data.warehouses as almacen (almacen.id)}
+							<option value={String(almacen.id)}>{almacen.name}</option>
+						{/each}
+					</select>
+				</div>
 				<div class="form-actions">
-					<button type="submit" class="btn-primary">Agregar seriales</button>
+					<button type="submit" class="btn-primary" disabled={data.warehouses.length === 0}>
+						Agregar seriales
+					</button>
 				</div>
 			</form>
+			{#if data.warehouses.length === 0}
+				<p class="panel-hint">
+					No hay almacenes: cree el primero en
+					<a href="/settings/warehouses">Almacenes</a> para poder registrar unidades.
+				</p>
+			{/if}
 		{/if}
 
 		{#if data.serials.length === 0}
@@ -171,6 +193,7 @@
 					<tr>
 						<th>Número de serie</th>
 						<th>Estado</th>
+						<th>Almacén</th>
 						<th>Orden</th>
 						<th></th>
 					</tr>
@@ -191,6 +214,9 @@
 									{serial.status}
 								</span>
 							</td>
+							<!-- Solo lectura: aquí se define QUÉ unidades existen; dónde están
+							     y moverlas de sitio es Inventario. -->
+							<td>{serial.warehouse_name ?? 'Sin almacén'}</td>
 							<td>
 								{#if entregado && serial.work_order_id}
 									<a href="/work-orders/{serial.work_order_id}">#{serial.work_order_id}</a>

@@ -176,12 +176,44 @@
     }
   }
 
+  /**
+   * Donde esta repartido UN articulo: una fila por almacen activo, las de cero
+   * incluidas. Es la vuelta de la pantalla —que fija el almacen y recorre los
+   * articulos— y la usan los dos dialogos: el de movimiento, para que la cifra
+   * de referencia siga al almacen elegido, y el de existencias por almacen.
+   */
+  async function cargarReparto(itemId) {
+    return await window.api.db.get(
+      `SELECT w.id AS warehouse_id, w.name AS warehouse_name,
+              CASE WHEN i.item_type = 'serializado' THEN (
+                     SELECT COUNT(*) FROM item_serials s
+                      WHERE s.item_id = i.id AND s.warehouse_id = w.id
+                        AND s.status NOT IN ('retirado', 'mantenimiento'))
+                   ELSE COALESCE((SELECT st.quantity FROM item_stock st
+                                   WHERE st.item_id = i.id AND st.warehouse_id = w.id), 0)
+              END AS quantity
+         FROM warehouses w
+         CROSS JOIN items i
+        WHERE w.is_active = 1 AND i.id = ?
+        ORDER BY CASE WHEN w.code = 'PRIN' THEN 0 ELSE 1 END, w.name`,
+      [itemId]
+    );
+  }
+
   // ── Dialogo: movimiento de stock ─────────────────────────────────────────
   let moviendo = false;
   let errorMovimiento = '';
-  let movimiento = { id: null, name: '', tipo: 'entrada', cantidad: 1, costo: '', notas: '', actual: 0 };
+  let movimiento = {
+    id: null, name: '', tipo: 'entrada', cantidad: 1, costo: '', notas: '',
+    actual: 0, warehouseId: ''
+  };
+  /** Cuanto hay en cada almacen, para que la cifra siga al almacen elegido. */
+  let repartoMovimiento = [];
 
-  function abrirMovimiento(item) {
+  $: almacenMovimiento =
+    almacenes.find((a) => String(a.id) === String(movimiento.warehouseId))?.name || 'este almacén';
+
+  async function abrirMovimiento(item) {
     movimiento = {
       id: item.id,
       name: item.name,
@@ -192,10 +224,26 @@
       // una respuesta valida y se guarda como tal.
       costo: Number(item.internal_cost) > 0 ? String(item.internal_cost) : '',
       notas: '',
-      actual: Number(item.warehouse_quantity) || 0
+      actual: Number(item.warehouse_quantity) || 0,
+      // Se propone el almacen que se esta mirando, pero se elige aqui mismo: el
+      // mismo articulo vive en varios almacenes y dar entrada en otro obligaba a
+      // cerrar esto, cambiar la barra y volver a abrirlo.
+      warehouseId: almacenId
     };
     errorMovimiento = '';
+    repartoMovimiento = [];
     moviendo = true;
+
+    repartoMovimiento = await cargarReparto(item.id);
+    sincronizarActual();
+  }
+
+  /** La cifra de referencia es la del almacen ELEGIDO, no la del que se mira. */
+  function sincronizarActual() {
+    const fila = repartoMovimiento.find(
+      (d) => String(d.warehouse_id) === String(movimiento.warehouseId)
+    );
+    movimiento.actual = fila ? Number(fila.quantity) || 0 : 0;
   }
 
   /**
@@ -265,8 +313,12 @@
       errorMovimiento = 'La cantidad debe ser mayor que cero.';
       return;
     }
+    if (!movimiento.warehouseId) {
+      errorMovimiento = 'Elija el almacén del movimiento.';
+      return;
+    }
     if (resultante < 0) {
-      errorMovimiento = `No hay tanto que sacar: en este almacén hay ${movimiento.actual}.`;
+      errorMovimiento = `No hay tanto que sacar: en ${almacenMovimiento} hay ${movimiento.actual}.`;
       return;
     }
 
@@ -295,7 +347,7 @@
       await window.api.db.run(
         `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, ?)
          ON CONFLICT (item_id, warehouse_id) DO UPDATE SET quantity = excluded.quantity`,
-        [movimiento.id, almacenId, resultante]
+        [movimiento.id, movimiento.warehouseId, resultante]
       );
 
       const delta = resultante - movimiento.actual;
@@ -311,7 +363,7 @@
       await window.api.db.run(
         `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes, unit_cost)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [movimiento.id, almacenId, usuario?.id ?? null, movimiento.tipo, delta,
+        [movimiento.id, movimiento.warehouseId, usuario?.id ?? null, movimiento.tipo, delta,
          movimiento.notas || null, costo]
       );
 
@@ -319,6 +371,80 @@
       await cargarItems();
     } catch (e) {
       errorMovimiento = String(e?.message || 'No se pudo registrar el movimiento.');
+    }
+  }
+
+  // ── Dialogo: existencias por almacen ─────────────────────────────────────
+  //
+  // La vuelta de la pantalla: aqui se fija el articulo y se recorren los
+  // almacenes, que es lo que contesta «donde esta esto» —imposible de contestar
+  // mirando un almacen cada vez cuando el articulo esta repartido—.
+  let viendoReparto = false;
+  let errorReparto = '';
+  let repartoItem = { id: null, name: '', serializado: false };
+  let reparto = [];
+  let unidades = [];
+
+  async function abrirReparto(item) {
+    repartoItem = { id: item.id, name: item.name, serializado: item.item_type === 'serializado' };
+    errorReparto = '';
+    reparto = [];
+    unidades = [];
+    viendoReparto = true;
+    await refrescarReparto();
+  }
+
+  async function refrescarReparto() {
+    reparto = await cargarReparto(repartoItem.id);
+    unidades = repartoItem.serializado
+      ? await window.api.db.get(
+          `SELECT s.id, s.serial_number, s.status, s.warehouse_id, w.name AS warehouse_name
+             FROM item_serials s
+             LEFT JOIN warehouses w ON w.id = s.warehouse_id
+            WHERE s.item_id = ?
+            ORDER BY s.serial_number ASC`,
+          [repartoItem.id]
+        )
+      : [];
+  }
+
+  /**
+   * Mueve UNA unidad de almacen.
+   *
+   * El movimiento de stock no sirve aqui: en un serializado las existencias son
+   * sus unidades, y mover un numero no moveria ninguna. Se dejan los DOS
+   * asientos —la salida de donde estaba y la entrada donde queda—, porque una
+   * unidad que aparece en otro sitio sin rastro es lo que la bitacora existe
+   * para evitar.
+   */
+  async function moverUnidad(unidad, destino) {
+    if (!destino || String(destino) === String(unidad.warehouse_id)) return;
+    errorReparto = '';
+    const usuario = JSON.parse(sessionStorage.getItem('esr_user') || 'null');
+    const nota = `Traslado de la unidad ${unidad.serial_number}`;
+
+    try {
+      await window.api.db.run('UPDATE item_serials SET warehouse_id = ? WHERE id = ?', [
+        destino,
+        unidad.id
+      ]);
+      if (unidad.warehouse_id) {
+        await window.api.db.run(
+          `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
+           VALUES (?, ?, ?, 'salida', -1, ?)`,
+          [repartoItem.id, unidad.warehouse_id, usuario?.id ?? null, nota]
+        );
+      }
+      await window.api.db.run(
+        `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
+         VALUES (?, ?, ?, 'entrada', 1, ?)`,
+        [repartoItem.id, destino, usuario?.id ?? null, nota]
+      );
+
+      await refrescarReparto();
+      await cargarItems();
+    } catch (e) {
+      errorReparto = String(e?.message || 'No se pudo mover la unidad.');
     }
   }
 </script>
@@ -451,6 +577,16 @@
                   >
                     <Icon name="stock" />
                   </button>
+                  <!-- El mismo artículo puede estar repartido en varios almacenes,
+                       y la tabla solo enseña uno cada vez. -->
+                  <button
+                    class="row-action"
+                    on:click={() => abrirReparto(item)}
+                    aria-label="Existencias por almacén de {item.name}"
+                    title="En qué almacenes está"
+                  >
+                    <Icon name="display" />
+                  </button>
                   <!-- Edita las EXISTENCIAS, no la ficha: mínimo, condición y
                        ubicación. Lo que el artículo es y cuánto vale se cambia
                        en el catálogo, y desde aquí no se llega por descuido. -->
@@ -496,6 +632,19 @@
   <p class="panel-hint">{movimiento.name}</p>
 
   <div class="form-grid">
+    <!--
+      El almacén se ELIGE aquí, y no se hereda callado del selector de la barra:
+      el mismo artículo vive en varios almacenes, y dar entrada en otro obligaba
+      a cerrar esto, cambiar la barra y volver a abrirlo.
+    -->
+    <div class="form-field">
+      <label for="mov-almacen">Almacén</label>
+      <select id="mov-almacen" bind:value={movimiento.warehouseId} on:change={sincronizarActual}>
+        {#each almacenes as almacen (almacen.id)}
+          <option value={String(almacen.id)}>{almacen.name}</option>
+        {/each}
+      </select>
+    </div>
     <div class="form-field">
       <label for="mov-tipo">Tipo</label>
       <select id="mov-tipo" bind:value={movimiento.tipo}>
@@ -537,7 +686,8 @@
   </div>
 
   <p class="panel-hint ayuda">
-    En este almacén hay <strong>{formatNumber(movimiento.actual)}</strong> y quedarán
+    En <strong>{almacenMovimiento}</strong> hay <strong>{formatNumber(movimiento.actual)}</strong> y
+    quedarán
     <strong class:negativo={resultante < 0}>{formatNumber(resultante)}</strong>.
     {#if movimiento.tipo === 'ajuste'}Un ajuste fija la cantidad, no la suma.{/if}
   </p>
@@ -548,6 +698,74 @@
       Registrar
     </button>
   </svelte:fragment>
+</Modal>
+
+<!-- Donde esta repartido el articulo. -->
+<Modal bind:show={viendoReparto} title="Existencias por almacén" maxWidth="520px">
+  {#if errorReparto}<div class="alert alert-danger">{errorReparto}</div>{/if}
+
+  <p class="panel-hint">{repartoItem.name}</p>
+
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Almacén</th>
+          <th class="num">Cantidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each reparto as fila (fila.warehouse_id)}
+          <tr>
+            <td>{fila.warehouse_name}</td>
+            <td class="num">{formatNumber(fila.quantity ?? 0)}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- En un serializado las existencias son unidades concretas, así que moverlas
+       de almacén es mover ESA unidad y no un número. Va aquí y no en el catálogo:
+       allí se define qué unidades existen, aquí dónde están. -->
+  {#if repartoItem.serializado}
+    <p class="panel-hint ayuda">Unidades</p>
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Serial</th>
+            <th>Estado</th>
+            <th>Almacén</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each unidades as unidad (unidad.id)}
+            <tr>
+              <td>{unidad.serial_number}</td>
+              <td>{unidad.status}</td>
+              <td>
+                <select
+                  value={String(unidad.warehouse_id ?? '')}
+                  on:change={(e) => moverUnidad(unidad, e.currentTarget.value)}
+                  aria-label="Almacén de {unidad.serial_number}"
+                >
+                  {#if !unidad.warehouse_id}<option value="">Sin almacén</option>{/if}
+                  {#each almacenes as almacen (almacen.id)}
+                    <option value={String(almacen.id)}>{almacen.name}</option>
+                  {/each}
+                </select>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+
+  <div slot="footer">
+    <button class="btn btn-secondary" on:click={() => (viendoReparto = false)}>Cerrar</button>
+  </div>
 </Modal>
 
 <!-- Existencias del articulo: minimo, condicion y ubicacion. -->

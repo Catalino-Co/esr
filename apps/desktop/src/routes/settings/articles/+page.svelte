@@ -28,11 +28,21 @@
   let subcategories = [];
   let suppliers = [];
   let units = [];
+  let almacenes = [];
   let filterCategory = '';
-  
+
   let showModal = false;
   let isEditing = false;
   let serialLines = '';
+  /**
+   * A que almacen entran las unidades que se den de alta AHORA.
+   *
+   * Una unidad fisica esta en algun sitio: las que nacian sin almacen no se
+   * contaban en ninguno —el articulo salia en cero en todo el inventario
+   * mientras su total si las veia—. A las unidades que YA existen no se les
+   * toca el suyo: moverlas de sitio es trabajo de Inventario.
+   */
+  let serialWarehouseId = '';
   
   /**
    * La ficha del articulo: QUE ES y CUANTO VALE. Ni cantidad ni minimo ni
@@ -65,6 +75,9 @@
       );
       units = await window.api.db.get(
         'SELECT id, name, abbr FROM units_of_measure WHERE is_active = 1 ORDER BY name ASC'
+      );
+      almacenes = await window.api.db.get(
+        "SELECT id, name FROM warehouses WHERE is_active = 1 ORDER BY CASE WHEN code = 'PRIN' THEN 0 ELSE 1 END, name"
       );
       loadItems();
     }
@@ -121,6 +134,7 @@
       supplier_id: '', uom_id: ''
     };
     serialLines = '';
+    serialWarehouseId = almacenes[0] ? String(almacenes[0].id) : '';
     subcategories = [];
     showModal = true;
   }
@@ -133,6 +147,7 @@
       [item.id]
     );
     serialLines = serials.map(s => s.serial_number).join('\n');
+    serialWarehouseId = almacenes[0] ? String(almacenes[0].id) : '';
     if (currentItem.category_id) {
       subcategories = await window.api.db.get("SELECT * FROM subcategories WHERE category_id = ?", [currentItem.category_id]);
     }
@@ -210,11 +225,59 @@
     }
 
     if (usesSerial) {
-      await window.api.db.run('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
-      for (const serialNumber of catalogSerialNumbers) {
+      /*
+       * Se RECONCILIA en vez de borrar y volver a crear.
+       *
+       * El DELETE + INSERT de antes reescribia cada unidad en cada guardado, y
+       * con ella su almacen y su estado: abrir la ficha y pulsar Guardar dejaba
+       * sin almacen a todas y devolvia a `disponible` una que estaba entregada.
+       * Lo que ya existe no se toca; el almacen elegido es solo para las que
+       * nacen aqui.
+       */
+      const existentes = await window.api.db.get(
+        'SELECT id, serial_number, status FROM item_serials WHERE item_id = ?',
+        [itemId]
+      );
+      const clave = (valor) => String(valor ?? '').trim().toUpperCase();
+      const pedidos = new Set(catalogSerialNumbers.map(clave));
+      const yaEstaban = new Set(existentes.map((fila) => clave(fila.serial_number)));
+
+      // Una unidad que esta fuera —entregada o reservada— no se puede quitar
+      // desde el catalogo: primero vuelve. Borrarla dejaria a su orden
+      // apuntando a algo que ya no existe.
+      const bloqueada = existentes.find(
+        (fila) => !pedidos.has(clave(fila.serial_number)) && fila.status && fila.status !== 'disponible'
+      );
+      if (bloqueada) {
+        dangerModal.show(
+          `No se puede quitar el serial ${bloqueada.serial_number}: está ${bloqueada.status}.`
+        );
+        return;
+      }
+
+      for (const fila of existentes) {
+        if (pedidos.has(clave(fila.serial_number))) continue;
+        await window.api.db.run('DELETE FROM item_serials WHERE id = ?', [fila.id]);
+      }
+
+      const nuevos = catalogSerialNumbers.filter((serialNumber) => !yaEstaban.has(clave(serialNumber)));
+      for (const serialNumber of nuevos) {
         await window.api.db.run(
-          'INSERT INTO item_serials (item_id, serial_number, status) VALUES (?, ?, ?)',
-          [itemId, serialNumber, 'disponible']
+          'INSERT INTO item_serials (item_id, serial_number, status, warehouse_id) VALUES (?, ?, ?, ?)',
+          [itemId, serialNumber, 'disponible', serialWarehouseId || null]
+        );
+      }
+
+      // Registrar unidades SUBE las existencias de ese almacen: deja su asiento,
+      // como cualquier otra entrada. No descuadra nada, porque la cantidad de un
+      // serializado se cuenta de sus unidades y no de la bitacora.
+      if (nuevos.length && serialWarehouseId) {
+        const usuario = JSON.parse(sessionStorage.getItem('esr_user') || 'null');
+        await window.api.db.run(
+          `INSERT INTO stock_movements (item_id, warehouse_id, user_id, type, quantity, notes)
+           VALUES (?, ?, ?, 'entrada', ?, ?)`,
+          [itemId, serialWarehouseId, usuario?.id ?? null, nuevos.length,
+           `Alta de ${nuevos.length} unidad(es): ${nuevos.join(', ')}`]
         );
       }
     } else if (isEditing) {
@@ -420,6 +483,26 @@
         <small style="color:var(--text-muted);display:block;margin-top:4px;">
           Registrar un serial es DEFINIR una unidad, no moverla de sitio: por eso
           se hace aquí. La cantidad total sale de cuántos haya registrados.
+        </small>
+      </div>
+
+      <!-- A que almacen entran las unidades NUEVAS. Las que ya existen conservan
+           el suyo: cambiarlas de sitio se hace en Inventario. -->
+      <div>
+        <label for="itm-serial-almacen">Almacén de las unidades nuevas</label>
+        <select id="itm-serial-almacen" bind:value={serialWarehouseId} class="form-control">
+          {#each almacenes as almacen (almacen.id)}
+            <option value={String(almacen.id)}>{almacen.name}</option>
+          {/each}
+        </select>
+        <small style="color:var(--text-muted);display:block;margin-top:4px;">
+          {#if almacenes.length === 0}
+            No hay almacenes: cree el primero en Ajustes › Almacenes, o las unidades
+            no se contarán en ninguno.
+          {:else}
+            Solo aplica a los seriales que se agreguen ahora. Los que ya estaban
+            siguen donde están.
+          {/if}
         </small>
       </div>
     {/if}

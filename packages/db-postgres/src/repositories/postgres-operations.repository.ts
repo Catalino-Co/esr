@@ -194,14 +194,26 @@ export class PostgresStockMovementRepository {
 			reference_type?: string;
 			reference_id?: ESRId;
 			notes?: string;
+			/**
+			 * De donde sale o a donde entra. Opcional porque los movimientos
+			 * OPERATIVOS —entregas, devoluciones, reversos— no lo saben todavia: el
+			 * almacen informa y no reserva, asi que entregar no descuenta de un
+			 * almacen concreto. Los que si lo saben —el alta de una unidad
+			 * serializada y su traslado— lo pasan, y asi dejan de salir con «—» en
+			 * la pantalla de Movimientos.
+			 */
+			warehouse_id?: ESRId | null;
+			/** Quien lo hizo, cuando hay una persona detras. */
+			user_id?: ESRId | null;
 		},
 		client?: pg.PoolClient
 	): Promise<void> {
 		const db = client ?? this.pool;
 		await db.query(
 			`INSERT INTO stock_movements
-				(company_id, item_id, work_order_id, work_order_item_id, type, quantity, reference, notes)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				(company_id, item_id, work_order_id, work_order_item_id, type, quantity, reference, notes,
+				 warehouse_id, user_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 			[
 				requireCompanyId(ctx),
 				data.item_id,
@@ -210,7 +222,9 @@ export class PostgresStockMovementRepository {
 				data.movement_type,
 				data.quantity,
 				data.reference_type ? `${data.reference_type}:${data.reference_id ?? ''}` : null,
-				data.notes || null
+				data.notes || null,
+				data.warehouse_id || null,
+				data.user_id || null
 			]
 		);
 	}

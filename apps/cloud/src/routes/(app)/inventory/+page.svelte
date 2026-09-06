@@ -56,6 +56,19 @@
 		...Object.entries(CONDICIONES).map(([value, label]) => ({ value, label }))
 	];
 
+	/* ── Dónde está repartido un artículo ──────────────────────────────────── */
+
+	/**
+	 * La distribución se pide al abrir un diálogo, no viaja con el listado: se
+	 * mira de un artículo cada vez, y traerla de los cien para usar la de uno
+	 * sería pagar cien veces por una.
+	 */
+	async function cargarDistribucion(itemId) {
+		const respuesta = await fetch(`/inventory/existencias?item=${itemId}`);
+		if (!respuesta.ok) return { distribution: [], serials: [], serialized: false };
+		return await respuesta.json();
+	}
+
 	/* ── Diálogo: movimiento de stock ──────────────────────────────────────── */
 
 	let moviendo = $state(false);
@@ -67,10 +80,17 @@
 		cantidad: 1,
 		costo: '',
 		notas: '',
-		actual: 0
+		actual: 0,
+		warehouseId: ''
 	});
+	/** Cuánto hay en cada almacén, para que la cifra siga al almacén elegido. */
+	let repartoMovimiento = $state([]);
 
-	function abrirMovimiento(item) {
+	const almacenMovimiento = $derived(
+		data.warehouses.find((w) => String(w.id) === String(movimiento.warehouseId))?.name ?? 'este almacén'
+	);
+
+	async function abrirMovimiento(item) {
 		movimiento = {
 			id: item.id,
 			name: item.name,
@@ -85,10 +105,26 @@
 			// precio de compra abría el diálogo con un 0.00 tecleado.
 			costo: Number(item.internal_cost) > 0 ? String(item.internal_cost) : '',
 			notas: '',
-			actual: Number(item.warehouse_quantity) || 0
+			actual: Number(item.warehouse_quantity) || 0,
+			// Se propone el almacén que se está mirando, pero se puede cambiar aquí
+			// mismo: el mismo artículo vive en varios y no hay por qué salir de la
+			// pantalla para darle entrada en otro.
+			warehouseId: data.warehouseId
 		};
 		errorMovimiento = null;
+		repartoMovimiento = [];
 		moviendo = true;
+
+		repartoMovimiento = (await cargarDistribucion(item.id)).distribution;
+		sincronizarActual();
+	}
+
+	/** La cifra de referencia es la del almacén ELEGIDO, no la del que se mira. */
+	function sincronizarActual() {
+		const fila = repartoMovimiento.find(
+			(d) => String(d.warehouse_id) === String(movimiento.warehouseId)
+		);
+		movimiento.actual = fila ? Number(fila.quantity) || 0 : 0;
 	}
 
 	/* ── Diálogo: existencias del artículo ─────────────────────────────────── */
@@ -140,6 +176,49 @@
 			return;
 		}
 		moviendo = false;
+	};
+
+	/* ── Diálogo: existencias por almacén ──────────────────────────────────── */
+	//
+	// La vuelta de la pantalla: aquella fija el almacén y recorre los artículos,
+	// este fija el artículo y recorre los almacenes. Es lo que contesta «dónde
+	// está esto», que con un artículo repartido en varios sitios no se puede
+	// contestar mirando un almacén cada vez.
+
+	let viendoReparto = $state(false);
+	let repartoItem = $state({ id: null, name: '', serialized: false });
+	let reparto = $state([]);
+	let unidades = $state([]);
+	let cargandoReparto = $state(false);
+	let errorReparto = $state(null);
+
+	async function abrirReparto(item) {
+		repartoItem = { id: item.id, name: item.name, serialized: item.item_type === 'serializado' };
+		reparto = [];
+		unidades = [];
+		errorReparto = null;
+		viendoReparto = true;
+		cargandoReparto = true;
+		try {
+			const datos = await cargarDistribucion(item.id);
+			reparto = datos.distribution;
+			unidades = datos.serials;
+		} finally {
+			cargandoReparto = false;
+		}
+	}
+
+	const alMoverUnidad = () => async ({ update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			errorReparto = result.data?.error ?? 'No se pudo mover la unidad.';
+			return;
+		}
+		// Se recarga el reparto: la unidad ya está en otro sitio y las dos cifras
+		// que se están mirando acaban de cambiar.
+		const datos = await cargarDistribucion(repartoItem.id);
+		reparto = datos.distribution;
+		unidades = datos.serials;
 	};
 </script>
 
@@ -284,6 +363,17 @@
 									>
 										<Icon name="stock" />
 									</button>
+									<!-- El mismo artículo puede estar repartido en varios almacenes,
+									     y la tabla solo enseña uno cada vez. -->
+									<button
+										type="button"
+										class="row-action"
+										onclick={() => abrirReparto(item)}
+										aria-label="Existencias por almacén de {item.name}"
+										title="En qué almacenes está"
+									>
+										<Icon name="display" />
+									</button>
 									<!-- Edita las EXISTENCIAS, no la ficha: mínimo, condición y
 									     ubicación. Lo que el artículo es y cuánto vale se cambia en
 									     el catálogo, y desde aquí no se llega por descuido. -->
@@ -331,8 +421,25 @@
 		use:enhance={alMover}
 	>
 		<input type="hidden" name="item_id" value={movimiento.id} />
-		<input type="hidden" name="warehouse_id" value={data.warehouseId} />
 
+		<!--
+			El almacén se ELIGE aquí, y no se hereda callado del selector de la
+			barra: el mismo artículo vive en varios almacenes, y dar entrada en otro
+			obligaba a cerrar esto, cambiar la barra y volver a abrirlo.
+		-->
+		<div class="form-field">
+			<label for="mov_almacen">Almacén</label>
+			<select
+				id="mov_almacen"
+				name="warehouse_id"
+				bind:value={movimiento.warehouseId}
+				onchange={sincronizarActual}
+			>
+				{#each data.warehouses as almacen (almacen.id)}
+					<option value={String(almacen.id)}>{almacen.name}</option>
+				{/each}
+			</select>
+		</div>
 		<div class="form-field">
 			<label for="mov_tipo">Tipo</label>
 			<select id="mov_tipo" name="type" bind:value={movimiento.tipo}>
@@ -383,7 +490,8 @@
 	</form>
 
 	<p class="panel-hint resultado">
-		En este almacén hay <strong>{formatNumber(movimiento.actual)}</strong> y quedarán
+		En <strong>{almacenMovimiento}</strong> hay <strong>{formatNumber(movimiento.actual)}</strong> y
+		quedarán
 		<strong class:negativo={resultante < 0}>{formatNumber(resultante)}</strong>.
 		{#if movimiento.tipo === 'ajuste'}
 			Un ajuste fija la cantidad, no la suma.
@@ -395,6 +503,85 @@
 		<button type="submit" form="mover-stock" class="btn-primary" disabled={resultante < 0}>
 			Registrar
 		</button>
+	{/snippet}
+</Modal>
+
+<!-- ── Existencias por almacén ─────────────────────────────────────────── -->
+<Modal bind:open={viendoReparto} size="sm" title="Existencias por almacén">
+	{#if errorReparto}<div class="alert-error" role="alert">{errorReparto}</div>{/if}
+
+	<p class="panel-hint">{repartoItem.name}</p>
+
+	{#if cargandoReparto}
+		<p class="empty-state">Cargando…</p>
+	{:else}
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Almacén</th>
+					<th class="num">Cantidad</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each reparto as fila (fila.warehouse_id)}
+					<tr>
+						<td>{fila.warehouse_name}</td>
+						<td class="num">{formatNumber(fila.quantity)}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+
+		<!--
+			En un serializado las existencias son unidades concretas, así que
+			moverlas de almacén es mover ESA unidad y no un número. Va aquí y no en
+			el catálogo: allí se define qué unidades existen, aquí dónde están.
+		-->
+		{#if repartoItem.serialized}
+			<p class="panel-hint resultado">Unidades</p>
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Serial</th>
+						<th>Estado</th>
+						<th>Almacén</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each unidades as unidad (unidad.id)}
+						<tr>
+							<td>{unidad.serial_number}</td>
+							<td>{unidad.status}</td>
+							<td>
+								{#if puedeMover}
+									<form method="POST" action="?/moveSerial" use:enhance={alMoverUnidad}>
+										<input type="hidden" name="serial_id" value={unidad.id} />
+										<select
+											name="warehouse_id"
+											value={String(unidad.warehouse_id ?? '')}
+											onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										>
+											{#if !unidad.warehouse_id}
+												<option value="">Sin almacén</option>
+											{/if}
+											{#each data.warehouses as almacen (almacen.id)}
+												<option value={String(almacen.id)}>{almacen.name}</option>
+											{/each}
+										</select>
+									</form>
+								{:else}
+									{unidad.warehouse_name ?? 'Sin almacén'}
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={() => (viendoReparto = false)}>Cerrar</button>
 	{/snippet}
 </Modal>
 

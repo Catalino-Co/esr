@@ -1,6 +1,6 @@
 import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository } from '@esr/core';
 import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory } from '@esr/schemas';
+import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemWarehouseStock } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { appendStateFilter } from './state-filter';
@@ -324,6 +324,45 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			params
 		);
 		return result.rows as never;
+	}
+
+	/**
+	 * Donde esta repartido UN articulo.
+	 *
+	 * Se parte de `warehouses` y no de `item_stock` con un LEFT JOIN al reves:
+	 * un almacen donde no queda nada tiene que salir en cero, porque «aqui no
+	 * hay» es la mitad de la respuesta a «donde esta esto».
+	 *
+	 * Las dos ramas del CASE son las mismas de `listStock`: en un serializado la
+	 * existencia son sus unidades y en uno de cantidad es su fila de
+	 * `item_stock`. Mezclarlas daria dos numeros contradiciendose.
+	 */
+	async listStockByWarehouse(
+		ctx: RepositoryContext,
+		itemId: ESRId
+	): Promise<ItemWarehouseStock[]> {
+		const result = await this.pool.query<ItemWarehouseStock>(
+			`SELECT w.id AS warehouse_id, w.name AS warehouse_name,
+			        CASE WHEN i.item_type = 'serializado' THEN (
+			               SELECT COUNT(*)::int FROM item_serials s
+			                WHERE s.item_id = i.id AND s.company_id = i.company_id
+			                  AND s.warehouse_id = w.id
+			                  AND s.status NOT IN ('retirado', 'mantenimiento')
+			             )
+			             ELSE COALESCE((
+			               SELECT st.quantity FROM item_stock st
+			                WHERE st.item_id = i.id AND st.company_id = i.company_id
+			                  AND st.warehouse_id = w.id
+			             ), 0)
+			        END AS quantity
+			   FROM warehouses w
+			   CROSS JOIN items i
+			  WHERE w.company_id = $1 AND w.is_active = 1
+			    AND i.company_id = $1 AND i.id = $2
+			  ORDER BY CASE WHEN w.code = 'PRIN' THEN 0 ELSE 1 END, w.name`,
+			[requireCompanyId(ctx), itemId]
+		);
+		return result.rows;
 	}
 
 	/**

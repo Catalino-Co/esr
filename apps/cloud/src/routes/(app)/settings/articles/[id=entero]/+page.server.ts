@@ -5,9 +5,11 @@ import {
 	getCategoryRepository,
 	getInventoryRepository,
 	getSerialRepository,
+	getStockMovementRepository,
 	getSubcategoryRepository,
 	getSupplierRepository,
-	getUnitOfMeasureRepository
+	getUnitOfMeasureRepository,
+	getWarehouseRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -24,16 +26,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// «qué es y cuánto vale». Cuánto hay y dónde está se ve en Inventario, al que
 	// se enlaza. Un enlace, y no las cifras repetidas aquí, porque dos sitios que
 	// enseñan el mismo número acaban enseñando dos números distintos.
-	const [categories, subcategories, serials, suppliers, units] = await Promise.all([
+	const [categories, subcategories, serials, suppliers, units, warehouses] = await Promise.all([
 		getCategoryRepository().list(ctx),
 		item.category_id ? getSubcategoryRepository().list(ctx, item.category_id) : Promise.resolve([]),
 		// Los seriales SÍ son del artículo: identifican qué unidad física es cuál,
-		// y darlos de alta es definirlas, no moverlas de sitio.
+		// y darlos de alta es definirlas. Pero una unidad física está en algún
+		// sitio: nacer sin almacén la dejaba sin contarse en ninguno.
 		isSerializedInventoryItem(item)
 			? getSerialRepository().findByItem(ctx, params.id)
 			: Promise.resolve([]),
 		getSupplierRepository().list(ctx),
-		getUnitOfMeasureRepository().list(ctx)
+		getUnitOfMeasureRepository().list(ctx),
+		getWarehouseRepository().list(ctx)
 	]);
 
 	return {
@@ -43,6 +47,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		serials,
 		suppliers,
 		units,
+		warehouses,
 		isSerialized: isSerializedInventoryItem(item)
 	};
 };
@@ -66,6 +71,13 @@ export const actions: Actions = {
 		const entered = uniqueSerialLines(parseSerialLines(String(form.get('serials') ?? '')));
 		if (!entered.length) return fail(400, { error: 'Escriba al menos un número de serie.' });
 
+		// El almacén no es opcional: una unidad física está en algún sitio, y sin
+		// decir dónde no se cuenta en ninguno —así estaban los seriales dados de
+		// alta antes de esta reforma, visibles en el total e invisibles en cada
+		// almacén—.
+		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
+		if (!warehouseId) return fail(400, { error: 'Elija el almacén al que entran.' });
+
 		const created: string[] = [];
 		const duplicated: string[] = [];
 		for (const serialNumber of entered) {
@@ -76,11 +88,24 @@ export const actions: Actions = {
 				duplicated.push(serialNumber);
 				continue;
 			}
-			await getSerialRepository().create(ctx, event.params.id, serialNumber);
+			await getSerialRepository().create(ctx, event.params.id, serialNumber, warehouseId);
 			created.push(serialNumber);
 		}
 
 		if (created.length) {
+			// Registrar unidades SUBE las existencias de ese almacén, así que deja
+			// su asiento: ninguna existencia se mueve sin rastro. No descuadra
+			// nada, porque en un serializado la cantidad se cuenta de las unidades
+			// y no de la bitácora.
+			await getStockMovementRepository().create(ctx, {
+				item_id: event.params.id,
+				movement_type: 'entrada',
+				quantity: created.length,
+				warehouse_id: warehouseId,
+				user_id: event.locals.user?.id ?? null,
+				notes: `Alta de ${created.length} unidad(es): ${created.join(', ')}`
+			});
+
 			await recordAuditLog(event, {
 				action: 'inventory.serials_added',
 				entity_type: 'inventory_item',

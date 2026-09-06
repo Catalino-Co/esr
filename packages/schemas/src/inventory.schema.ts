@@ -93,6 +93,21 @@ export type InventoryStockRow = InventoryItem &
 		valuation_cost?: Nullable<number>;
 	};
 
+/**
+ * Cuanto hay de UN articulo en UN almacen.
+ *
+ * Es la vuelta a `InventoryStockRow`: aquella fija el almacen y recorre los
+ * articulos; esta fija el articulo y recorre los almacenes, que es la pregunta
+ * «donde esta repartido esto». Se devuelven TODOS los almacenes activos,
+ * incluidos los que estan en cero: saber que en un almacen no queda nada es
+ * justo lo que se va a mirar.
+ */
+export type ItemWarehouseStock = {
+	warehouse_id: ESRId;
+	warehouse_name: string;
+	quantity: number;
+};
+
 export function validateInventoryItemInput(item: Pick<InventoryItem, 'name' | 'category_id'>): ValidationResult {
 	return isPresent(item.name) && isPresent(item.category_id) ? valid() : invalid('inventory_item.required_fields');
 }

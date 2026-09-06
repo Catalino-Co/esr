@@ -5,6 +5,8 @@ import {
 	getCategoryRepository,
 	getCompanySettingsRepository,
 	getInventoryRepository,
+	getSerialRepository,
+	getStockMovementRepository,
 	getWarehouseRepository
 } from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
@@ -143,6 +145,65 @@ export const actions: Actions = {
 			// Los mensajes del repositorio SON la interfaz —«no hay tanto que
 			// sacar: en este almacén hay 3»— y llegan tal cual.
 			return fail(400, { error: error instanceof Error ? error.message : 'No se pudo registrar el movimiento.' });
+		}
+	},
+
+	/**
+	 * Mueve UNA unidad serializada de almacén.
+	 *
+	 * El movimiento de stock no sirve aquí: en un serializado las existencias son
+	 * sus unidades, y mover un número no movería ninguna. Se cambia el almacén de
+	 * la unidad y se dejan los DOS asientos —la salida de donde estaba y la
+	 * entrada donde queda—, porque una unidad que aparece en otro sitio sin
+	 * rastro es justo lo que la bitácora existe para evitar.
+	 */
+	moveSerial: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'inventory.update');
+		const ctx = toTenantContext(companyId);
+		const form = await event.request.formData();
+
+		const serialId = String(form.get('serial_id') ?? '').trim();
+		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
+		if (!serialId || !warehouseId) return fail(400, { error: 'Falta la unidad o el almacén.' });
+
+		try {
+			const { serial, from } = await getSerialRepository().setWarehouse(ctx, serialId, warehouseId);
+			if (String(from ?? '') === warehouseId) return { success: true };
+
+			const movimientos = getStockMovementRepository();
+			const nota = `Traslado de la unidad ${serial.serial_number}`;
+			if (from) {
+				await movimientos.create(ctx, {
+					item_id: serial.item_id,
+					movement_type: 'salida',
+					quantity: -1,
+					warehouse_id: from,
+					user_id: event.locals.user?.id ?? null,
+					notes: nota
+				});
+			}
+			await movimientos.create(ctx, {
+				item_id: serial.item_id,
+				movement_type: 'entrada',
+				quantity: 1,
+				warehouse_id: warehouseId,
+				user_id: event.locals.user?.id ?? null,
+				notes: nota
+			});
+
+			await recordAuditLog(event, {
+				action: 'inventory.serial_moved',
+				entity_type: 'inventory',
+				entity_id: String(serial.item_id),
+				description: `Unidad ${serial.serial_number} trasladada de almacén`,
+				metadata: { serialId, from, to: warehouseId }
+			});
+
+			return { success: true };
+		} catch (error) {
+			return fail(400, {
+				error: error instanceof Error ? error.message : 'No se pudo mover la unidad.'
+			});
 		}
 	},
 

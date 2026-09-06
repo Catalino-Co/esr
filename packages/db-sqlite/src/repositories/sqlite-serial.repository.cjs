@@ -8,13 +8,45 @@ class SqliteSerialRepository {
     );
   }
 
-  async replaceItemSerials(itemId, serials) {
-    await runQuery('DELETE FROM item_serials WHERE item_id = ?', [itemId]);
+  /**
+   * Deja la lista de unidades del articulo igual a la que se pasa, RECONCILIANDO
+   * en vez de borrar y volver a crear.
+   *
+   * El DELETE + INSERT de antes reescribia cada unidad en cada guardado, y con
+   * ella su almacen y su estado: un serial `entregado` volvia a `disponible` y
+   * uno ubicado en un almacen se quedaba sin ninguno solo por abrir la ficha y
+   * pulsar Guardar. Aqui lo que ya existe no se toca.
+   *
+   * `warehouseId` es para los que NACEN en esta llamada; a los que ya estaban no
+   * se les mueve de sitio, que es trabajo de Inventario.
+   */
+  async replaceItemSerials(itemId, serials, warehouseId = null) {
+    const existentes = await getQuery(
+      'SELECT id, serial_number, status FROM item_serials WHERE item_id = ?',
+      [itemId]
+    );
+    const clave = (valor) => String(valor ?? '').trim().toUpperCase();
+    const pedidos = new Map(serials.map((serial) => [clave(serial.serial_number), serial]));
+    const porNumero = new Map(existentes.map((fila) => [clave(fila.serial_number), fila]));
+
+    // Lo que ya no esta en la lista se va, salvo que este fuera: una unidad
+    // entregada o reservada no se puede borrar desde el catalogo -primero
+    // vuelve-, y borrarla dejaria la orden apuntando a algo que no existe.
+    for (const fila of existentes) {
+      if (pedidos.has(clave(fila.serial_number))) continue;
+      if (fila.status && fila.status !== 'disponible') {
+        throw new Error(
+          `No se puede quitar el serial ${fila.serial_number}: está ${fila.status}.`
+        );
+      }
+      await runQuery('DELETE FROM item_serials WHERE id = ?', [fila.id]);
+    }
 
     for (const serial of serials) {
+      if (porNumero.has(clave(serial.serial_number))) continue;
       await runQuery(
-        'INSERT INTO item_serials (item_id, serial_number, status) VALUES (?, ?, ?)',
-        [itemId, serial.serial_number, serial.status || 'disponible']
+        'INSERT INTO item_serials (item_id, serial_number, status, warehouse_id) VALUES (?, ?, ?, ?)',
+        [itemId, serial.serial_number, serial.status || 'disponible', warehouseId]
       );
     }
   }

@@ -15,6 +15,7 @@ import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { ESRId } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
+import { withTransaction } from '../transaction';
 import { availabilityColumnsSql, AVAILABILITY_ORDER_STATUSES } from './availability';
 
 /** Una linea de paquete tal como la pinta la vista previa del dialogo. */
@@ -234,7 +235,7 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 	}
 }
 
-const SERIAL_COLUMNS = 's.id, s.company_id, s.item_id, s.serial_number, s.status';
+const SERIAL_COLUMNS = 's.id, s.company_id, s.item_id, s.serial_number, s.status, s.warehouse_id';
 
 export class PostgresSerialRepository implements TenantSerialRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
@@ -253,11 +254,14 @@ export class PostgresSerialRepository implements TenantSerialRepository {
 		}
 
 		const result = await this.pool.query<ItemSerialView>(
-			`SELECT ${SERIAL_COLUMNS}, i.name AS item_name,
+			`SELECT ${SERIAL_COLUMNS}, i.name AS item_name, w.name AS warehouse_name,
 				(SELECT wois.work_order_id FROM work_order_item_serials wois
 				 WHERE wois.serial_id = s.id ORDER BY wois.id DESC LIMIT 1) AS work_order_id
 			 FROM item_serials s
 			 INNER JOIN items i ON i.id = s.item_id AND i.company_id = s.company_id
+			 -- LEFT JOIN: un serial anterior a la migracion 032 puede no tener
+			 -- almacen todavia, y tiene que verse igual para poder ubicarlo.
+			 LEFT JOIN warehouses w ON w.id = s.warehouse_id AND w.company_id = s.company_id
 			 WHERE ${where.join(' AND ')}
 			 ORDER BY i.name, s.serial_number`,
 			params
@@ -287,12 +291,17 @@ export class PostgresSerialRepository implements TenantSerialRepository {
 		return result.rows[0] ?? null;
 	}
 
-	async create(ctx: RepositoryContext, itemId: ESRId, serialNumber: string): Promise<ItemSerial> {
+	async create(
+		ctx: RepositoryContext,
+		itemId: ESRId,
+		serialNumber: string,
+		warehouseId: ESRId
+	): Promise<ItemSerial> {
 		const result = await this.pool.query<ItemSerial>(
-			`INSERT INTO item_serials (company_id, item_id, serial_number, status)
-			 VALUES ($1, $2, $3, 'disponible')
-			 RETURNING id, company_id, item_id, serial_number, status`,
-			[requireCompanyId(ctx), itemId, serialNumber.trim()]
+			`INSERT INTO item_serials (company_id, item_id, serial_number, status, warehouse_id)
+			 VALUES ($1, $2, $3, 'disponible', $4)
+			 RETURNING id, company_id, item_id, serial_number, status, warehouse_id`,
+			[requireCompanyId(ctx), itemId, serialNumber.trim(), warehouseId]
 		);
 		return result.rows[0];
 	}
@@ -304,11 +313,37 @@ export class PostgresSerialRepository implements TenantSerialRepository {
 	): Promise<ItemSerial> {
 		const result = await this.pool.query<ItemSerial>(
 			`UPDATE item_serials SET status = $3 WHERE company_id = $1 AND id = $2
-			 RETURNING id, company_id, item_id, serial_number, status`,
+			 RETURNING id, company_id, item_id, serial_number, status, warehouse_id`,
 			[requireCompanyId(ctx), id, status]
 		);
 		if (!result.rows[0]) throw new Error(`Serial ${id} no existe en esta empresa.`);
 		return result.rows[0];
+	}
+
+	/**
+	 * Mueve la unidad de almacen y dice de donde venia, porque quien llama tiene
+	 * que dejar los dos movimientos —la salida y la entrada— en la bitacora.
+	 */
+	async setWarehouse(
+		ctx: RepositoryContext,
+		id: ESRId,
+		warehouseId: ESRId
+	): Promise<{ serial: ItemSerial; from: ESRId | null }> {
+		const companyId = requireCompanyId(ctx);
+		return withTransaction(async (client) => {
+			const antes = await client.query<{ warehouse_id: ESRId | null }>(
+				'SELECT warehouse_id FROM item_serials WHERE company_id = $1 AND id = $2 FOR UPDATE',
+				[companyId, id]
+			);
+			if (!antes.rows[0]) throw new Error(`Serial ${id} no existe en esta empresa.`);
+
+			const result = await client.query<ItemSerial>(
+				`UPDATE item_serials SET warehouse_id = $3 WHERE company_id = $1 AND id = $2
+				 RETURNING id, company_id, item_id, serial_number, status, warehouse_id`,
+				[companyId, id, warehouseId]
+			);
+			return { serial: result.rows[0], from: antes.rows[0].warehouse_id ?? null };
+		});
 	}
 
 	async countByStatus(
