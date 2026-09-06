@@ -22,11 +22,12 @@
 	/**
 	 * Solo en la RAIZ de la seccion.
 	 *
-	 * `/settings/articles/new` y `/settings/articles/[id]` cuelgan de una
-	 * seccion pero no son ella: alli lo util es volver a la lista de articulos,
-	 * no saltarse dos niveles hasta Configuracion. Esas dos ponen su propio
-	 * enlace, y si este saliera tambien habria dos flechas en la misma pantalla
-	 * apuntando a sitios distintos.
+	 * `/settings/articles/[id]` cuelga de una seccion pero no es ella: alli lo
+	 * util es volver a la lista de articulos, no saltarse dos niveles hasta
+	 * Configuracion. Esa pantalla pone su propio enlace, y si este saliera
+	 * tambien habria dos flechas en la misma pantalla apuntando a sitios
+	 * distintos. El alta ya no cuenta: vive en un modal sobre el propio listado,
+	 * no en una ruta aparte.
 	 */
 	const enRaiz = $derived(section ? page.url.pathname === section.href : false);
 </script>
