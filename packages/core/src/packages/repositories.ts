@@ -18,10 +18,14 @@ export type PackageItem = {
 
 export type PackageDraft = {
 	id?: ESRId | null;
+	/** 4 digitos, unico por empresa, asignado por el repositorio al crear. */
+	code?: string;
 	name: string;
 	description?: string;
 	suggested_price?: number;
 	notes?: string;
+	/** Estado de circulacion: 0 archivado, 1 activo, 2 inactivo. */
+	is_active?: number;
 	items?: PackageItem[];
 };
 
@@ -32,7 +36,7 @@ export interface PackageRepository {
 	replaceItems(packageId: ESRId, items: PackageItem[]): Promise<void>;
 }
 
-export type TenantPackageDraft = Omit<PackageDraft, 'id'> & { id?: ESRId | null; is_active?: number };
+export type TenantPackageDraft = Omit<PackageDraft, 'id'> & { id?: ESRId | null };
 
 /**
  * Un paquete agrupa articulos que se alquilan juntos. Su razon de ser es
@@ -52,4 +56,9 @@ export interface TenantPackageRepository {
 	update(ctx: RepositoryContext, id: ESRId, data: TenantPackageDraft): Promise<PackageDraft>;
 	replaceItems(ctx: RepositoryContext, packageId: ESRId, items: PackageItem[]): Promise<void>;
 	setActive(ctx: RepositoryContext, id: ESRId, isActive: number): Promise<void>;
+	/**
+	 * Sin filtro de estado ni de circulacion: si se busca por codigo es porque
+	 * se sabe cual es, y uno archivado tiene que aparecer.
+	 */
+	searchByCode(ctx: RepositoryContext, termino: string, limite?: number): Promise<PackageDraft[]>;
 }

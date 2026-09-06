@@ -42,7 +42,7 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 		// El conteo de lineas se resuelve aqui para no tener que pedir los items
 		// de cada paquete solo para pintar el listado.
 		const result = await this.pool.query<PackageDraft & { item_count: number }>(
-			`SELECT p.id, p.company_id, p.name, p.description, p.suggested_price::text AS suggested_price,
+			`SELECT p.id, p.company_id, p.code, p.name, p.description, p.suggested_price::text AS suggested_price,
 				p.notes, p.is_active,
 				(SELECT COUNT(*)::int FROM package_items pi
 				 WHERE pi.company_id = p.company_id AND pi.package_id = p.id) AS item_count
@@ -56,7 +56,7 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 
 	async findById(ctx: RepositoryContext, id: ESRId): Promise<PackageDraft | null> {
 		const result = await this.pool.query<PackageDraft>(
-			`SELECT id, company_id, name, description, suggested_price::text AS suggested_price,
+			`SELECT id, company_id, code, name, description, suggested_price::text AS suggested_price,
 				notes, is_active
 			 FROM packages WHERE company_id = $1 AND id = $2`,
 			[requireCompanyId(ctx), id]
@@ -67,13 +67,33 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 	/** Normaliza igual que el indice unico de la migracion 009. */
 	async findByName(ctx: RepositoryContext, name: string): Promise<PackageDraft | null> {
 		const result = await this.pool.query<PackageDraft>(
-			`SELECT id, company_id, name, description, suggested_price::text AS suggested_price,
+			`SELECT id, company_id, code, name, description, suggested_price::text AS suggested_price,
 				notes, is_active
 			 FROM packages
 			 WHERE company_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
 			[requireCompanyId(ctx), name]
 		);
 		return result.rows[0] ?? null;
+	}
+
+	/**
+	 * Buscar por codigo, sin filtro de estado ni de circulacion: si se busca
+	 * por codigo es porque se sabe cual es, y uno archivado tiene que aparecer.
+	 */
+	async searchByCode(ctx: RepositoryContext, termino: string, limite = 10): Promise<PackageDraft[]> {
+		const result = await this.pool.query<PackageDraft>(
+			`SELECT id, company_id, code, name, description, suggested_price::text AS suggested_price,
+				notes, is_active
+			 FROM packages
+			 WHERE company_id = $1 AND code ILIKE '%' || $2 || '%'
+			 ORDER BY
+			   (code = $2) DESC,
+			   (code ILIKE $2 || '%') DESC,
+			   id DESC
+			 LIMIT $3`,
+			[requireCompanyId(ctx), termino, Math.min(50, Math.max(1, limite))]
+		);
+		return result.rows;
 	}
 
 	/**
@@ -126,14 +146,29 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 		return result.rows;
 	}
 
+	/**
+	 * Siguiente codigo libre, por empresa. Lee el maximo y suma uno: es una
+	 * carrera —dos altas simultaneas leen el mismo maximo—, pero el indice
+	 * unico `packages_company_code_unique` la convierte en un error en vez de
+	 * en dos paquetes con el mismo codigo. Sin reintento: un paquete se crea a
+	 * mano, de uno en uno, no en el volumen concurrente de una factura.
+	 */
 	async create(ctx: RepositoryContext, data: TenantPackageDraft): Promise<PackageDraft> {
+		const companyId = requireCompanyId(ctx);
+		const siguiente = await this.pool.query<{ n: number }>(
+			`SELECT COALESCE(MAX(code::int), 1000) + 1 AS n FROM packages WHERE company_id = $1`,
+			[companyId]
+		);
+		const code = String(siguiente.rows[0].n);
+
 		const result = await this.pool.query<PackageDraft>(
-			`INSERT INTO packages (company_id, name, description, suggested_price, notes, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 RETURNING id, company_id, name, description, suggested_price::text AS suggested_price,
+			`INSERT INTO packages (company_id, code, name, description, suggested_price, notes, is_active)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, company_id, code, name, description, suggested_price::text AS suggested_price,
 				notes, is_active`,
 			[
-				requireCompanyId(ctx),
+				companyId,
+				code,
 				data.name.trim(),
 				data.description ?? null,
 				data.suggested_price ?? 0,
@@ -149,7 +184,7 @@ export class PostgresPackageRepository implements TenantPackageRepository {
 			`UPDATE packages
 			 SET name = $3, description = $4, suggested_price = $5, notes = $6
 			 WHERE company_id = $1 AND id = $2
-			 RETURNING id, company_id, name, description, suggested_price::text AS suggested_price,
+			 RETURNING id, company_id, code, name, description, suggested_price::text AS suggested_price,
 				notes, is_active`,
 			[
 				requireCompanyId(ctx),

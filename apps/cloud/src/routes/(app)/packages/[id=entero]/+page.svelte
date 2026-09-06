@@ -26,7 +26,7 @@
 
 <section class="panel">
 	<div class="page-header">
-		<h1>{pkg.name}</h1>
+		<h1>{pkg.name} <span class="codigo">{pkg.code}</span></h1>
 		<a class="btn-secondary" href="/packages">Volver</a>
 	</div>
 
@@ -194,5 +194,11 @@
 
 	.full {
 		grid-column: 1 / -1;
+	}
+
+	.codigo {
+		font-size: var(--font-sm);
+		font-weight: 400;
+		color: var(--text-secondary);
 	}
 </style>

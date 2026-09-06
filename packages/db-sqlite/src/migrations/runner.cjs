@@ -17,6 +17,7 @@ const quotationsDateIdx = require('./versioned/0015_quotations_date_idx.cjs');
 const companyDefaultQuoteRange = require('./versioned/0016_company_default_quote_range.cjs');
 const companyDefaultInvoiceRange = require('./versioned/0017_company_default_invoice_range.cjs');
 const companyDefaultEventRange = require('./versioned/0018_company_default_event_range.cjs');
+const packagesCode = require('./versioned/0019_packages_code.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -36,7 +37,8 @@ const MIGRATIONS = [
   quotationsDateIdx,
   companyDefaultQuoteRange,
   companyDefaultInvoiceRange,
-  companyDefaultEventRange
+  companyDefaultEventRange,
+  packagesCode
 ];
 
 /**
