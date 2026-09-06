@@ -59,7 +59,6 @@
     name: '',
     category_id: '',
     subcategory_id: '',
-    description: '',
     item_type: 'cantidad',
     uses_serial: 0,
     rental_price: 0,
@@ -91,7 +90,7 @@
     // escribirse sin querer desde una pantalla que no debe tocarlas.
     let query = `
       SELECT i.id, i.internal_code, i.name, i.category_id, i.subcategory_id,
-             i.description, i.item_type, i.uses_serial, i.rental_price,
+             i.item_type, i.uses_serial, i.rental_price,
              i.internal_cost, i.supplier_id, i.uom_id, i.notes, i.is_active,
              c.name as cat_name, s.name as subcat_name,
              p.name as supplier_name, COALESCE(u.abbr, u.name) as uom_abbr
@@ -129,7 +128,7 @@
     isEditing = false;
     currentItem = {
       id: null, internal_code: '', name: '', category_id: '', subcategory_id: '',
-      description: '', item_type: 'cantidad', uses_serial: 0,
+      item_type: 'cantidad', uses_serial: 0,
       rental_price: 0, internal_cost: 0, notes: '',
       supplier_id: '', uom_id: ''
     };
@@ -183,15 +182,15 @@
     let itemId = currentItem.id;
     if (isEditing) {
       const columnas = usesSerial
-        ? `internal_code=?, name=?, category_id=?, subcategory_id=?, description=?,
+        ? `internal_code=?, name=?, category_id=?, subcategory_id=?,
            item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
            supplier_id=?, uom_id=?, total_quantity=?, available_quantity=?`
-        : `internal_code=?, name=?, category_id=?, subcategory_id=?, description=?,
+        : `internal_code=?, name=?, category_id=?, subcategory_id=?,
            item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
            supplier_id=?, uom_id=?`;
       const valores = [
         currentItem.internal_code, currentItem.name, currentItem.category_id,
-        currentItem.subcategory_id || null, currentItem.description,
+        currentItem.subcategory_id || null,
         currentItem.item_type, currentItem.uses_serial,
         currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
         currentItem.supplier_id || null, currentItem.uom_id || null
@@ -206,10 +205,10 @@
       // auditable un almacen.
       const inicial = usesSerial ? catalogSerialNumbers.length : 0;
       const res = await window.api.db.run(`
-        INSERT INTO items (internal_code, name, category_id, subcategory_id, description, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes, supplier_id, uom_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        INSERT INTO items (internal_code, name, category_id, subcategory_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes, supplier_id, uom_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [currentItem.internal_code, currentItem.name, currentItem.category_id, currentItem.subcategory_id || null,
-         currentItem.description, currentItem.item_type, currentItem.uses_serial, inicial, inicial,
+         currentItem.item_type, currentItem.uses_serial, inicial, inicial,
          currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
          currentItem.supplier_id || null, currentItem.uom_id || null]
       );
@@ -508,7 +507,7 @@
     {/if}
 
     <div>
-      <label for="itm-notes">Descripción / Observaciones</label>
+      <label for="itm-notes">Notas</label>
       <textarea id="itm-notes" bind:value={currentItem.notes} class="form-control" rows="2"></textarea>
     </div>
   </div>

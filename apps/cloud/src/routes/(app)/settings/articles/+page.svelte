@@ -245,11 +245,7 @@
 		</div>
 
 		<div class="form-field full sec-titulo">
-			<h2 class="sec-title">Descripción</h2>
-		</div>
-		<div class="form-field full">
-			<label for="a-description">Descripción</label>
-			<textarea id="a-description" name="description" rows="3">{values.description ?? ''}</textarea>
+			<h2 class="sec-title">Notas</h2>
 		</div>
 		<div class="form-field full">
 			<label for="a-notes">Notas</label>

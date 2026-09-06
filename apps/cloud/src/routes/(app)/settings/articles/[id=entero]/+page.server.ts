@@ -163,7 +163,6 @@ export const actions: Actions = {
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
 			internal_code: String(form.get('internal_code') ?? '').trim(),
-			description: String(form.get('description') ?? '').trim(),
 			category_id: String(form.get('category_id') ?? '').trim(),
 			subcategory_id: String(form.get('subcategory_id') ?? '').trim(),
 			notes: String(form.get('notes') ?? '').trim(),
@@ -191,12 +190,15 @@ export const actions: Actions = {
 		// NO se toca ni una existencia. Guardar la ficha de un artículo no puede
 		// mover stock: para eso está el movimiento de Inventario, que además deja
 		// constancia de cuándo, a qué almacén, a qué costo y quién lo hizo.
+		//
+		// Sin `description`: se eliminó del formulario por duplicar `notes` sin
+		// ningún consumidor propio. Al no venir la clave, `update()` conserva lo
+		// que la fila ya tuviera ahí en vez de vaciarlo.
 		await getInventoryRepository().update(ctx, params.id, {
 			item_type: wantsSerial ? 'serializado' : 'cantidad',
 			uses_serial: wantsSerial ? 1 : 0,
 			name: values.name,
 			internal_code: values.internal_code || undefined,
-			description: values.description || undefined,
 			category_id: values.category_id || '',
 			subcategory_id: values.subcategory_id || undefined,
 			notes: values.notes || undefined,

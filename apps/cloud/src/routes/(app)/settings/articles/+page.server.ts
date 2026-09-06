@@ -80,7 +80,6 @@ export const actions: Actions = {
 		const values = {
 			name: String(form.get('name') ?? '').trim(),
 			internal_code: String(form.get('internal_code') ?? '').trim(),
-			description: String(form.get('description') ?? '').trim(),
 			category_id: String(form.get('category_id') ?? '').trim(),
 			subcategory_id: String(form.get('subcategory_id') ?? '').trim(),
 			notes: String(form.get('notes') ?? '').trim(),
@@ -95,10 +94,12 @@ export const actions: Actions = {
 			return fail(400, { error: firstFormError(errors), fieldErrors: formErrorsToObject(errors), values });
 		}
 
+		// Sin `description`: se eliminó del formulario por duplicar `notes` sin
+		// ningún consumidor propio (ni cotización, ni PDF, ni buscador la leía).
+		// La columna se queda intacta en la base; solo se deja de escribir.
 		const item = await getInventoryRepository().create(ctx, {
 			name: values.name,
 			internal_code: values.internal_code || undefined,
-			description: values.description || undefined,
 			category_id: values.category_id || '',
 			subcategory_id: values.subcategory_id || undefined,
 			notes: values.notes || undefined,

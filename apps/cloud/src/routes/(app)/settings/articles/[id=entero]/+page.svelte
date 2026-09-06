@@ -123,10 +123,6 @@
 			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 		</div>
 		<div class="form-field full">
-			<label for="description">Descripción</label>
-			<textarea id="description" name="description" rows="3">{item.description ?? ''}</textarea>
-		</div>
-		<div class="form-field full">
 			<label for="notes">Notas</label>
 			<textarea id="notes" name="notes" rows="2">{item.notes ?? ''}</textarea>
 		</div>
