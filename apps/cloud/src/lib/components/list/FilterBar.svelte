@@ -58,6 +58,7 @@
 	// Escribir espera; elegir en un select es una decisión cerrada y va directa.
 	const onSearchInput = (event) => apply({ [search.name]: event.currentTarget.value });
 	const onSelectChange = (name) => (event) => apply({ [name]: event.currentTarget.value }, true);
+	const limpiarBusqueda = () => apply({ [search.name]: '' }, true);
 </script>
 
 <!-- El <form> envolvente mantiene el filtrado sin JavaScript: sin él, una
@@ -79,6 +80,25 @@
 				aria-label={search.placeholder}
 				oninput={onSearchInput}
 			/>
+			{#if search.value}
+				<button
+					type="button"
+					class="filters-search-clear"
+					onclick={limpiarBusqueda}
+					aria-label="Limpiar búsqueda"
+					title="Limpiar búsqueda"
+				>
+					<svg viewBox="0 0 16 16" width="12" height="12">
+						<path
+							d="M3.5 3.5l9 9m0-9l-9 9"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linecap="round"
+						/>
+					</svg>
+				</button>
+			{/if}
 		</div>
 	{/if}
 

@@ -50,6 +50,25 @@
         aria-label={search.placeholder}
         on:input={alEscribir}
       />
+      {#if search.value}
+        <button
+          type="button"
+          class="filters-search-clear"
+          on:click={() => { clearTimeout(timer); onSearch(''); }}
+          aria-label="Limpiar búsqueda"
+          title="Limpiar búsqueda"
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12">
+            <path
+              d="M3.5 3.5l9 9m0-9l-9 9"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      {/if}
     </div>
   {/if}
 

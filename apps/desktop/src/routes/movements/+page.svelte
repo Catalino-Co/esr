@@ -1,6 +1,7 @@
 <script>
   import { page } from '$app/stores';
   import { formatNumber, statusLabel } from '@esr/core';
+  import { Icon } from '@esr/ui';
 
   /**
    * Movimientos de existencias: que entro, que salio y quien lo movio.
@@ -97,6 +98,7 @@
   let almacenes = [];
   let movimientos = [];
   let articulo = null;
+  let recargando = false;
 
   /**
    * El id del articulo se lee de forma REACTIVA, no en `onMount`.
@@ -176,14 +178,19 @@
     );
   }
 
+  // Solo llena las fechas: buscar es una accion explicita del boton «Buscar»,
+  // no un efecto secundario de elegir un atajo.
   function aplicarRango(rango) {
     [desde, hasta] = rango.calcular();
-    cargarMovimientos();
   }
 
-  function quitarFiltroArticulo() {
-    // Se navega para que la URL diga la verdad y el guarda reactivo recargue.
-    window.location.href = '/movements';
+  async function recargar() {
+    recargando = true;
+    try {
+      await cargar();
+    } finally {
+      recargando = false;
+    }
   }
 
   /** `YYYY-MM-DD HH:MM:SS` ya en local: se parte porque son dos columnas. */
@@ -194,50 +201,65 @@
   }
 </script>
 
-<div class="card">
-  <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
-    <span>Movimientos</span>
-    <a href="/items" class="btn btn-secondary btn-sm">Volver a Inventario</a>
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/items" aria-label="Volver a Inventario" title="Volver a Inventario">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar los movimientos"
+      title="Recargar los movimientos"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
   </div>
+</div>
 
+<div class="card">
   {#if articulo}
     <div class="filtro-articulo">
       <span>
         Historial de <strong>{articulo.name}</strong>
         {#if articulo.internal_code}<span class="codigo">{articulo.internal_code}</span>{/if}
       </span>
-      <!-- Quitar el filtro es lo que convierte esta pantalla en el diario del
-           almacén entero, que es la mitad de para qué sirve. -->
-      <button type="button" class="btn-link" on:click={quitarFiltroArticulo}>
-        Ver todos los movimientos
-      </button>
     </div>
   {/if}
 
   <div class="filtros">
     <div class="quick-range">
       <span class="quick-range-label">Rango rápido</span>
-      {#each RANGOS as rango (rango.clave)}
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm"
-          class:activo={rangoActivo === rango.clave}
-          on:click={() => aplicarRango(rango)}
-        >
-          {rango.label}
-        </button>
-      {/each}
+      <div class="grupo" role="group" aria-label="Rango rápido">
+        {#each RANGOS as rango (rango.clave)}
+          <button
+            type="button"
+            class="grupo-btn grupo-btn--texto"
+            class:encendido={rangoActivo === rango.clave}
+            aria-pressed={rangoActivo === rango.clave}
+            on:click={() => aplicarRango(rango)}
+          >
+            {rango.label}
+          </button>
+        {/each}
+      </div>
     </div>
 
     <div class="campos">
       <label class="campo">
         <span>Desde</span>
-        <input type="date" bind:value={desde} on:change={cargarMovimientos} />
+        <input type="date" bind:value={desde} />
       </label>
       <label class="campo">
         <span>Hasta</span>
-        <input type="date" bind:value={hasta} on:change={cargarMovimientos} />
+        <input type="date" bind:value={hasta} />
       </label>
+      <button type="button" class="btn btn-primary btn-sm buscar" on:click={cargarMovimientos}>
+        <Icon name="search" size={16} />
+        Buscar
+      </button>
       <label class="campo">
         <span>Almacén</span>
         <select bind:value={almacenId} on:change={cargarMovimientos}>
@@ -315,6 +337,8 @@
 </div>
 
 <style>
+  /* Fondo blanco del panel y texto mas grande: se siente como el titulo de un
+     header, no como un filtro mas de la fila de abajo. */
   .filtro-articulo {
     display: flex;
     align-items: center;
@@ -323,9 +347,10 @@
     flex-wrap: wrap;
     padding: var(--sp-3) var(--sp-4);
     margin-bottom: var(--sp-4);
-    background: var(--surface-sunken);
+    background: var(--surface);
     border-radius: var(--border-radius);
-    font-size: var(--font-sm);
+    font-size: var(--font-md);
+    font-weight: 600;
   }
 
   .filtros {
@@ -335,32 +360,44 @@
     margin-bottom: var(--sp-4);
   }
 
+  /* Fondo hundido para que el grupo se lea como una unidad, no como tres
+     botones sueltos: el contraste con el blanco del panel es lo que hace que
+     «se sienta» un control y no una fila más de filtros. */
   .quick-range {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-sunken);
+    border-radius: var(--border-radius);
   }
 
   /* Sentence case, sin mayúsculas ni `letter-spacing`: es la regla 5 del
-     sistema. Lo que la distingue de los botones es el tamaño y el color. */
+     sistema. `--text-secondary` y no `--text-muted`: sobre fondo hundido este
+     último no pasa el contraste (regla 7). */
   .quick-range-label {
     font-size: var(--font-xs);
     color: var(--text-secondary);
     margin-right: var(--sp-1);
+    white-space: nowrap;
   }
 
-  /* El atajo puesto se marca con el borde, no con el color de acento: eso está
-     reservado a la acción primaria de la pantalla. */
-  .activo {
-    border-color: var(--border-focus);
-    font-weight: 600;
-  }
-
+  /* `flex-end` y no `center`: «Buscar» no tiene una etiqueta encima como
+     Desde/Hasta/Almacén/Tipo, así que centrarlo lo deja flotando a media
+     altura del bloque etiqueta+campo. Alineado al pie coincide con el borde
+     inferior de los inputs. */
   .campos {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-end;
     gap: var(--sp-3);
+  }
+
+  .buscar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
   }
 
   .campo {

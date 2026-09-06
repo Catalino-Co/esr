@@ -208,16 +208,15 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	/**
 	 * El inventario TAL COMO SE MIRA: por almacen.
 	 *
-	 * Devuelve, por articulo, tres cifras que responden a preguntas distintas y
-	 * conviene no confundir:
+	 * Devuelve, por articulo, `warehouse_quantity` —lo que hay EN ESTE
+	 * ALMACEN— junto con `total_quantity`/`available_quantity`/
+	 * `committed_quantity`, de TODA la empresa (ver `availability.ts`).
 	 *
-	 *   - `warehouse_quantity`  lo que hay EN ESTE ALMACEN
-	 *   - `total_quantity`      lo que hay en TODA la empresa
-	 *   - `available_quantity`  lo que queda libre tras lo que retienen las
-	 *                           ordenes vivas, tambien de toda la empresa
-	 *
-	 * El almacen INFORMA y NO RESERVA, asi que la disponibilidad no se reparte:
-	 * una orden compromete contra el total. Ver `availability.ts`.
+	 * La pantalla de Inventario (por almacen) usa `warehouse_quantity` para
+	 * "Total" y "Disponible" a la vez —sin un "reservado por almacen", las dos
+	 * cifras son la misma cuando se mira un almacen concreto—; el Reporte de
+	 * Inventario (y su CSV), que no filtra por almacen, sigue leyendo las
+	 * columnas de empresa. Quitarlas de aqui las dejaria en ceros.
 	 *
 	 * En un articulo SERIALIZADO lo que esta en un almacen son sus unidades, no
 	 * una cantidad: por eso la primera rama cuenta `item_serials` y la segunda
@@ -250,6 +249,10 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			where.push(`COALESCE(inv.physical_status, 'disponible') = $${params.length}`);
 		}
 
+		// `total_quantity`/`available_quantity`/`committed_quantity` son de toda
+		// la empresa y las sigue leyendo el Reporte de Inventario (y su CSV), que
+		// no filtra por almacen: esta pantalla ya no las muestra, pero quitarlas
+		// de la consulta dejaria ese reporte en ceros.
 		params.push(AVAILABILITY_ORDER_STATUSES);
 		const statusParam = params.length;
 
@@ -280,12 +283,14 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 				), 0)
 			END`;
 
-		// «Stock bajo» se compara contra el TOTAL de la empresa y no contra lo
-		// disponible hoy: responde «hay que comprar mas», que es una decision de
-		// compra. Un articulo con todo alquilado no es stock bajo, esta ocupado.
+		// «Stock bajo» se compara contra el TOTAL DE ESTE ALMACEN y no contra lo
+		// disponible hoy: responde «hay que comprar mas para este almacen», que es
+		// una decision de compra. Un articulo con todo alquilado no es stock bajo,
+		// esta ocupado. La vista agregada de toda la empresa queda para un reporte
+		// futuro, fuera de esta pantalla.
 		if (filters.low_stock) {
 			where.push(
-				`COALESCE(inv.min_stock, 0) > 0 AND (${TOTAL_QUANTITY_SQL}) < COALESCE(inv.min_stock, 0)`
+				`COALESCE(inv.min_stock, 0) > 0 AND (${cantidadEnAlmacen}) < COALESCE(inv.min_stock, 0)`
 			);
 		}
 

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { formatMoney, formatNumber } from '@esr/core';
   import { EmptyState, Icon, Modal } from '@esr/ui';
+  import FilterBar from '$lib/components/list/FilterBar.svelte';
+  import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
   /**
    * Inventario: CUANTO hay y DONDE.
@@ -41,6 +43,17 @@
 
   let items = [];
   let error = '';
+  let recargando = false;
+
+  $: opcionesAlmacen = almacenes.map((a) => ({ value: String(a.id), label: a.name }));
+  $: opcionesCategoria = [
+    { value: '', label: 'Cualquier categoría' },
+    ...categorias.map((c) => ({ value: String(c.id), label: c.name }))
+  ];
+  $: opcionesCondicion = [
+    { value: '', label: 'Cualquier condición' },
+    ...Object.entries(CONDICIONES).map(([valor, etiqueta]) => ({ value: valor, label: etiqueta }))
+  ];
 
   async function cargarCatalogos() {
     almacenes = await window.api.db.get(
@@ -76,11 +89,22 @@
       where.push('i.category_id = ?');
       params.push(categoriaId);
     }
-    // «Stock bajo» se compara contra el TOTAL y no contra lo disponible hoy:
-    // responde «hay que comprar mas», que es una decision de compra. Un articulo
-    // con todo alquilado no es stock bajo, esta ocupado.
+    // «Stock bajo» se compara contra el TOTAL DE ESTE ALMACEN y no contra lo
+    // disponible hoy: responde «hay que comprar mas para este almacen», que es
+    // una decision de compra. Un articulo con todo alquilado no es stock bajo,
+    // esta ocupado. La vista agregada de toda la empresa queda para un reporte
+    // futuro, fuera de esta pantalla.
     if (soloBajo) {
-      where.push('COALESCE(inv.min_stock, 0) > 0 AND COALESCE(i.total_quantity, 0) < COALESCE(inv.min_stock, 0)');
+      where.push(`COALESCE(inv.min_stock, 0) > 0 AND COALESCE((
+        CASE WHEN i.item_type = 'serializado' THEN (
+               SELECT COUNT(*) FROM item_serials s
+                WHERE s.item_id = i.id AND s.warehouse_id = ?
+                  AND s.status NOT IN ('retirado', 'mantenimiento'))
+             ELSE COALESCE((SELECT st.quantity FROM item_stock st
+                             WHERE st.item_id = i.id AND st.warehouse_id = ?), 0)
+        END
+      ), 0) < COALESCE(inv.min_stock, 0)`);
+      params.push(almacenId, almacenId);
     }
     if (condicion) {
       where.push("COALESCE(inv.physical_status, 'disponible') = ?");
@@ -99,8 +123,8 @@
      * contradiciendose.
      */
     items = await window.api.db.get(
-      `SELECT i.id, i.internal_code, i.name, i.item_type, i.total_quantity,
-              i.available_quantity, i.rental_price, i.internal_cost,
+      `SELECT i.id, i.internal_code, i.name, i.item_type,
+              i.rental_price, i.internal_cost,
               COALESCE(inv.min_stock, 0) AS min_stock,
               COALESCE(inv.physical_status, 'disponible') AS physical_status,
               inv.location,
@@ -142,6 +166,15 @@
   }
 
   onMount(() => cargar());
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await cargar();
+    } finally {
+      recargando = false;
+    }
+  }
 
   // ── Dialogo: movimiento de stock ─────────────────────────────────────────
   let moviendo = false;
@@ -290,45 +323,59 @@
   }
 </script>
 
-<div class="card">
-  <div class="card-title" style="align-items: center; justify-content: space-between; display: flex; width: 100%;">
-    <span>Inventario</span>
-    <span style="display: flex; gap: 8px;">
-      <a href="/movements" class="btn btn-secondary btn-sm">Movimientos</a>
-      <a href="/settings/articles" class="btn btn-secondary btn-sm">Catálogo de artículos</a>
-    </span>
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/" aria-label="Volver al inicio" title="Volver al inicio">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar el inventario"
+      title="Recargar el inventario"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
   </div>
 
-  <div class="filtros">
-    <input
-      type="text"
-      class="form-control"
-      placeholder="Nombre o código…"
-      bind:value={busqueda}
-      on:input={cargarItems}
+  <div class="herramientas-datos">
+    <StatusSelect
+      value={almacenId}
+      options={opcionesAlmacen}
+      label="Almacén"
+      onchange={(e) => { almacenId = e.currentTarget.value; cargarItems(); }}
     />
-    <select class="form-control" bind:value={almacenId} on:change={cargarItems}>
-      {#each almacenes as almacen (almacen.id)}
-        <option value={String(almacen.id)}>{almacen.name}</option>
-      {/each}
-    </select>
-    <select class="form-control" bind:value={categoriaId} on:change={cargarItems}>
-      <option value="">Cualquier categoría</option>
-      {#each categorias as cat (cat.id)}
-        <option value={String(cat.id)}>{cat.name}</option>
-      {/each}
-    </select>
-    <select class="form-control" bind:value={condicion} on:change={cargarItems}>
-      <option value="">Cualquier condición</option>
-      {#each Object.entries(CONDICIONES) as [valor, etiqueta] (valor)}
-        <option value={valor}>{etiqueta}</option>
-      {/each}
-    </select>
-    <label class="casilla">
-      <input type="checkbox" bind:checked={soloBajo} on:change={cargarItems} />
-      <span>Solo stock bajo</span>
-    </label>
+    <StatusSelect
+      value={categoriaId}
+      options={opcionesCategoria}
+      label="Categoría"
+      onchange={(e) => { categoriaId = e.currentTarget.value; cargarItems(); }}
+    />
+    <StatusSelect
+      value={condicion}
+      options={opcionesCondicion}
+      label="Condición"
+      onchange={(e) => { condicion = e.currentTarget.value; cargarItems(); }}
+    />
+    <a href="/movements" class="btn btn-secondary btn-sm">Movimientos</a>
+    <a href="/settings/articles" class="btn btn-secondary btn-sm">Catálogo de artículos</a>
   </div>
+</div>
+
+<div class="card">
+  <FilterBar
+    search={{ placeholder: 'Nombre o código…', value: busqueda }}
+    onSearch={(v) => { busqueda = v; cargarItems(); }}
+  >
+    <svelte:fragment slot="actions">
+      <label class="casilla">
+        <input type="checkbox" bind:checked={soloBajo} on:change={cargarItems} />
+        <span>Solo stock bajo</span>
+      </label>
+    </svelte:fragment>
+  </FilterBar>
 
   {#if error}<div class="alert alert-danger">{error}</div>{/if}
 
@@ -348,7 +395,6 @@
             <th>Código</th>
             <th>Nombre</th>
             <th>Categoría</th>
-            <th class="num">En almacén</th>
             <th class="num">Total</th>
             <th class="num">Disponible</th>
             <th class="num">Mínimo</th>
@@ -364,17 +410,18 @@
               <td>{item.internal_code || '—'}</td>
               <td style="font-weight: 500;">{item.name}</td>
               <td>{item.cat_name || '—'}</td>
-              <td class="num">{formatNumber(item.warehouse_quantity ?? 0)}</td>
+              <!-- Total y Disponible son la existencia FISICA de este almacen:
+                   el almacen informa y no reserva, asi que sin un «reservado
+                   por almacen» las dos cifras son la misma. La vista agregada
+                   de toda la empresa queda para un reporte futuro. -->
               <td
                 class="num"
-                class:bajo={(item.min_stock ?? 0) > 0 && (item.total_quantity ?? 0) < item.min_stock}
+                class:bajo={(item.min_stock ?? 0) > 0 && (item.warehouse_quantity ?? 0) < item.min_stock}
               >
-                {formatNumber(item.total_quantity ?? 0)}
+                {formatNumber(item.warehouse_quantity ?? 0)}
               </td>
-              <!-- La unidad acompaña a lo DISPONIBLE, que es la cifra con la que
-                   se decide si se puede comprometer algo. -->
               <td class="num">
-                {formatNumber(item.available_quantity ?? 0)}
+                {formatNumber(item.warehouse_quantity ?? 0)}
                 {#if item.uom_abbr}<span class="uom">{item.uom_abbr}</span>{/if}
               </td>
               <td class="num">{item.min_stock ?? 0}</td>
@@ -430,7 +477,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 30px;">
+              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">
                 {soloBajo
                   ? 'Ningún artículo está por debajo de su mínimo.'
                   : 'No hay artículos para mostrar.'}
@@ -515,7 +562,7 @@
       <input id="inv-min" type="number" min="0" step="1" bind:value={existencias.minimo} />
       <span class="ayuda-campo">
         Por debajo de este total el artículo sale en «Solo stock bajo». Se compara con el
-        total de la empresa, no con lo disponible hoy.
+        total de este almacén, no con lo disponible hoy.
       </span>
     </div>
     <div class="form-field">
@@ -561,19 +608,6 @@
     margin-top: 4px;
   }
 
-  .filtros {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--sp-3);
-    margin-bottom: var(--sp-4);
-  }
-
-  .filtros .form-control {
-    width: auto;
-    min-width: 11rem;
-  }
-
   .casilla {
     display: inline-flex;
     align-items: center;
@@ -606,19 +640,5 @@
 
   .negativo {
     color: var(--danger-text);
-  }
-
-  .form-control {
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    outline: none;
-    box-sizing: border-box;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-
-  .form-control:focus {
-    border-color: var(--primary);
   }
 </style>

@@ -1,10 +1,11 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatMoney, formatNumber } from '@esr/core';
 	import { EmptyState, Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
@@ -27,6 +28,21 @@
 		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
 	}
 
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
+
+	const opcionesCategoria = $derived([
+		{ value: '', label: 'Cualquier categoría' },
+		...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
+	]);
+
 	/** Las tres condiciones físicas. Sentence case, como el resto del sistema. */
 	/** @type {Record<string, string>} */
 	const CONDICIONES = {
@@ -34,6 +50,11 @@
 		mantenimiento: 'Mantenimiento',
 		retirado: 'Retirado'
 	};
+
+	const opcionesCondicion = [
+		{ value: '', label: 'Cualquier condición' },
+		...Object.entries(CONDICIONES).map(([value, label]) => ({ value, label }))
+	];
 
 	/* ── Diálogo: movimiento de stock ──────────────────────────────────────── */
 
@@ -122,45 +143,58 @@
 	};
 </script>
 
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/dashboard" aria-label="Volver al dashboard" title="Volver al dashboard">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar el inventario"
+			title="Recargar el inventario"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+
+	<div class="herramientas-datos">
+		<StatusSelect
+			name="almacen"
+			value={data.warehouseId}
+			options={data.warehouses.map((w) => ({ value: String(w.id), label: w.name }))}
+			label="Almacén"
+			onchange={(e) => irCon({ almacen: e.currentTarget.value })}
+		/>
+		<StatusSelect
+			name="category"
+			value={data.categoryId}
+			options={opcionesCategoria}
+			label="Categoría"
+			onchange={(e) => irCon({ category: e.currentTarget.value })}
+		/>
+		<StatusSelect
+			name="condicion"
+			value={data.physicalStatus}
+			options={opcionesCondicion}
+			label="Condición"
+			onchange={(e) => irCon({ condicion: e.currentTarget.value })}
+		/>
+		<a class="btn-secondary" href="/movements">Movimientos</a>
+		<a class="btn-secondary" href="/settings/articles">Catálogo de artículos</a>
+	</div>
+</div>
+
 <section class="panel">
-	<FilterBar
-		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}
-		selects={[
-			{
-				name: 'almacen',
-				label: 'Almacén',
-				value: data.warehouseId,
-				width: '12rem',
-				options: data.warehouses.map((w) => ({ value: String(w.id), label: w.name }))
-			},
-			{
-				name: 'category',
-				label: 'Cualquier categoría',
-				value: data.categoryId,
-				width: '11rem',
-				options: [
-					{ value: '', label: 'Cualquier categoría' },
-					...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
-				]
-			},
-			{
-				name: 'condicion',
-				label: 'Cualquier condición',
-				value: data.physicalStatus,
-				width: '11rem',
-				options: [
-					{ value: '', label: 'Cualquier condición' },
-					...Object.entries(CONDICIONES).map(([value, label]) => ({ value, label }))
-				]
-			}
-		]}
-	>
+	<FilterBar search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}>
 		{#snippet actions()}
 			<!--
-				«Solo stock bajo» se compara contra el TOTAL de la empresa, no contra
-				lo disponible hoy: responde «hay que comprar más», que es una decisión
-				de compra. Un artículo con todo alquilado no es stock bajo: está
-				ocupado, y mañana vuelve.
+				«Solo stock bajo» se compara contra el TOTAL DE ESTE ALMACEN, no
+				contra lo disponible hoy: responde «hay que comprar más para este
+				almacén», que es una decisión de compra. Un artículo con todo
+				alquilado no es stock bajo: está ocupado, y mañana vuelve.
 			-->
 			<label class="casilla">
 				<input
@@ -170,8 +204,6 @@
 				/>
 				<span>Solo stock bajo</span>
 			</label>
-			<a class="btn-secondary" href="/movements">Movimientos</a>
-			<a class="btn-secondary" href="/settings/articles">Catálogo de artículos</a>
 		{/snippet}
 	</FilterBar>
 
@@ -196,7 +228,6 @@
 					<th>Código</th>
 					<th>Nombre</th>
 					<th>Categoría</th>
-					<th class="num">En almacén</th>
 					<th class="num">Total</th>
 					<th class="num">Disponible</th>
 					<th class="num">Mínimo</th>
@@ -208,18 +239,19 @@
 			</thead>
 			<tbody>
 				{#each data.items as item (item.id)}
-					{@const bajo = (item.min_stock ?? 0) > 0 && (item.total_quantity ?? 0) < item.min_stock}
+					{@const bajo = (item.min_stock ?? 0) > 0 && (item.warehouse_quantity ?? 0) < item.min_stock}
 					{@const serializado = item.item_type === 'serializado'}
 					<tr>
 						<td>{item.internal_code || '—'}</td>
 						<td>{item.name}</td>
 						<td>{item.category_name || '—'}</td>
-						<td class="num">{formatNumber(item.warehouse_quantity ?? 0)}</td>
-						<td class="num" class:bajo>{formatNumber(item.total_quantity ?? 0)}</td>
-						<!-- La unidad acompaña a lo DISPONIBLE, que es la cifra con la que
-						     se decide si se puede comprometer algo. -->
+						<!-- Total y Disponible son la existencia FISICA de este almacen: el
+						     almacen informa y no reserva, asi que sin un «reservado por
+						     almacen» las dos cifras son la misma. La vista agregada de toda
+						     la empresa queda para un reporte futuro. -->
+						<td class="num" class:bajo>{formatNumber(item.warehouse_quantity ?? 0)}</td>
 						<td class="num">
-							{formatNumber(item.available_quantity ?? 0)}
+							{formatNumber(item.warehouse_quantity ?? 0)}
 							{#if item.uom_abbr}<span class="uom">{item.uom_abbr}</span>{/if}
 						</td>
 						<td class="num">{item.min_stock ?? 0}</td>
@@ -386,7 +418,7 @@
 			<input id="inv_min" name="min_stock" type="number" min="0" step="1" required bind:value={existencias.minimo} />
 			<span class="form-hint">
 				Por debajo de este total el artículo sale en «Solo stock bajo». Se compara con el
-				total de la empresa, no con lo disponible hoy.
+				total de este almacén, no con lo disponible hoy.
 			</span>
 		</div>
 		<div class="form-field">
