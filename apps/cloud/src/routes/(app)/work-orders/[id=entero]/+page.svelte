@@ -1,9 +1,12 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon, PdfPreviewModal } from '@esr/ui';
 	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
 	/**
@@ -26,14 +29,12 @@
 	let verPdf = $state(false);
 	let pdfUrl = $state('');
 	let pdfNombre = $state('orden.pdf');
-	let errorPdf = $state('');
 	let generando = $state(false);
 
 	async function imprimir() {
 		if (generando) return;
 		generando = true;
 		pdfUrl = '';
-		errorPdf = '';
 		verPdf = true;
 		try {
 			const res = await fetch(`${page.url.pathname}/document`, { method: 'POST' });
@@ -48,22 +49,49 @@
 			pdfNombre = filename;
 		} catch (/** @type {any} */ e) {
 			verPdf = false;
-			errorPdf = `No se pudo generar el documento. ${e?.message ?? ''}`.trim();
+			dangerModal.show(`No se pudo generar el documento. ${e?.message ?? ''}`.trim());
 		} finally {
 			generando = false;
 		}
 	}
 
+	/** El resultado de la action de guardar, arriba de la página. */
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
+
 	/**
 	 * Confirmación tras entregar o devolver.
 	 *
 	 * `delivery` y `return` redirigen con `?delivered=` / `?returned=` desde
-	 * siempre, y hasta ahora **no los leía nadie**: se registraba la entrega y la
-	 * pantalla volvía sin decir ni que había pasado.
+	 * siempre. Antes eran un banner permanente leído de la URL; ahora es un
+	 * Toast que se dispara UNA vez y limpia el parámetro, para que un refresco
+	 * no lo repita.
 	 */
-	const entregado = $derived(page.url.searchParams.get('delivered'));
-	const devuelto = $derived(page.url.searchParams.get('returned'));
-	const incidencias = $derived(Number(page.url.searchParams.get('incidents') || 0));
+	$effect(() => {
+		const entregado = page.url.searchParams.get('delivered');
+		if (!entregado) return;
+		toasts.success(`Entrega registrada en el conduce ${entregado}.`);
+		const url = new URL(page.url);
+		url.searchParams.delete('delivered');
+		goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+	});
+
+	$effect(() => {
+		const devuelto = page.url.searchParams.get('returned');
+		if (!devuelto) return;
+		const incidencias = Number(page.url.searchParams.get('incidents') || 0);
+		const aviso =
+			`Devolución registrada en el conduce ${devuelto}.` +
+			(incidencias > 0
+				? ` Se abrieron ${incidencias} ${incidencias === 1 ? 'incidencia' : 'incidencias'}.`
+				: '');
+		toasts.success(aviso);
+		const url = new URL(page.url);
+		url.searchParams.delete('returned');
+		url.searchParams.delete('incidents');
+		goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+	});
 </script>
 
 <!--
@@ -151,24 +179,6 @@
 		</div>
 	</div>
 </div>
-
-{#if form?.error}
-	<div class="alert-error" role="alert">{form.error}</div>
-{/if}
-{#if errorPdf}
-	<div class="alert-error" role="alert">{errorPdf}</div>
-{/if}
-{#if entregado}
-	<div class="alert-success" role="status">Entrega registrada en el conduce {entregado}.</div>
-{/if}
-{#if devuelto}
-	<div class="alert-success" role="status">
-		Devolución registrada en el conduce {devuelto}.
-		{#if incidencias > 0}
-			Se abrieron {incidencias} {incidencias === 1 ? 'incidencia' : 'incidencias'}.
-		{/if}
-	</div>
-{/if}
 
 <div class="detail-layout">
 	<div class="detail-main">

@@ -1,6 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { BackLink } from '@esr/ui';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   let categories = [];
   let subcategories = [];
@@ -87,7 +89,7 @@
       loadCategories();
     } catch (err) {
       console.error('Error al guardar categoría:', err);
-      alert('Error al guardar la categoría.');
+      dangerModal.show('Error al guardar la categoría.');
     }
   }
 
@@ -106,7 +108,7 @@
       ? "Al archivar la categoría también se archivarán sus subcategorías. ¿Continuar?"
       : newState === 1 ? "¿Restaurar esta categoría y sus subcategorías?"
       : "¿Marcar categoría como inactiva?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE subcategories SET is_active = ? WHERE category_id = ?", [newState, id]);
       await window.api.db.run("UPDATE categories SET is_active = ? WHERE id = ?", [newState, id]);
       if (selectedCategoryId === id) loadSubcategories(selectedCategoryId);
@@ -118,7 +120,7 @@
     let msg = newState === 0 ? "¿Archivar esta subcategoría?"
       : newState === 1 ? "¿Restaurar esta subcategoría?"
       : "¿Marcar subcategoría como inactiva?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE subcategories SET is_active = ? WHERE id = ?", [newState, id]);
       loadSubcategories(selectedCategoryId);
     }

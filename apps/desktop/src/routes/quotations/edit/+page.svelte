@@ -13,6 +13,8 @@
   import { validateQuoteInput } from '@esr/schemas';
   import { generateQuotationPDF, quoteItemLabel } from '@esr/reports';
   import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
 
   /**
    * Ficha de cotizacion de ESR Pro.
@@ -66,8 +68,6 @@
    */
   let lineas = [];
   let guardando = false;
-  let error = '';
-  let mensaje = '';
 
   /**
    * El id se lee de forma REACTIVA, no en `onMount`.
@@ -109,8 +109,6 @@
 
   async function cargar(id) {
     if (!window.api?.db) return;
-    error = '';
-    mensaje = '';
 
     const [clientesRows, articulosRows, paquetesRows, lineasPaqueteRows, empresaRows] =
       await Promise.all([
@@ -164,17 +162,17 @@
     }
 
     if (!window.api?.quotes) {
-      error = SIN_PUENTE;
+      dangerModal.show(SIN_PUENTE);
       return;
     }
 
     const res = await window.api.quotes.findForEdit(id);
     if (!res?.ok) {
-      error = res?.error || 'No se pudo cargar la cotización.';
+      dangerModal.show(res?.error || 'No se pudo cargar la cotización.');
       return;
     }
     if (!res.data) {
-      error = 'Esa cotización ya no existe.';
+      dangerModal.show('Esa cotización ya no existe.');
       return;
     }
 
@@ -451,10 +449,9 @@
 
   async function abrirPdf() {
     if (!validateQuoteInput(cotizacion).valid) {
-      error = 'Seleccione un cliente antes de generar el documento.';
+      dangerModal.show('Seleccione un cliente antes de generar el documento.');
       return;
     }
-    error = '';
     const cliente = seleccionCliente ?? { name: busquedaCliente };
     const empresa = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
     const datos = {
@@ -476,17 +473,15 @@
   // ── Guardar ──────────────────────────────────────────────────────────────
   async function guardar() {
     if (!validateQuoteInput(cotizacion).valid) {
-      error = 'Seleccione un cliente.';
+      dangerModal.show('Seleccione un cliente.');
       return;
     }
     if (!window.api?.quotes) {
-      error = SIN_PUENTE;
+      dangerModal.show(SIN_PUENTE);
       return;
     }
 
     guardando = true;
-    error = '';
-    mensaje = '';
     try {
       // UNA invocacion, UNA transaccion. Antes eran `UPDATE` + `DELETE` + N
       // `INSERT`, cada uno su propia llamada IPC: si la app se cerraba entre
@@ -507,7 +502,7 @@
       });
 
       if (!res.ok) {
-        error = res.error;
+        dangerModal.show(res.error);
         return;
       }
 
@@ -523,7 +518,7 @@
         tax_rate: Number(fila.tax_rate) || 0,
         is_legacy_package: fila.is_legacy_package === 1
       }));
-      mensaje = 'Cotización guardada.';
+      toasts.success('Cotización guardada.');
 
       if (!quoteId) {
         // Se queda en la ficha en vez de volver al listado, igual que la de
@@ -565,9 +560,6 @@
     </button>
   </div>
 </div>
-
-{#if error}<div class="alert alert-danger">{error}</div>{/if}
-{#if mensaje}<div class="alert alert-success">{mensaje}</div>{/if}
 
 <div class="detail-layout">
   <div class="detail-main">

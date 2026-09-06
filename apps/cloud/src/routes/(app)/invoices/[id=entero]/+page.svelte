@@ -11,8 +11,15 @@
 	} from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const hoy = todayISO();
 
@@ -90,14 +97,7 @@
 		</div>
 	</div>
 
-	{#if !cobrando && !anulando}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
+
 
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric">

@@ -3,9 +3,16 @@
 	import { BackLink } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
 	const item = data.item;
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success('Cambios guardados.');
+	});
 </script>
 
 <section class="panel">
@@ -31,12 +38,7 @@
 		noun="artículo"
 	/>
 
-	{#if form?.success}
-		<p class="badge badge-active">Cambios guardados.</p>
-	{/if}
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
+
 
 	<!-- Ni tarjetas de existencias ni aviso de sobrecompromiso: esta pantalla es
 	     el CATÁLOGO. Cuánto hay, cuánto está comprometido y dónde se guarda se ve

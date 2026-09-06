@@ -1,8 +1,15 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(`Checklist ${form.type} guardado.`);
+	});
 </script>
 
 <section class="panel">
@@ -14,13 +21,6 @@
 			<a class="btn-secondary" href="/work-orders/{data.order.id}">Volver</a>
 		</div>
 	</div>
-
-	{#if form?.success}
-		<div class="alert-success" role="status">Checklist {form.type} guardado.</div>
-	{/if}
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 
 	<h2>Salida</h2>
 	<form method="POST" action="?/saveOutbound" use:enhance>

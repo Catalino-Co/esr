@@ -16,8 +16,33 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import BuscarCotizacion from './BuscarCotizacion.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
+
+	/**
+	 * El parte de lote —aprobar/cancelar varias a la vez— es el unico aviso de
+	 * toda la app con una LISTA. Se dispara con la misma pluralizacion de
+	 * siempre, solo que hacia el Toast: `warning` si algo se salto, `success`
+	 * si no.
+	 */
+	$effect(() => {
+		if (!form?.bulk) return;
+		const parte = form.bulk;
+		const verbo = parte.accion === 'aprobar' ? 'aprobada' : 'cancelada';
+		const titulo =
+			parte.hechas === 1 ? `1 cotización ${verbo}.` : `${parte.hechas} cotizaciones ${verbo}s.`;
+		const tipo = parte.saltadas.length ? 'warning' : 'success';
+		toasts[tipo]({
+			message: titulo,
+			items: parte.saltadas.length ? ['Se quedaron fuera:', ...parte.saltadas] : undefined
+		});
+	});
 
 	/* La lista sale de `@esr/core` y ya no se escribe aquí: escrita a mano en
 	   cada pantalla, Cloud y ESR Pro habían acabado ofreciendo conjuntos
@@ -383,34 +408,6 @@
 		{#if data.hayMas}<span class="aviso">— hay más de 100: acote las fechas.</span>{/if}
 	</p>
 
-	<!-- Callado mientras el diálogo está abierto: su error se pinta DENTRO, y
-	     detrás no debe quedar el mismo texto repetido. -->
-	{#if form?.error && !abierto}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-
-	<!-- El parte del lote. Se separa lo que salió de lo que no, y lo que no sale
-	     CON SU MOTIVO y por número: «se saltaron 2» sin decir cuáles obliga a
-	     revisar la tabla entera a ojo. -->
-	{#if form?.bulk}
-		{@const parte = form.bulk}
-		<div class="alert-{parte.saltadas.length ? 'warning' : 'success'}" role="status">
-			<p class="parte-titulo">
-				{#if parte.hechas === 1}
-					1 cotización {parte.accion === 'aprobar' ? 'aprobada' : 'cancelada'}.
-				{:else}
-					{parte.hechas} cotizaciones {parte.accion === 'aprobar' ? 'aprobadas' : 'canceladas'}.
-				{/if}
-			</p>
-			{#if parte.saltadas.length}
-				<p>Se quedaron fuera:</p>
-				<ul>
-					{#each parte.saltadas as motivo (motivo)}<li>{motivo}</li>{/each}
-				</ul>
-			{/if}
-		</div>
-	{/if}
-
 	{#if data.quotes.length === 0}
 		<p class="empty-state">Ninguna cotización en este rango de fechas.</p>
 	{:else}
@@ -653,14 +650,4 @@
 		gap: var(--sp-2);
 	}
 
-	.parte-titulo {
-		margin: 0;
-		font-weight: 600;
-	}
-
-	.alert-warning ul,
-	.alert-success ul {
-		margin: var(--sp-1) 0 0;
-		padding-left: var(--sp-4);
-	}
 </style>

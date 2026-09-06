@@ -12,6 +12,7 @@
   import { generateWorkOrderPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmtN } from '@esr/reports';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado principal ──────────────────────────────────────────────────────
   let isEditing = false;
@@ -185,7 +186,7 @@
       await loadSerialOptions(item.id);
       const options = serialOptions[item.id] || [];
       if (options.length === 0) {
-        alert('Este equipo no tiene seriales disponibles.');
+        dangerModal.show('Este equipo no tiene seriales disponibles.');
         return;
       }
 
@@ -314,12 +315,12 @@
 
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function saveWO() {
-    if (!validateRentalOrderInput(currentWO).valid) { alert('Seleccione un cliente.'); return; }
+    if (!validateRentalOrderInput(currentWO).valid) { dangerModal.show('Seleccione un cliente.'); return; }
     const serialValidation = validateSerializedRentalLines(woItems);
     if (!serialValidation.ok) {
       const [, itemId] = serialValidation.error.split(':');
       const item = woItems.find(row => String(row.item_id) === String(itemId));
-      alert(`Seleccione al menos un serial para ${item?.name || 'el equipo serializado'}.`);
+      dangerModal.show(`Seleccione al menos un serial para ${item?.name || 'el equipo serializado'}.`);
       return;
     }
     woItems = serialValidation.value;
@@ -387,7 +388,7 @@
 
       goto('/work_orders');
     } catch (err) {
-      alert(err?.message || 'Error al guardar la orden.');
+      dangerModal.show(err?.message || 'Error al guardar la orden.');
       console.error(err);
     } finally {
       isSaving = false;

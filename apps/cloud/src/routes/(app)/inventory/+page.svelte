@@ -7,8 +7,13 @@
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	const puedeMover = $derived(can('inventory.update'));
 
@@ -169,10 +174,6 @@
 			<a class="btn-secondary" href="/settings/articles">Catálogo de artículos</a>
 		{/snippet}
 	</FilterBar>
-
-	{#if form?.error}
-		<p class="alert-error aviso" role="alert">{form.error}</p>
-	{/if}
 
 	{#if data.warehouses.length === 0}
 		<EmptyState
@@ -447,10 +448,6 @@
 		gap: var(--sp-2);
 		font-size: var(--font-sm);
 		white-space: nowrap;
-	}
-
-	.aviso {
-		margin: 0 0 var(--sp-4);
 	}
 
 	.resultado {

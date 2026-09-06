@@ -15,6 +15,7 @@
   import { generateWorkOrderPDF } from '@esr/reports';
   import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
   import StatusSelect from '$lib/components/list/StatusSelect.svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   /**
    * Los estados de ESR Pro, que NO son los de Cloud.
@@ -147,7 +148,7 @@
       }
       loadWorkOrders();
     } catch (err) {
-      alert(err?.message || 'No se pudo reservar el stock de la orden.');
+      dangerModal.show(err?.message || 'No se pudo reservar el stock de la orden.');
       console.error(err);
     }
   }

@@ -5,6 +5,7 @@
   import { generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado principal ──────────────────────────────────────────────────────
   let isEditing = false;
@@ -189,7 +190,7 @@
 
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function saveConduce() {
-    if (!currentConduce.work_order_id) { alert('Seleccione una orden.'); return; }
+    if (!currentConduce.work_order_id) { dangerModal.show('Seleccione una orden.'); return; }
     isSaving = true;
     calculateTotals();
     try {
@@ -228,7 +229,7 @@
       }
       goto('/conduces');
     } catch (err) {
-      alert(err?.message || 'Error al guardar el conduce.');
+      dangerModal.show(err?.message || 'Error al guardar el conduce.');
       console.error(err);
     } finally {
       isSaving = false;

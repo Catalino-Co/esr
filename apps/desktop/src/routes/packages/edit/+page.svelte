@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fmt, fmtN } from '@esr/reports';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado del paquete ────────────────────────────────────────────────────
   let isEditing   = false;
@@ -106,7 +107,7 @@
   // ── Guardar ───────────────────────────────────────────────────────────────
   async function savePackage() {
     if (!currentPackage.name.trim()) {
-      alert('El nombre del paquete es obligatorio.');
+      dangerModal.show('El nombre del paquete es obligatorio.');
       return;
     }
     isSaving = true;
@@ -138,7 +139,7 @@
 
       goto('/packages');
     } catch (err) {
-      alert('Error al guardar el paquete. Revisa la consola.');
+      dangerModal.show('Error al guardar el paquete. Revisa la consola.');
       console.error(err);
     } finally {
       isSaving = false;

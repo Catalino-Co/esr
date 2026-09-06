@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fmt } from '@esr/reports';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   let viewState = "1";
   let packages = [];
@@ -25,7 +26,7 @@
     let msg = newState === 0 ? "¿Archivar este paquete?"
             : newState === 1 ? "¿Marcar este paquete como Activo?"
             : "¿Marcar este paquete como Inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE packages SET is_active = ? WHERE id = ?", [newState, id]);
       loadPackages();
     }

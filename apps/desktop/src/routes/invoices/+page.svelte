@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { fmt } from '@esr/reports';
   import { unwrapOr } from '$lib/ipc';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   let viewState = '1';
   let statusFilter = '';
@@ -44,7 +45,7 @@
       newState === 0 ? '¿Archivar esta factura?'
       : newState === 1 ? '¿Restaurar esta factura?'
       : '¿Marcar la factura como inactiva?';
-    if (!confirm(msg)) return;
+    if (!(await confirmDialog.ask(msg))) return;
     await window.api.invoices.setState(id, newState);
     loadInvoices();
   }

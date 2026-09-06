@@ -2,8 +2,13 @@
 	import { enhance } from '$app/forms';
 	import CustomerAddressBook from '$lib/components/customers/CustomerAddressBook.svelte';
 	import CustomerFormFields from '$lib/components/customers/CustomerFormFields.svelte';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	const values = $derived(form?.values ?? {});
 	const sectors = $derived(data.sectors ?? []);
@@ -25,10 +30,6 @@
 
 <div class="client-layout">
 	<section class="panel">
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-
 		<form method="POST" use:enhance={alGuardar}>
 			<CustomerFormFields {values} {sectors} fieldErrors={form?.fieldErrors ?? null} />
 

@@ -1,8 +1,15 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success('Operación completada.');
+	});
 </script>
 
 <section class="panel">
@@ -10,13 +17,6 @@
 		<h1>Incidencias — Orden {data.order.order_number || `#${data.order.id}`}</h1>
 		<a class="btn-secondary" href="/work-orders/{data.order.id}">Volver</a>
 	</div>
-
-	{#if form?.success}
-		<div class="alert-success" role="status">Operación completada.</div>
-	{/if}
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 
 	{#if can('incidents.create')}
 	<h2>Registrar incidencia</h2>

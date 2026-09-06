@@ -7,8 +7,15 @@
 	import EventoCampos from '../EventoCampos.svelte';
 	import VincularDocumento from './VincularDocumento.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success('Evento guardado.');
+	});
 
 	/* Lo tecleado gana sobre lo guardado, para no perderlo en un error. */
 	const valores = $derived(form?.values ?? data.event);
@@ -20,14 +27,12 @@
 	let verPdf = $state(false);
 	let pdfUrl = $state('');
 	let pdfNombre = $state('evento.pdf');
-	let errorPdf = $state('');
 	let generando = $state(false);
 
 	async function imprimir() {
 		if (generando) return;
 		generando = true;
 		pdfUrl = '';
-		errorPdf = '';
 		verPdf = true;
 		try {
 			const res = await fetch(`${page.url.pathname}/document`, { method: 'POST' });
@@ -42,7 +47,7 @@
 			pdfNombre = filename;
 		} catch (/** @type {any} */ e) {
 			verPdf = false;
-			errorPdf = `No se pudo generar el documento. ${e?.message ?? ''}`.trim();
+			dangerModal.show(`No se pudo generar el documento. ${e?.message ?? ''}`.trim());
 		} finally {
 			generando = false;
 		}
@@ -114,10 +119,6 @@
 		</div>
 	{/if}
 </div>
-
-{#if errorPdf}<div class="alert-error" role="alert">{errorPdf}</div>{/if}
-{#if form?.error}<div class="alert-error" role="alert">{form.error}</div>{/if}
-{#if form?.success}<div class="alert-success" role="status">Evento guardado.</div>{/if}
 
 <div class="ficha">
 	<section class="panel">

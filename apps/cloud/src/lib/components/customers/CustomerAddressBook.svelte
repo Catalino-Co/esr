@@ -2,6 +2,8 @@
 	import { enhance } from '$app/forms';
 	import { RECORD_STATE, recordStateBadgeClass, recordStateLabel } from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	/**
 	 * Directorio de direcciones de SERVICIO de un cliente: a donde se entrega o
@@ -44,6 +46,11 @@
 
 	const isEditing = $derived(editingId !== null);
 	const mensaje = $derived(form?.scope === 'address' ? form : null);
+
+	$effect(() => {
+		if (mensaje?.error) dangerModal.show(mensaje.error);
+		if (mensaje?.success) toasts.success(mensaje.success);
+	});
 
 	function abrirAlta() {
 		editingId = null;
@@ -114,14 +121,7 @@
 	{#if disabled}
 		<p class="empty-state">{disabledHint}</p>
 	{:else}
-		<!-- Los mensajes se callan con el dialogo abierto: su error se pinta
-		     dentro, y detras no debe quedar el mismo texto repetido. -->
-		{#if !open && mensaje?.error}
-			<div class="alert-error" role="alert">{mensaje.error}</div>
-		{/if}
-		{#if !open && mensaje?.success}
-			<div class="alert-success" role="status">{mensaje.success}</div>
-		{/if}
+
 
 		{#if addresses.length === 0}
 			<p class="empty-state">

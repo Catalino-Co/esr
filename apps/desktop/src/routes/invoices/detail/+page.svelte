@@ -4,6 +4,8 @@
   import { summarizePayments, validatePaymentAmount, canVoidPayment } from '@esr/core';
   import { fmt } from '@esr/reports';
   import { unwrap, unwrapOr } from '$lib/ipc';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
 
   /**
    * Ficha de la factura: estado de cuenta y cobros.
@@ -19,8 +21,8 @@
   let payments = [];
 
   let cargando = true;
+  /** Solo el «la factura no existe» del load: el resto pasa por Toast/Modal. */
   let errorMsg = '';
-  let okMsg = '';
 
   let importe = '';
   let metodo = 'efectivo';
@@ -61,10 +63,8 @@
   $: entregasVivas = enlaces.filter((e) => e.is_active === 1).length;
 
   async function registrarCobro() {
-    errorMsg = '';
-    okMsg = '';
     if (!validatePaymentAmount(importe)) {
-      errorMsg = 'El importe debe ser mayor que cero.';
+      dangerModal.show('El importe debe ser mayor que cero.');
       return;
     }
     trabajando = true;
@@ -80,10 +80,10 @@
       );
       importe = '';
       referencia = '';
-      okMsg = 'Cobro registrado.';
+      toasts.success('Cobro registrado.');
       await cargar();
     } catch (err) {
-      errorMsg = err.message;
+      dangerModal.show(err.message);
     } finally {
       trabajando = false;
     }
@@ -93,14 +93,12 @@
     if (!canVoidPayment(pago)) return;
     const motivo = prompt('Motivo de la anulación del cobro:');
     if (motivo === null) return;
-    errorMsg = '';
-    okMsg = '';
     try {
       unwrap(await window.api.payments.void(pago.id, motivo));
-      okMsg = 'Cobro anulado.';
+      toasts.success('Cobro anulado.');
       await cargar();
     } catch (err) {
-      errorMsg = err.message;
+      dangerModal.show(err.message);
     }
   }
 
@@ -112,16 +110,16 @@
       `volverán a estar disponibles para facturar.\n\n¿Motivo de la anulación?`;
     const motivo = prompt(aviso);
     if (motivo === null) return;
-    errorMsg = '';
-    okMsg = '';
     try {
       const res = unwrap(await window.api.invoices.cancel(invoiceId, motivo));
-      okMsg = res.voidedPayments
-        ? `Factura anulada. Se anularon también ${res.voidedPayments} cobro(s).`
-        : 'Factura anulada.';
+      toasts.success(
+        res.voidedPayments
+          ? `Factura anulada. Se anularon también ${res.voidedPayments} cobro(s).`
+          : 'Factura anulada.'
+      );
       await cargar();
     } catch (err) {
-      errorMsg = err.message;
+      dangerModal.show(err.message);
     }
   }
 </script>
@@ -145,9 +143,6 @@
         <button class="btn btn-secondary" on:click={() => goto('/invoices')}>← Volver</button>
       </div>
     </div>
-
-    {#if errorMsg}<div class="alert-error" style="margin-bottom:15px;">{errorMsg}</div>{/if}
-    {#if okMsg}<div class="alert-success" style="margin-bottom:15px;">{okMsg}</div>{/if}
 
     {#if invoice.status === 'anulada'}
       <div class="alert-error" style="margin-bottom:15px;">

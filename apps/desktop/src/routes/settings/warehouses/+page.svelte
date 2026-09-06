@@ -1,5 +1,7 @@
 <script>
   import { onMount } from 'svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { BackLink, Modal } from '@esr/ui';
 
   /**
@@ -45,7 +47,7 @@
 
   async function save() {
     if (!current.name.trim()) {
-      alert('El nombre es obligatorio');
+      dangerModal.show('El nombre es obligatorio');
       return;
     }
     try {
@@ -68,7 +70,7 @@
       showModal = false;
       loadData();
     } catch {
-      alert('Ocurrió un error. Verifica que el nombre no esté duplicado.');
+      dangerModal.show('Ocurrió un error. Verifica que el nombre no esté duplicado.');
     }
   }
 
@@ -79,7 +81,7 @@
         : newState === 1
           ? '¿Restaurar esta entrada?'
           : '¿Marcar esta entrada como inactiva?';
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run('UPDATE warehouses SET is_active = ? WHERE id = ?', [newState, id]);
       loadData();
     }

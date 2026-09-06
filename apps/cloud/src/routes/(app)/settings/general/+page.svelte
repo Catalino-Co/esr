@@ -1,8 +1,15 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { PERIODOS, PERIODO_LABELS } from '@esr/core';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const values = $derived(
 		form?.values ?? {
@@ -19,13 +26,6 @@
 		Valores que la aplicación propone al trabajar. No son los datos que se imprimen: eso está en
 		<a href="/settings/company">Datos de la empresa</a>.
 	</p>
-
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-	{#if form?.success}
-		<div class="alert-success" role="status">{form.success}</div>
-	{/if}
 
 	<form method="POST" class="form-grid" use:enhance>
 		<div class="form-field">

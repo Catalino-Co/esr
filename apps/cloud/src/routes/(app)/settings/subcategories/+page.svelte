@@ -4,8 +4,19 @@
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { stateFormOptions, stateSelect } from '$lib/list-filters';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	/* Antes este aviso solo se pintaba con el dialogo cerrado (`{#if !open}`),
+	   para no dejarlo asomando detras. El efecto ya resuelve eso solo: dispara
+	   UNA vez cuando `form` cambia de verdad, sin importar si el dialogo esta
+	   abierto en ese instante. */
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	let open = $state(false);
 	let editando = $state(null);
@@ -77,14 +88,7 @@
 		{/snippet}
 	</FilterBar>
 
-	{#if !open}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
+
 
 	{#if data.categories.length === 0}
 		<p class="empty-state">

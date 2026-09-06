@@ -1,8 +1,15 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { prepararLogo } from '$lib/logo-imagen';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const values = $derived(form?.values ?? data.settings);
 
@@ -73,13 +80,6 @@
 	<p class="panel-hint">
 		Esta información encabeza las cotizaciones, órdenes, conduces y checklists imprimibles.
 	</p>
-
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-	{#if form?.success}
-		<div class="alert-success" role="status">{form.success}</div>
-	{/if}
 
 	<form method="POST" class="empresa-form" use:enhance={alGuardar}>
 		<div class="form-grid">

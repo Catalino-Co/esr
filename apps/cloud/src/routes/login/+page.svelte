@@ -1,7 +1,12 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 </script>
 
 <div class="login-container">
@@ -13,10 +18,6 @@
 		</div>
 
 		<form method="POST" class="login-form" use:enhance>
-			{#if form?.error}
-				<div class="alert-error" role="alert">{form.error}</div>
-			{/if}
-
 			<div class="input-group">
 				<label for="email">Email</label>
 				<input
@@ -146,16 +147,6 @@
 
 	.btn-login:hover {
 		background-color: var(--accent-hover);
-	}
-
-	.alert-error {
-		background-color: var(--danger-bg);
-		color: var(--danger-text);
-		padding: 12px;
-		border-radius: 6px;
-		font-size: 0.85rem;
-		text-align: center;
-		border: 1px solid var(--danger);
 	}
 
 	.login-footer {

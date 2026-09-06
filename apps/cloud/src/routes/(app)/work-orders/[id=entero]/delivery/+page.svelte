@@ -1,7 +1,12 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 </script>
 
 <section class="panel">
@@ -9,10 +14,6 @@
 		<h1>Entrega — Orden {data.order.order_number || `#${data.order.id}`}</h1>
 		<a class="btn-secondary" href="/work-orders/{data.order.id}">Volver</a>
 	</div>
-
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric"><strong>{data.customer?.name ?? '—'}</strong><span>Cliente</span></div>

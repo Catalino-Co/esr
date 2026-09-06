@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { validateCompanySettingsInput } from '@esr/schemas';
   import { BackLink } from '@esr/ui';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
 
   let currentCompany = {
     id: 1,
@@ -28,15 +30,15 @@
 
   async function saveCompanyInfo() {
     if (!validateCompanySettingsInput(currentCompany).valid) {
-      alert("El nombre de la empresa es obligatorio.");
+      dangerModal.show("El nombre de la empresa es obligatorio.");
       return;
     }
     saving = true;
     try {
       currentCompany = await window.api.settings.updateCompany(currentCompany);
-      alert("Configuración de empresa guardada con éxito.");
+      toasts.success("Configuración de empresa guardada con éxito.");
     } catch(err) {
-      alert("Hubo un error al guardar: " + err);
+      dangerModal.show("Hubo un error al guardar: " + err);
     }
     saving = false;
   }
@@ -47,14 +49,14 @@
 
     // Validate size (2MB = 2 * 1024 * 1024 bytes)
     if (file.size > 2 * 1024 * 1024) {
-      alert("El archivo excede el tamaño máximo de 2MB permitidos.");
+      dangerModal.show("El archivo excede el tamaño máximo de 2MB permitidos.");
       event.target.value = null;
       return;
     }
 
     // Validate type
     if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
-      alert("Por favor suba una imagen válida (PNG, JPG o JPEG).");
+      dangerModal.show("Por favor suba una imagen válida (PNG, JPG o JPEG).");
       event.target.value = null;
       return;
     }

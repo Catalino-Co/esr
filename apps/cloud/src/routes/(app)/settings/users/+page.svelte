@@ -2,8 +2,15 @@
 	import { enhance } from '$app/forms';
 	import { roleLabel } from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const values = $derived(form?.values ?? {});
 
@@ -83,14 +90,7 @@
 		<a href="/settings/roles">Roles y permisos</a>.
 	</p>
 
-	{#if !invitando && !editandoAbierto}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
+
 
 	{#if data.members.length === 0}
 		<p class="empty-state">Aún no hay usuarios registrados.</p>

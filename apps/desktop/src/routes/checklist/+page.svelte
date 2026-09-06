@@ -12,6 +12,7 @@
   } from '@esr/core';
   import { generateChecklistPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
+  import { toasts } from '$lib/stores/toasts.js';
 
   let woId           = null;
   let workOrder      = null;
@@ -63,7 +64,7 @@
     if (activeTab === 'retorno') {
       const count = await createAutomaticIncidents();
       if (count > 0) {
-        alert(`${count} incidencia(s) creada(s) automáticamente.`);
+        toasts.success(`${count} incidencia(s) creada(s) automáticamente.`);
       }
     }
 

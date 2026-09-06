@@ -9,8 +9,13 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import EventoCampos from './EventoCampos.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	const ESTADOS = [
 		{ value: '', label: 'Cualquier estado' },
@@ -149,10 +154,6 @@
 
 <section class="panel">
 	<FilterBar search={{ name: 'search', placeholder: 'Título o lugar', value: data.search }} />
-
-	{#if form?.error && !abierto}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 
 	{#if calendario}
 		<EventCalendar events={data.events} colorOf={colorDe} onSelect={abrirFicha} />

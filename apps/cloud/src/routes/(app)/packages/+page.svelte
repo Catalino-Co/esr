@@ -4,8 +4,15 @@
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import { can } from '$lib/can';
 	import { stateSelect } from '$lib/list-filters';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	// El alta se abre en un dialogo desde la cabecera.
 	let creating = $state(false);
@@ -61,15 +68,7 @@
 		explotan en sus líneas, con el precio vigente de cada artículo.
 	</p>
 
-	<!-- Se callan con el dialogo abierto: su error se pinta dentro. -->
-	{#if !creating}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
+
 
 </section>
 

@@ -18,6 +18,8 @@
   } from '@esr/core';
   import { validateInventoryItemInput } from '@esr/schemas';
   import { BackLink, Modal } from '@esr/ui';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { fmt } from '@esr/reports';
 
   let viewState = "1";
@@ -139,7 +141,7 @@
 
   async function saveItem() {
     if (!validateInventoryItemInput(currentItem).valid) {
-      alert("Nombre y Categoría son obligatorios");
+      dangerModal.show("Nombre y Categoría son obligatorios");
       return;
     }
 
@@ -150,7 +152,7 @@
     if (usesSerial) {
       const serialValidation = validateSerialCatalogInput(serialNumbers);
       if (!serialValidation.ok) {
-        alert('Agregue al menos un serial para equipos unitarios.');
+        dangerModal.show('Agregue al menos un serial para equipos unitarios.');
         return;
       }
       catalogSerialNumbers = serialValidation.value;
@@ -226,7 +228,7 @@
     let msg = newState === 0 ? "¿Archivar este ítem?" 
             : newState === 1 ? "¿Marcar este ítem como Activo?"
             : "¿Marcar este ítem como Inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE items SET is_active = ? WHERE id = ?", [newState, id]);
       loadItems();
     }

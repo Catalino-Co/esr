@@ -1,5 +1,7 @@
 <script>
   import { onMount } from 'svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { BackLink, Modal } from '@esr/ui';
 
   let viewState = "1";
@@ -41,7 +43,7 @@
 
   async function saveCollaborator() {
     if (!currentPerson.name) {
-      alert("El nombre es obligatorio");
+      dangerModal.show("El nombre es obligatorio");
       return;
     }
 
@@ -65,7 +67,7 @@
     let msg = newState === 0 ? "¿Archivar este colaborador?" 
             : newState === 1 ? "¿Restaurar este colaborador?"
             : "¿Marcar colaborador como inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE collaborators SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }

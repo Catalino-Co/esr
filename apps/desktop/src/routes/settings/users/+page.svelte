@@ -1,5 +1,7 @@
 <script>
   import { onMount } from 'svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { validateUserInput } from '@esr/schemas';
   import { BackLink, Modal } from '@esr/ui';
   import { COMPANY_ROLES, ROLE_DESCRIPTIONS, roleLabel } from '@esr/core';
@@ -42,7 +44,7 @@
 
   async function saveUser() {
     if (!validateUserInput(currentUser, { isEditing }).valid) {
-      alert("Usuario, nombre y contraseña son requeridos.");
+      dangerModal.show("Usuario, nombre y contraseña son requeridos.");
       return;
     }
 
@@ -60,14 +62,14 @@
     // Prevent modifying oneself
     const session = JSON.parse(sessionStorage.getItem('esr_user') || '{}');
     if (session.id === id) {
-      alert("No puedes modificar el estado de tu propio usuario en sesión.");
+      dangerModal.show("No puedes modificar el estado de tu propio usuario en sesión.");
       return;
     }
 
     let msg = newState === 0 ? "¿Archivar este usuario? Perderá el acceso al sistema." 
             : newState === 1 ? "¿Restaurar este usuario a Activo?"
             : "¿Marcar usuario como inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE users SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }

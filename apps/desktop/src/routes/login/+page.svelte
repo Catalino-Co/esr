@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { entrar } from '$lib/stores/session.js';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   let username = '';
   let password = '';
   let passwordConfirm = '';
   let fullName = '';
-  let errorMsg = '';
   let loading = false;
 
   /**
@@ -35,14 +35,12 @@
   });
 
   async function handleBootstrap() {
-    errorMsg = '';
-
     if (!username || !password) {
-      errorMsg = 'Indique el usuario y la contraseña.';
+      dangerModal.show('Indique el usuario y la contraseña.');
       return;
     }
     if (password !== passwordConfirm) {
-      errorMsg = 'Las contraseñas no coinciden.';
+      dangerModal.show('Las contraseñas no coinciden.');
       return;
     }
 
@@ -57,14 +55,15 @@
         goto('/', { replaceState: true });
         return;
       }
-      errorMsg = 'El administrador se creó, pero no se pudo iniciar sesión.';
+      dangerModal.show('El administrador se creó, pero no se pudo iniciar sesión.');
       bootstrap = false;
     } catch (err) {
       // El IPC antepone «Error invoking remote method '...': Error: » al
       // mensaje. Interesa lo que dice la regla de negocio, no el envoltorio.
-      errorMsg =
+      dangerModal.show(
         String(err?.message || '').replace(/^.*?Error:\s*/, '') ||
-        'No se pudo crear el administrador.';
+          'No se pudo crear el administrador.'
+      );
       console.error(err);
     } finally {
       loading = false;
@@ -72,10 +71,8 @@
   }
 
   async function handleLogin() {
-    errorMsg = '';
-    
     if (!username || !password) {
-      errorMsg = 'Por favor, ingrese usuario y contraseña.';
+      dangerModal.show('Por favor, ingrese usuario y contraseña.');
       return;
     }
 
@@ -87,10 +84,10 @@
         entrar(user);
         goto('/', { replaceState: true }); // go to dashboard
       } else {
-        errorMsg = 'Usuario o contraseña incorrectos.';
+        dangerModal.show('Usuario o contraseña incorrectos.');
       }
     } catch(err) {
-      errorMsg = 'Error al conectar con la base de datos local.';
+      dangerModal.show('Error al conectar con la base de datos local.');
       console.error(err);
     } finally {
       loading = false;
@@ -111,10 +108,6 @@
     {:else if bootstrap}
       <form on:submit|preventDefault={handleBootstrap} class="login-form">
         <p class="aviso">No hay ningún usuario todavía. Cree el administrador para empezar.</p>
-
-        {#if errorMsg}
-          <div class="alert-error">{errorMsg}</div>
-        {/if}
 
         <div class="input-group">
           <label for="bs-username">Usuario</label>
@@ -142,10 +135,6 @@
       </form>
     {:else}
     <form on:submit|preventDefault={handleLogin} class="login-form">
-      {#if errorMsg}
-        <div class="alert-error">{errorMsg}</div>
-      {/if}
-
       <div class="input-group">
         <label for="username">Usuario</label>
         <input type="text" id="username" bind:value={username} placeholder="Ingrese su usuario..." disabled={loading} autocomplete="off" />
@@ -266,18 +255,6 @@
   .btn-login:disabled {
     opacity: 0.7;
     cursor: not-allowed;
-  }
-
-  .alert-error {
-    /* El rojo puro como color de letra no pasa contraste: el par legible
-       es --danger-bg de fondo con --danger-text encima. */
-    background-color: var(--danger-bg);
-    color: var(--danger-text);
-    padding: 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    text-align: center;
-    border: 1px solid var(--danger);
   }
 
   .comprobando,

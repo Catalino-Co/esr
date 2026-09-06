@@ -3,6 +3,9 @@
   import { goto } from '$app/navigation';
   import { Modal } from '@esr/ui';
   import { validateCustomerInput } from '@esr/schemas';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import {
     DOCUMENT_TYPES,
     DOCUMENT_TYPE_LABELS,
@@ -47,8 +50,6 @@
   let addressTypes = [];
   let addresses = [];
   let isSaving = false;
-  let mensaje = '';
-  let error = '';
 
   /**
    * El id se lee de forma REACTIVA, no en `onMount`.
@@ -70,8 +71,6 @@
 
   async function cargar(id) {
     if (!window.api?.db) return;
-    mensaje = '';
-    error = '';
 
     try {
       [sectors, addressTypes] = await Promise.all([
@@ -87,7 +86,7 @@
 
       const fila = await window.api.db.getOne('SELECT * FROM clients WHERE id = ?', [id]);
       if (!fila) {
-        error = 'El cliente no existe.';
+        dangerModal.show('El cliente no existe.');
         return;
       }
       // Los campos nuevos pueden venir NULL: el `<select>` necesita cadena.
@@ -99,7 +98,7 @@
       };
       await cargarDirecciones(id);
     } catch (e) {
-      error = 'No se pudieron cargar los datos. ' + (e?.message ?? '');
+      dangerModal.show('No se pudieron cargar los datos. ' + (e?.message ?? ''));
     }
   }
 
@@ -124,12 +123,10 @@
 
   async function guardar() {
     if (!validateCustomerInput(client).valid) {
-      error = 'El nombre es obligatorio.';
+      dangerModal.show('El nombre es obligatorio.');
       return;
     }
     isSaving = true;
-    mensaje = '';
-    error = '';
     try {
       const valores = [
         client.name.trim(),
@@ -153,7 +150,7 @@
            WHERE id = ?`,
           [...valores, client.id]
         );
-        mensaje = 'Cambios guardados.';
+        toasts.success('Cambios guardados.');
       } else {
         const res = await window.api.db.run(
           `INSERT INTO clients
@@ -169,13 +166,13 @@
         client = { ...client, id: res.id };
         cargadoId = String(res.id);
         addresses = [];
-        mensaje = 'Cliente creado. Ya puedes agregar sus direcciones.';
+        toasts.success('Cliente creado. Ya puedes agregar sus direcciones.');
         goto(`/clients/edit?id=${res.id}`, { replaceState: true, noScroll: true });
       }
     } catch (e) {
       // `db:run` RECHAZA la promesa cuando el SQL falla; sin este catch el
       // fallo no llega a ninguna parte y el usuario no ve nada.
-      error = 'No se pudo guardar. ' + (e?.message ?? '');
+      dangerModal.show('No se pudo guardar. ' + (e?.message ?? ''));
     } finally {
       isSaving = false;
     }
@@ -295,7 +292,7 @@
       );
       if (recargar) await cargarDirecciones(client.id);
     } catch (e) {
-      error = 'No se pudo marcar la dirección principal. ' + (e?.message ?? '');
+      dangerModal.show('No se pudo marcar la dirección principal. ' + (e?.message ?? ''));
     }
   }
 
@@ -306,7 +303,7 @@
         : estado === 1
           ? '¿Reactivar esta dirección?'
           : '¿Marcar esta dirección como inactiva?';
-    if (!confirm(msg)) return;
+    if (!(await confirmDialog.ask(msg))) return;
     try {
       // Una direccion que sale de circulacion no puede seguir siendo la principal.
       await window.api.db.run(
@@ -319,7 +316,7 @@
       );
       await cargarDirecciones(client.id);
     } catch (e) {
-      error = 'No se pudo cambiar el estado de la dirección. ' + (e?.message ?? '');
+      dangerModal.show('No se pudo cambiar el estado de la dirección. ' + (e?.message ?? ''));
     }
   }
 
@@ -341,9 +338,6 @@
 
 <div class="client-layout">
   <div class="card">
-    {#if mensaje}<div class="alert alert-success">{mensaje}</div>{/if}
-    {#if error}<div class="alert alert-danger">{error}</div>{/if}
-
     <fieldset class="form-section">
       <legend>Identificación</legend>
       <div class="form-grid">

@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { fmt } from '@esr/reports';
   import { unwrap, unwrapOr } from '$lib/ipc';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
 
   /**
    * Emision de facturas, en dos fases: elegir orden y elegir entregas.
@@ -30,7 +31,6 @@
 
   let cargando = true;
   let guardando = false;
-  let errorMsg = '';
 
   /**
    * El dia que se instala el modulo, TODAS las entregas historicas aparecen
@@ -68,7 +68,6 @@
 
   async function cargar() {
     cargando = true;
-    errorMsg = '';
     try {
       if (!workOrderId) {
         orders = unwrapOr(
@@ -98,7 +97,7 @@
         await recalcular();
       }
     } catch (err) {
-      errorMsg = err.message;
+      dangerModal.show(err.message);
     } finally {
       cargando = false;
     }
@@ -138,7 +137,6 @@
 
   async function emitir() {
     if (guardando) return;
-    errorMsg = '';
     guardando = true;
     try {
       const factura = unwrap(
@@ -154,7 +152,7 @@
       );
       goto(`/invoices/detail?id=${factura.id}`);
     } catch (err) {
-      errorMsg = err.message;
+      dangerModal.show(err.message);
       // Si otra emision se llevo una entrega, la lista en pantalla ya no vale.
       await cargar();
     } finally {
@@ -168,10 +166,6 @@
     <span>{workOrderId ? `Facturar orden WO-${String(workOrderId).padStart(5, '0')}` : 'Nueva factura'}</span>
     <button class="btn btn-secondary" on:click={() => goto('/invoices')}>← Volver</button>
   </div>
-
-  {#if errorMsg}
-    <div class="alert-error" style="margin-bottom:15px;">{errorMsg}</div>
-  {/if}
 
   {#if cargando}
     <p style="color:var(--text-muted);">Cargando…</p>

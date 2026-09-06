@@ -9,6 +9,8 @@
 	} from '@esr/core';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	/**
 	 * Pantalla generica de catalogo: tabla, y el alta/edicion en un dialogo.
@@ -38,6 +40,11 @@
 		/** Ancho del dialogo: 'sm' una columna, 'md' dos. */
 		size = 'md'
 	} = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const TONES = {
 		[RECORD_STATE.ACTIVE]: 'ok',
@@ -149,16 +156,7 @@
 		<p class="panel-hint">{hint}</p>
 	{/if}
 
-	<!-- Los mensajes de pagina se callan mientras el dialogo esta abierto: su
-	     error se pinta dentro, y detras no debe quedar el mismo texto repetido. -->
-	{#if !open}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
+
 
 	{#if entries.length === 0}
 		<p class="empty-state">

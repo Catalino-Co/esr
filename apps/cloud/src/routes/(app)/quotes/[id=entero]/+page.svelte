@@ -13,8 +13,13 @@
 	import { Icon, PdfPreviewModal } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	/**
 	 * `$derived`, NO una desestructuración suelta.
@@ -492,10 +497,6 @@
 
      Los dialogos NO leen de aqui: `form` es unico por pagina y el error de una
      fila apareceria dentro del dialogo de otra cosa. Cada uno tiene su estado. -->
-{#if form?.error}
-	<p class="alert-error aviso-accion" role="alert">{form.error}</p>
-{/if}
-
 {#if !canEdit}
 	<p class="panel-hint">
 		Esta cotización está {statusLabel(quote.status).toLowerCase()}: ya no se puede editar.
@@ -1118,12 +1119,6 @@
 />
 
 <style>
-	/* `.alert-error` de theme.css no trae separacion vertical —es un componente
-	   que se usa dentro de formularios, donde el `gap` del contenedor la pone—.
-	   Aqui va suelto entre la cabecera y la ficha. */
-	.aviso-accion {
-		margin: 0 0 var(--sp-4);
-	}
 	/* Cabecera propia y no `.page-header`: esa clase lleva un
 	   `> :first-child:last-child { margin-left: auto }` para los listados. */
 	.record-header {

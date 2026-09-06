@@ -5,6 +5,8 @@
   import { validateEventInput } from '@esr/schemas';
   import { generateEventPDF } from '@esr/reports';
   import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
 
   /**
    * Ficha de evento de ESR Pro.
@@ -47,8 +49,8 @@
   let buscarDoc = '';
 
   let guardando = false;
+  /** Solo el «este evento ya no existe» del load: el resto pasa por Toast/Modal. */
   let error = '';
-  let mensaje = '';
 
   let verPdf = false;
   let pdfUrl = '';
@@ -74,7 +76,6 @@
   async function cargar(id) {
     if (!window.api?.db || !id) return;
     error = '';
-    mensaje = '';
 
     const [ev, cl, tp, qs, os] = await Promise.all([
       window.api.db.getOne('SELECT * FROM events WHERE id = ?', [id]),
@@ -186,12 +187,10 @@
 
   async function guardar() {
     if (!validateEventInput(evento).valid) {
-      error = 'El nombre del evento y el cliente son obligatorios.';
+      dangerModal.show('El nombre del evento y el cliente son obligatorios.');
       return;
     }
     guardando = true;
-    error = '';
-    mensaje = '';
     try {
       await window.api.db.run(
         `UPDATE events SET
@@ -207,7 +206,7 @@
         ]
       );
 
-      mensaje = 'Evento guardado.';
+      toasts.success('Evento guardado.');
       await cargar(evento.id);
     } finally {
       guardando = false;
@@ -262,9 +261,6 @@
       </button>
     </div>
   </div>
-
-  {#if error}<div class="alert alert-danger">{error}</div>{/if}
-  {#if mensaje}<div class="alert alert-success">{mensaje}</div>{/if}
 
   <div class="ficha">
     <div class="card">

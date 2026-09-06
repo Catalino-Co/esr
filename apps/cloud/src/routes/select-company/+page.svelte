@@ -1,7 +1,12 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 </script>
 
 <section class="panel">
@@ -11,10 +16,6 @@
 
 	{#if data.error}
 		<div class="alert-error" role="alert">{data.error}</div>
-	{/if}
-
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
 	{/if}
 
 	{#if data.companies.length === 0}

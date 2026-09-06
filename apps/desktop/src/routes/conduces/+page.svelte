@@ -5,6 +5,8 @@
   import { generateConducePDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   let showPdfPreview     = false;
   let pdfPreviewUrl      = '';
@@ -60,7 +62,7 @@
       }
       loadConduces();
     } catch (err) {
-      alert(err?.message || 'No se pudo descontar el stock del conduce.');
+      dangerModal.show(err?.message || 'No se pudo descontar el stock del conduce.');
       console.error(err);
     }
   }
@@ -69,7 +71,7 @@
     const msg = newState === 0 ? '¿Archivar este Conduce?'
               : newState === 1 ? '¿Restaurar este Conduce?'
               : '¿Marcar Conduce como inactivo?';
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run('UPDATE conduces SET is_active = ? WHERE id = ?', [newState, id]);
       loadConduces();
     }

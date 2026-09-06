@@ -1,7 +1,12 @@
 <script>
 	import { formatDate, formatMoney } from '@esr/core';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	/** Marcadas de inicio: lo habitual es facturar todo lo entregado. */
 	let elegidas = $state(new Set(data.conduces.map((c) => String(c.id))));
@@ -33,9 +38,6 @@
 		</div>
 	</div>
 
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 	{#if data.aviso}
 		<div class="alert-error" role="alert">{data.aviso}</div>
 	{/if}

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { Modal } from '@esr/ui';
   import { fmt } from '@esr/reports';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   let viewState = "1";
   let incidents = [];
@@ -69,7 +71,7 @@
 
   async function saveIncident() {
     if (!currentIncident.item_id) {
-      alert("Seleccione el ítem involucrado.");
+      dangerModal.show("Seleccione el ítem involucrado.");
       return;
     }
 
@@ -122,7 +124,7 @@
     let msg = newState === 0 ? "¿Archivar este registro de incidencia?" 
             : newState === 1 ? "¿Restaurar este registro de incidencia?"
             : "¿Marcar incidencia como inactiva?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE incidents SET is_active = ? WHERE id = ?", [newState, id]);
       loadIncidents();
     }

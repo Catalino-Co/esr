@@ -1,5 +1,7 @@
 <script>
   import { onMount } from 'svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { BackLink, Modal } from '@esr/ui';
 
   let viewState = "1";
@@ -42,7 +44,7 @@
 
   async function saveSupplier() {
     if (!currentSupplier.name) {
-      alert("El nombre de la empresa es obligatorio");
+      dangerModal.show("El nombre de la empresa es obligatorio");
       return;
     }
 
@@ -66,7 +68,7 @@
     let msg = newState === 0 ? "¿Archivar este suplidor?" 
             : newState === 1 ? "¿Restaurar este suplidor?"
             : "¿Marcar suplidor como inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE suppliers SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }

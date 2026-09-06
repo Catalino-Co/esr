@@ -1,8 +1,15 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	const pkg = $derived(data.pkg);
 	const editable = $derived(can('packages.update'));
@@ -23,12 +30,7 @@
 		<a class="btn-secondary" href="/packages">Volver</a>
 	</div>
 
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
-	{#if form?.success}
-		<div class="alert-success" role="status">{form.success}</div>
-	{/if}
+
 
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric"><strong>{data.items.length}</strong><span>Artículos</span></div>

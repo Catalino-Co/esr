@@ -4,6 +4,8 @@
 	import CustomerAddressBook from '$lib/components/customers/CustomerAddressBook.svelte';
 	import CustomerFormFields from '$lib/components/customers/CustomerFormFields.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
 
@@ -17,6 +19,11 @@
 	// El mensaje del cliente y el de las direcciones comparten el objeto `form`:
 	// el `scope` decide sobre cual de las dos tarjetas se pinta.
 	const mensaje = $derived(form?.scope === 'customer' ? form : null);
+
+	$effect(() => {
+		if (mensaje?.error) dangerModal.show(mensaje.error);
+		if (mensaje?.success) toasts.success(mensaje.success);
+	});
 
 	/**
 	 * `reset: false` no es un detalle: `update()` resetea el `<form>`, y un reset
@@ -38,13 +45,6 @@
 
 <div class="client-layout">
 	<section class="panel">
-		{#if mensaje?.success}
-			<div class="alert-success" role="status">{mensaje.success}</div>
-		{/if}
-		{#if mensaje?.error}
-			<div class="alert-error" role="alert">{mensaje.error}</div>
-		{/if}
-
 		<form method="POST" action="?/update" use:enhance={alGuardar}>
 			<CustomerFormFields
 				values={customer}

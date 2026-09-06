@@ -1,9 +1,14 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { BackLink } from '@esr/ui';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
 	const values = form?.values ?? {};
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 </script>
 
 <section class="panel">
@@ -19,10 +24,6 @@
 			<h1>Nuevo artículo</h1>
 		</div>
 	</div>
-
-	{#if form?.error}
-		<div class="alert-error" role="alert">{form.error}</div>
-	{/if}
 
 	<p class="panel-hint">
 		Nace sin existencias. Para darle stock, regístrele una entrada en

@@ -8,6 +8,10 @@
   import Topbar from '$lib/components/layout/Topbar.svelte';
   import { theme } from '$lib/stores/theme.js';
   import { salir, sesion } from '$lib/stores/session.js';
+  import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import DangerModalHost from '$lib/components/DangerModalHost.svelte';
+  import ConfirmDialogHost from '$lib/components/ConfirmDialogHost.svelte';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
 
   /* La sesion vive en un store, no en una variable leida una sola vez: el login
      navega con `goto()` y este layout NO se vuelve a montar. Ver session.js. */
@@ -67,14 +71,20 @@
     localStorage.setItem('sidebar_collapsed', String(sidebarCollapsed));
   }
 
-  function handleLogout() {
-    if (confirm('¿Estás seguro que deseas cerrar sesión?')) {
+  async function handleLogout() {
+    if (await confirmDialog.ask('¿Estás seguro que deseas cerrar sesión?', { title: 'Cerrar sesión' })) {
       salir();
       goto('/login', { replaceState: true });
     }
   }
 
 </script>
+
+<!-- Hermanos del `{#if}` de abajo: cubren el boot-screen, `/login` y la app
+     entera sin duplicar nada. -->
+<ToastContainer />
+<DangerModalHost />
+<ConfirmDialogHost />
 
 {#if !isAuthChecked}
   <div class="boot-screen">

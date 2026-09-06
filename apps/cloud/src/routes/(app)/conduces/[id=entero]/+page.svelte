@@ -3,8 +3,15 @@
 	import { formatDate, statusBadgeClass, statusLabel } from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
+	import { dangerModal } from '$lib/stores/dangerModal';
+	import { toasts } from '$lib/stores/toasts';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+		if (form?.success) toasts.success(form.success);
+	});
 
 	/**
 	 * Solo una ENTREGA se factura. Sin esto, la nota de una devolución invitaba
@@ -54,15 +61,6 @@
 			<a class="btn-secondary" href="/work-orders/{data.conduce.work_order_id}">Volver a la orden</a>
 		</div>
 	</div>
-
-	{#if !anulando}
-		{#if form?.error}
-			<div class="alert-error" role="alert">{form.error}</div>
-		{/if}
-		{#if form?.success}
-			<div class="alert-success" role="status">{form.success}</div>
-		{/if}
-	{/if}
 
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric">

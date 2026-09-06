@@ -1,5 +1,7 @@
 <script>
   import { onMount } from 'svelte';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { BackLink, Modal } from '@esr/ui';
 
   let viewState = "1";
@@ -34,7 +36,7 @@
 
   async function saveType() {
     if (!currentType.name.trim()) {
-      alert("El nombre es obligatorio");
+      dangerModal.show("El nombre es obligatorio");
       return;
     }
     try {
@@ -66,7 +68,7 @@
       showModal = false;
       loadData();
     } catch (err) {
-      alert("Ocurrió un error. Verifica que el nombre no esté duplicado.");
+      dangerModal.show("Ocurrió un error. Verifica que el nombre no esté duplicado.");
     }
   }
 
@@ -74,7 +76,7 @@
     let msg = newState === 0 ? "¿Archivar este tipo de evento?"
             : newState === 1 ? "¿Restaurar este tipo de evento?"
             : "¿Marcar tipo de evento como inactivo?";
-    if (confirm(msg)) {
+    if (await confirmDialog.ask(msg)) {
       await window.api.db.run("UPDATE event_types SET is_active = ? WHERE id = ?", [newState, id]);
       loadData();
     }

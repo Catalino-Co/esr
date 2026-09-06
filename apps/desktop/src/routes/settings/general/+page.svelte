@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { BackLink } from '@esr/ui';
   import { PERIODOS, PERIODO_LABELS, parsePeriodo } from '@esr/core';
+  import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { toasts } from '$lib/stores/toasts.js';
 
   /**
    * Configuración › Generales.
@@ -28,12 +30,10 @@
   /** Ajuste APARTE del anterior, para el listado de cotizaciones. */
   let ventanaCotizaciones = 'mes';
   let guardando = false;
-  let mensaje = '';
-  let error = '';
 
   onMount(async () => {
     if (!window.api?.settings) {
-      error = SIN_PUENTE;
+      dangerModal.show(SIN_PUENTE);
       return;
     }
     const fila = await window.api.settings.getCompany();
@@ -49,18 +49,15 @@
     // repositorio: una tasa negativa devolvería dinero y una del 150%
     // triplicaría el documento.
     if (!Number.isFinite(valor) || valor < 0 || valor > 100) {
-      error = 'El impuesto debe ser un porcentaje entre 0 y 100.';
-      mensaje = '';
+      dangerModal.show('El impuesto debe ser un porcentaje entre 0 y 100.');
       return;
     }
     if (!window.api?.settings?.updateDefaults) {
-      error = SIN_PUENTE;
+      dangerModal.show(SIN_PUENTE);
       return;
     }
 
     guardando = true;
-    error = '';
-    mensaje = '';
     try {
       const fila = await window.api.settings.updateDefaults({
         default_tax_rate: valor,
@@ -72,9 +69,9 @@
       regla = fila?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
       ventana = parsePeriodo(fila?.default_order_range);
       ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
-      mensaje = 'Ajustes generales guardados.';
+      toasts.success('Ajustes generales guardados.');
     } catch (e) {
-      error = String(e?.message || 'No se pudo guardar.');
+      dangerModal.show(String(e?.message || 'No se pudo guardar.'));
     } finally {
       guardando = false;
     }
@@ -93,9 +90,6 @@
     Valores que la aplicación propone al trabajar. No son los datos que se imprimen: eso está en
     <a href="/settings/company">Datos de la Empresa</a>.
   </p>
-
-  {#if error}<div class="alert alert-danger">{error}</div>{/if}
-  {#if mensaje}<div class="alert alert-success">{mensaje}</div>{/if}
 
   <div class="form-grid">
     <div class="form-field">

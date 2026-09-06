@@ -1,8 +1,13 @@
 <script>
 	import { Icon } from '@esr/ui';
 	import { formatMoney, mergeRentalOrderItem } from '@esr/core';
+	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
+
+	$effect(() => {
+		if (form?.error) dangerModal.show(form.error);
+	});
 
 	/**
 	 * La cabecera va en `$state` y enlazada con `bind:value`, no con
@@ -139,10 +144,6 @@
 		</div>
 	</div>
 </div>
-
-{#if form?.error}
-	<div class="alert-error" role="alert">{form.error}</div>
-{/if}
 
 <form id="orden-nueva" method="POST" class="panel">
 	<p class="panel-hint">
