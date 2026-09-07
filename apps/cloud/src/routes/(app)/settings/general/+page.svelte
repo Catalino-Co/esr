@@ -1,5 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { Icon } from '@esr/ui';
 	import { PERIODOS, PERIODO_LABELS } from '@esr/core';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -10,6 +12,16 @@
 		if (form?.error) dangerModal.show(form.error);
 		if (form?.success) toasts.success(form.success);
 	});
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
 
 	const values = $derived(
 		form?.values ?? {
@@ -22,6 +34,24 @@
 		}
 	);
 </script>
+
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar"
+			title="Recargar"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
+	</div>
+</div>
 
 <section class="panel">
 	<p class="panel-hint">

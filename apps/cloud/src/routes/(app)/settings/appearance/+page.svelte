@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { Icon } from '@esr/ui';
 	import { ICONS } from '@esr/ui/icons';
 	import { theme } from '$lib/stores/theme';
 
@@ -16,6 +17,14 @@
 		{ value: 'dark', label: 'Oscuro', icon: ICONS.themeDark }
 	];
 </script>
+
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+			<Icon name="back" size={18} />
+		</a>
+	</div>
+</div>
 
 <section class="panel">
 	<p class="panel-hint">

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { BackLink } from '@esr/ui';
+  import { Icon } from '@esr/ui';
   import { PERIODOS, PERIODO_LABELS, parsePeriodo } from '@esr/core';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
@@ -34,8 +34,9 @@
   /** Ajuste APARTE de los tres anteriores, para la Tabla del listado de eventos. */
   let ventanaEventos = 'mes';
   let guardando = false;
+  let recargando = false;
 
-  onMount(async () => {
+  async function cargar() {
     if (!window.api?.settings) {
       dangerModal.show(SIN_PUENTE);
       return;
@@ -47,7 +48,18 @@
     ventanaCotizaciones = parsePeriodo(fila?.default_quote_range);
     ventanaFacturas = parsePeriodo(fila?.default_invoice_range);
     ventanaEventos = parsePeriodo(fila?.default_event_range);
-  });
+  }
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await cargar();
+    } finally {
+      recargando = false;
+    }
+  }
+
+  onMount(cargar);
 
   async function guardar() {
     const valor = Number(tasa);
@@ -88,9 +100,26 @@
   }
 </script>
 
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/settings" aria-label="Volver a Ajustes" title="Volver a Ajustes">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar"
+      title="Recargar"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
+  </div>
+</div>
+
 <div class="record-header">
   <div class="record-titulo">
-    <BackLink href="/settings" label="Volver a Ajustes" />
     <h1>Generales</h1>
   </div>
 </div>

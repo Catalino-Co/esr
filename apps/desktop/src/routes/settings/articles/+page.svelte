@@ -18,7 +18,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { validateInventoryItemInput } from '@esr/schemas';
-  import { BackLink, Modal } from '@esr/ui';
+  import { Icon, Modal } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { fmt } from '@esr/reports';
@@ -27,6 +27,7 @@
   let items = [];
   let categories = [];
   let filterCategory = '';
+  let recargando = false;
 
   let showModal = false;
 
@@ -88,6 +89,15 @@
     loadData();
   });
 
+  async function recargar() {
+    recargando = true;
+    try {
+      await loadData();
+    } finally {
+      recargando = false;
+    }
+  }
+
   function openCreate() {
     nuevo = {
       internal_code: '', name: '', category_id: '',
@@ -140,9 +150,21 @@
 <div class="card">
   <div class="card-title" style="align-items: center;">
     <div style="display: flex; gap: 15px; align-items: center;">
-      <!-- No lo tenia, siendo subpantalla de Ajustes: era la unica de las doce
-           sin forma de volver. -->
-      <BackLink href="/settings" label="Volver a Ajustes" />
+      <div class="grupo">
+        <a class="grupo-btn" href="/settings" aria-label="Volver a Ajustes" title="Volver a Ajustes">
+          <Icon name="back" size={18} />
+        </a>
+        <button
+          type="button"
+          class="grupo-btn"
+          on:click={recargar}
+          disabled={recargando}
+          aria-label="Recargar"
+          title="Recargar"
+        >
+          <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+        </button>
+      </div>
       <span>Catálogo de artículos</span>
       <select bind:value={viewState} on:change={loadItems} style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.9em;">
         <option value="1">🟢 Activos</option>

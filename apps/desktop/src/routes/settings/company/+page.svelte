@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { validateCompanySettingsInput } from '@esr/schemas';
-  import { BackLink } from '@esr/ui';
+  import { Icon } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
 
@@ -16,11 +16,21 @@
   };
 
   let saving = false;
+  let recargando = false;
 
   async function loadData() {
     if (window.api?.settings) {
       const data = await window.api.settings.getCompany();
       if (data) currentCompany = data;
+    }
+  }
+
+  async function recargar() {
+    recargando = true;
+    try {
+      await loadData();
+    } finally {
+      recargando = false;
     }
   }
 
@@ -74,9 +84,26 @@
   }
 </script>
 
+<div class="herramientas">
+  <div class="grupo">
+    <a class="grupo-btn" href="/settings" aria-label="Volver a Ajustes" title="Volver a Ajustes">
+      <Icon name="back" size={18} />
+    </a>
+    <button
+      type="button"
+      class="grupo-btn"
+      on:click={recargar}
+      disabled={recargando}
+      aria-label="Recargar"
+      title="Recargar"
+    >
+      <span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+    </button>
+  </div>
+</div>
+
 <div class="card" style="max-width: 800px;">
   <div class="card-title" style="display: flex; align-items: center; gap: 10px;">
-    <BackLink href="/settings" label="Volver a Ajustes" />
     <span>Datos de la Empresa</span>
   </div>
 
