@@ -87,6 +87,12 @@
       description: 'Gestión de accesos, contraseñas y roles administrativos.',
       icon: ICONS.members,
       path: '/settings/users'
+    },
+    {
+      title: 'Roles y Permisos',
+      description: 'Qué puede hacer cada rol, permiso a permiso. Es una referencia: no se edita.',
+      icon: ICONS.roles,
+      path: '/settings/roles'
     }
   ];
 </script>
