@@ -44,7 +44,7 @@ const groups = [
 				slug: 'primeros-pasos',
 				icon: '🚀',
 				title: 'Primeros pasos',
-				summary: 'Inicio de sesión, empresa activa y recorrido por la interfaz.'
+				summary: 'Inicio de sesión y recorrido por la interfaz.'
 			}
 		]
 	},
@@ -153,12 +153,6 @@ const groups = [
 				icon: '🔐',
 				title: 'Roles y Permisos',
 				summary: 'Qué puede hacer cada rol y cómo se gestionan los miembros.'
-			},
-			{
-				slug: 'multiempresa',
-				icon: '🏢',
-				title: 'Multiempresa',
-				summary: 'Cómo se aísla la información entre empresas y cómo se cambia de una a otra.'
 			},
 			{
 				slug: 'zona-de-peligro',

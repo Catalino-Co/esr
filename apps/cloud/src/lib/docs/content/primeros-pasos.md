@@ -2,27 +2,11 @@
 
 Al entrar a ESR Cloud verá una pantalla con dos campos: **Email** y
 **Contraseña**. Son los mismos con los que un administrador lo dio de
-alta como usuario de la empresa.
+alta como usuario de la empresa. Al entrar, va directo al Dashboard.
 
-Si el email o la contraseña no coinciden, o su usuario no tiene ninguna
-empresa asignada, el sistema se lo hace saber sin indicarle cuál de las
-dos cosas falló — por seguridad, no se distingue entre "email
-inexistente" y "contraseña incorrecta".
-
-## Elegir la empresa activa
-
-Después de iniciar sesión puede pasar una de dos cosas:
-
-- **Pertenece a una sola empresa.** Entra directo al Dashboard de esa
-  empresa.
-- **Pertenece a varias.** Ve una pantalla de **Seleccionar empresa**
-  con una tarjeta por cada una, con su nombre y el rol que tiene ahí
-  —el mismo usuario puede ser Administrador en una empresa y Operador
-  en otra—. La que elija se vuelve la **empresa activa** de esa sesión.
-
-Todo lo que vea y haga de ahí en adelante pertenece solo a la empresa
-activa: sus artículos, sus clientes, sus cotizaciones. Nada se mezcla
-entre empresas.
+Si el email o la contraseña no coinciden, el sistema se lo hace saber
+sin indicarle cuál de las dos cosas falló — por seguridad, no se
+distingue entre "email inexistente" y "contraseña incorrecta".
 
 ## El recorrido por la interfaz
 
@@ -57,10 +41,6 @@ Es lo primero que ve al entrar. Muestra, de un vistazo:
   enlace para ver la lista completa. Si un panel está vacío, ofrece un
   atajo para crear el primer registro de ese tipo.
 
-## Cambiar de empresa o cerrar sesión
+## Cerrar sesión
 
-No existe un botón para saltar de una empresa a otra sin salir: para
-trabajar con otra empresa hay que **cerrar sesión** —el botón al pie
-de la barra lateral— y volver a entrar. Si su usuario pertenece a más
-de una, verá de nuevo la pantalla de **Seleccionar empresa** al
-iniciar sesión.
+El botón está al pie de la barra lateral, debajo de su nombre y su rol.
