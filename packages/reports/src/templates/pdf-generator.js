@@ -808,13 +808,15 @@ export function generateCatalogPDF(groups, action = 'save', companyInfo = null) 
 
   renderCompanyHeader(doc, companyInfo);
 
-  doc.setFontSize(18);
+  // 14pt y no los 18pt de los demas titulos (COTIZACIÓN, ORDEN DE TRABAJO,
+  // EVENTO): "CATÁLOGO DE PRODUCTOS" es mas largo que esos, y a 18pt seguia
+  // sintiendose apretado contra el margen aun alineado a la derecha.
+  doc.setFontSize(14);
   doc.setTextColor(0);
-  // Alineado al margen derecho y no a `COL_ETIQUETA` como los demas titulos
-  // (COTIZACIÓN, ORDEN DE TRABAJO, EVENTO): esos caben sueltos desde esa
-  // columna, pero "CATÁLOGO DE PRODUCTOS" es mas largo y a 18pt se salia de
-  // la pagina. Alinear a la derecha lo deja siempre dentro del margen sin
-  // tocar el tamaño de letra ni el de los otros documentos.
+  // Alineado al margen derecho y no a `COL_ETIQUETA` como los demas titulos:
+  // esos caben sueltos desde esa columna, pero este es mas largo y se salia
+  // de la pagina. Alinear a la derecha lo deja siempre dentro del margen sin
+  // depender de cuanto quepa desde COL_ETIQUETA.
   doc.text('CATÁLOGO DE PRODUCTOS', anchoPagina(doc) - MARGEN_X, 20, { align: 'right' });
   doc.setFontSize(9);
   doc.setTextColor(100);
