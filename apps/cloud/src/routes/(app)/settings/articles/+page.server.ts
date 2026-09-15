@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	]);
 
 	const categoryMap = new Map(categories.map((c) => [String(c.id), c.name]));
+	const subcategoryMap = new Map(subcategories.map((s) => [String(s.id), s.name]));
 	const supplierMap = new Map(suppliers.map((s) => [String(s.id), s.name]));
 	const unitMap = new Map(units.map((u) => [String(u.id), u.abbr || u.name]));
 
@@ -47,6 +48,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		items: items.map((item) => ({
 			...item,
 			category_name: item.category_id ? categoryMap.get(String(item.category_id)) ?? '—' : '—',
+			subcategory_name: item.subcategory_id ? subcategoryMap.get(String(item.subcategory_id)) ?? '—' : '—',
 			supplier_name: item.supplier_id ? supplierMap.get(String(item.supplier_id)) ?? '—' : '—',
 			uom_abbr: item.uom_id ? unitMap.get(String(item.uom_id)) ?? '' : ''
 		})),

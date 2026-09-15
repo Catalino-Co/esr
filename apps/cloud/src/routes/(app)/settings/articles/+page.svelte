@@ -173,7 +173,7 @@
 					<th>Nombre</th>
 					<th>Categoría</th>
 					<th>Unidad</th>
-					<th>Proveedor</th>
+					<th>Subcategoría</th>
 					<th class="num">Precio alquiler</th>
 					<!-- «Publicación» y no «Estado»: aquí se decide si el artículo se
 					     puede cotizar, no si la mercancía está sana. Esa otra es la
@@ -189,7 +189,7 @@
 						<td>{item.name}</td>
 						<td>{item.category_name}</td>
 						<td>{item.uom_abbr || '—'}</td>
-						<td>{item.supplier_name}</td>
+						<td>{item.subcategory_name}</td>
 						<td class="num">{formatMoney(item.rental_price ?? 0)}</td>
 						<td>{ESTADOS[item.is_active ?? -1] ?? '—'}</td>
 						<td><a class="btn-edit" href="/settings/articles/{item.id}">Editar</a></td>
