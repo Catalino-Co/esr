@@ -87,6 +87,14 @@
 
   onMount(() => {
     loadData();
+
+    // `?nuevo=1`: la ficha del artículo enlaza aquí con el modal ya abierto,
+    // sin obligar a pasar primero por este listado. Se limpia enseguida de la
+    // URL -con `replaceState`- para que un refresco no lo vuelva a disparar.
+    if (new URLSearchParams(window.location.search).get('nuevo') === '1') {
+      openCreate();
+      goto('/settings/articles', { replaceState: true, noScroll: true });
+    }
   });
 
   async function recargar() {
