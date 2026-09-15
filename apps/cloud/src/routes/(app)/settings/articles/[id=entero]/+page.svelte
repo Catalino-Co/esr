@@ -70,6 +70,16 @@
 		>
 			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
 		</button>
+		{#if can('inventory.create')}
+			<a
+				class="grupo-btn"
+				href="/settings/articles?nuevo=1"
+				aria-label="Nuevo artículo"
+				title="Nuevo artículo"
+			>
+				<Icon name="plus" size={18} />
+			</a>
+		{/if}
 	</div>
 </div>
 

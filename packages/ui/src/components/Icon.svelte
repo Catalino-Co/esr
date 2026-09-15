@@ -87,7 +87,11 @@
       'M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6',
       'M10 11v6',
       'M14 11v6'
-    ]
+    ],
+    // Agregar. La cruz de Lucide, para un boton de icono solo que lleva a un
+    // alta -en la ficha del articulo, hacia el modal "Nuevo articulo" del
+    // listado-, sin repetir la etiqueta del boton que abre ese mismo modal.
+    plus: ['M12 5v14', 'M5 12h14']
   };
 
   export let name;

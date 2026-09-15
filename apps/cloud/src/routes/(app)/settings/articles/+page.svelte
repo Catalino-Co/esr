@@ -44,21 +44,38 @@
 	 * (Proveedores, Tipos de evento, etc.). Solo alta: la edición sigue viviendo
 	 * en su propia ruta `/settings/articles/[id]`, que además necesita seriales,
 	 * archivado y más — eso no se muda aquí.
+	 *
+	 * `?nuevo=1` y no una variable suelta: así se puede enlazar desde fuera
+	 * -el botón "+" de la ficha del artículo abre esta pantalla con el modal
+	 * ya abierto-, calcado de Cotizaciones. `open` queda `$derived`, así que el
+	 * `<Modal>` se monta bajo un `{#if}` en vez de con `bind:open`: no se puede
+	 * enlazar un `$derived`.
 	 */
-	let open = $state(false);
+	const open = $derived(page.url.searchParams.get('nuevo') === '1');
+
+	/** @param {string | null} valor */
+	function irNuevo(valor) {
+		const url = new URL(page.url);
+		if (valor === null) url.searchParams.delete('nuevo');
+		else url.searchParams.set('nuevo', valor);
+		goto(url, { noScroll: true, keepFocus: true });
+	}
+
 	let draft = $state({});
 	let errorGuardar = $state(null);
 
 	function abrirAlta() {
 		draft = {};
 		errorGuardar = null;
-		open = true;
+		irNuevo('1');
 	}
 
 	function cerrar() {
-		open = false;
 		draft = {};
 		errorGuardar = null;
+		// Solo si sigue abierto: `onclose` también se dispara al desmontarse por
+		// la redirección de `alGuardar`, y ahí no hay nada que cerrar.
+		if (open) irNuevo(null);
 	}
 
 	/**
@@ -69,7 +86,6 @@
 	const alGuardar = () => async ({ update, result }) => {
 		await update({ reset: false });
 		if (result.type === 'success') {
-			open = false;
 			goto(`/settings/articles/${result.data.id}`);
 		} else {
 			errorGuardar = result.data?.error ?? 'No se pudo guardar.';
@@ -184,7 +200,8 @@
 	{/if}
 </section>
 
-<Modal bind:open size="lg" title="Nuevo artículo" onclose={cerrar}>
+{#if open}
+<Modal open size="lg" title="Nuevo artículo" onclose={cerrar}>
 	{#if errorGuardar}
 		<div class="alert-error" role="alert">{errorGuardar}</div>
 	{/if}
@@ -292,6 +309,7 @@
 		<button type="submit" form="articulo-form" class="btn-primary">Crear artículo</button>
 	{/snippet}
 </Modal>
+{/if}
 
 <style>
 	.num {
