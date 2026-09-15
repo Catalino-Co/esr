@@ -28,6 +28,14 @@ export type InventoryItem = {
 	item_type?: InventoryItemType;
 	uses_serial?: number | boolean;
 	/**
+	 * Falso en un articulo de RENTA EXTERNA: la empresa no lo posee, lo renta
+	 * de un tercero por encargo. No le corresponde almacen ni existencia
+	 * propia, y su disponibilidad se trata como ilimitada al cotizar/ordenar.
+	 * `internal_cost` en ese caso es lo que cuesta rentarlo, no lo que costo
+	 * comprarlo -mismo campo, otro significado segun esta bandera-.
+	 */
+	tracks_inventory?: number | boolean;
+	/**
 	 * Derivados en cada consulta, NO columnas del articulo: el total es la suma
 	 * de `item_stock` (o el recuento de seriales), `available = total -
 	 * committed`, y `committed` es lo que retienen las ordenes vivas. Viajan con

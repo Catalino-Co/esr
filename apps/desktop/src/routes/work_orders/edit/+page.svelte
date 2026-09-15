@@ -260,7 +260,7 @@
     [clients, allItems, quotations] = await Promise.all([
       window.api.db.get('SELECT id, name, phone FROM clients WHERE is_active = 1 ORDER BY name ASC'),
       window.api.db.get(`
-        SELECT i.id, i.name, i.internal_code, i.item_type, i.uses_serial, i.available_quantity,
+        SELECT i.id, i.name, i.internal_code, i.item_type, i.uses_serial, i.available_quantity, i.tracks_inventory,
                c.name as cat_name, s.name as subcat_name
         FROM items i
         LEFT JOIN categories    c ON i.category_id    = c.id
@@ -604,10 +604,14 @@
                 {/if}
               </td>
               <td style="text-align:center;">
-                <span class:stock-ok={item.available_quantity > 0}
-                      class:stock-zero={item.available_quantity === 0}>
-                  {fmtN(item.available_quantity)}
-                </span>
+                {#if item.tracks_inventory}
+                  <span class:stock-ok={item.available_quantity > 0}
+                        class:stock-zero={item.available_quantity === 0}>
+                    {fmtN(item.available_quantity)}
+                  </span>
+                {:else}
+                  <span>Sin límite</span>
+                {/if}
               </td>
               <td>
                 <div class="add-ctrl">

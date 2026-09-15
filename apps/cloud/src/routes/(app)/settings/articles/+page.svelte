@@ -338,6 +338,23 @@
 		</div>
 
 		<div class="form-field full">
+			<label class="casilla">
+				<input
+					type="checkbox"
+					name="tracks_inventory"
+					value="1"
+					checked={values.tracks_inventory ?? true}
+				/>
+				Tiene existencias propias
+			</label>
+			<span class="form-hint">
+				Desmárquelo si es un artículo de renta externa: no se le asignará
+				almacén ni se le exigirá existencia al cotizarlo o incluirlo en una
+				orden.
+			</span>
+		</div>
+
+		<div class="form-field full">
 			<label for="a-notes">Notas</label>
 			<textarea id="a-notes" name="notes" rows="2">{values.notes ?? ''}</textarea>
 		</div>
@@ -362,6 +379,13 @@
 <style>
 	.num {
 		text-align: right;
+	}
+
+	.casilla {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		font-size: var(--font-sm);
 	}
 
 	/* Tres columnas fijas y no `auto-fit`: con ocho campos, el reparto

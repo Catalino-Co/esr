@@ -95,6 +95,7 @@
 			name: item.name,
 			internal_code: item.internal_code,
 			disponible: item.available_quantity,
+			tracksInventory: item.tracks_inventory ?? true,
 			quantity: cantidad,
 			// La tarifa del artículo es una PROPUESTA que la línea copia. Cambiarla
 			// aquí no toca el catálogo, y cambiar el catálogo mañana no recalcula
@@ -117,7 +118,9 @@
 	   firme la hace `createDirect` contra la ventana de alquiler; esta es la de
 	   cortesía, y por eso avisa sin bloquear el botón. */
 	const sinStock = $derived(
-		lineas.filter((linea) => Number(linea.quantity || 0) > Number(linea.disponible ?? 0))
+		lineas.filter(
+			(linea) => linea.tracksInventory !== false && Number(linea.quantity || 0) > Number(linea.disponible ?? 0)
+		)
 	);
 
 	const puedeCrear = $derived(Boolean(cabecera.client_id) && lineas.length > 0);
@@ -236,8 +239,8 @@
 									{item.internal_code || 'Sin código'}{item.categoria ? ` · ${item.categoria}` : ''}
 								</small>
 							</td>
-							<td class="num" class:agotado={item.available_quantity <= 0}>
-								{item.available_quantity}
+							<td class="num" class:agotado={item.tracks_inventory && item.available_quantity <= 0}>
+								{item.tracks_inventory ? item.available_quantity : 'Sin límite'}
 							</td>
 							<td class="col-agregar">
 								<div class="agregar">
@@ -318,7 +321,7 @@
 										min="1"
 										step="1"
 										bind:value={linea.quantity}
-										class:excedido={Number(linea.quantity || 0) > Number(linea.disponible ?? 0)}
+										class:excedido={linea.tracksInventory !== false && Number(linea.quantity || 0) > Number(linea.disponible ?? 0)}
 										aria-label="Cantidad de {linea.name}"
 									/>
 								</td>

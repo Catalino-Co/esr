@@ -52,6 +52,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		item_type: item.item_type,
 		rental_price: item.rental_price ?? 0,
 		available_quantity: item.available_quantity ?? 0,
+		tracks_inventory: item.tracks_inventory ?? true,
 		categoria: item.category_id ? nombreCategoria.get(String(item.category_id)) ?? '' : ''
 	}));
 

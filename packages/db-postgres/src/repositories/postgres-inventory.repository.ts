@@ -20,7 +20,7 @@ import { withTransaction } from '../transaction';
 const ITEM_FIELDS = [
 	'id', 'company_id', 'internal_code', 'name', 'category_id', 'subcategory_id',
 	'description', 'item_type', 'uses_serial', 'rental_price', 'internal_cost',
-	'supplier_id', 'uom_id', 'notes', 'is_active'
+	'supplier_id', 'uom_id', 'notes', 'is_active', 'tracks_inventory'
 ] as const;
 
 /** Para un `SELECT` sobre `items i`. */
@@ -126,26 +126,35 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 				? data.internal_code.trim()
 				: await this.nextInternalCode(client, companyId, data.category_id || null);
 
+			const tracksInventory = data.tracks_inventory ?? true;
+
 			const result = await client.query<InventoryItem>(
 				`INSERT INTO items
 					(company_id, internal_code, name, category_id, subcategory_id, description, item_type,
-					 uses_serial, rental_price, internal_cost, supplier_id, uom_id, notes, is_active)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+					 uses_serial, rental_price, internal_cost, supplier_id, uom_id, notes, is_active, tracks_inventory)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 				 RETURNING ${ITEM_RETURNING}`,
 				[
 					companyId, internalCode, data.name, data.category_id || null,
 					data.subcategory_id || null, data.description || null, data.item_type || 'cantidad',
 					data.uses_serial ? 1 : 0, data.rental_price ?? 0, data.internal_cost ?? 0,
-					data.supplier_id || null, data.uom_id || null, data.notes || null, data.is_active ?? 1
+					data.supplier_id || null, data.uom_id || null, data.notes || null, data.is_active ?? 1,
+					tracksInventory
 				]
 			);
 			const item = result.rows[0];
-			await client.query(
-				`INSERT INTO item_inventory (company_id, item_id, min_stock, physical_status)
-				 VALUES ($1, $2, 0, 'disponible')
-				 ON CONFLICT (company_id, item_id) DO NOTHING`,
-				[companyId, item.id]
-			);
+
+			// Un articulo de renta externa no tiene almacen que le corresponda:
+			// sin esta fila, `listStock` -que ya exige presencia real en algun
+			// almacen- lo deja fuera de Inventario sin necesitar mas cambios ahi.
+			if (tracksInventory) {
+				await client.query(
+					`INSERT INTO item_inventory (company_id, item_id, min_stock, physical_status)
+					 VALUES ($1, $2, 0, 'disponible')
+					 ON CONFLICT (company_id, item_id) DO NOTHING`,
+					[companyId, item.id]
+				);
+			}
 			return item;
 		});
 	}
@@ -204,14 +213,14 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			`UPDATE items SET internal_code = $3, name = $4, category_id = $5, subcategory_id = $6,
 				description = $7, item_type = $8, uses_serial = $9,
 				rental_price = $10, internal_cost = $11, notes = $12, is_active = $13,
-				supplier_id = $14, uom_id = $15
+				supplier_id = $14, uom_id = $15, tracks_inventory = $16
 			 WHERE company_id = $1 AND id = $2 RETURNING ${ITEM_RETURNING}`,
 			[
 				requireCompanyId(ctx), id, next.internal_code || null, next.name, next.category_id || null,
 				next.subcategory_id || null, next.description || null, next.item_type || 'cantidad',
 				next.uses_serial ? 1 : 0,
 				next.rental_price ?? 0, next.internal_cost ?? 0, next.notes || null, next.is_active ?? 1,
-				next.supplier_id || null, next.uom_id || null
+				next.supplier_id || null, next.uom_id || null, next.tracks_inventory ?? true
 			]
 		);
 		return result.rows[0];
@@ -252,7 +261,7 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		}
 
 		const result = await this.pool.query<InventoryAvailability>(
-			`SELECT i.id AS item_id, ${availabilityColumnsSql(statusParam, startParam, endParam)}
+			`SELECT i.id AS item_id, i.tracks_inventory, ${availabilityColumnsSql(statusParam, startParam, endParam)}
 			 FROM items i WHERE ${where.join(' AND ')}
 			 ORDER BY i.name`,
 			params
@@ -280,6 +289,11 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		});
 		const fila = filas[0];
 		if (!fila) return { ok: false, available: 0 };
+		// Renta externa: no hay almacen que pueda quedarse corto, asi que se
+		// trata como disponibilidad ilimitada. Unico punto de la app donde hace
+		// falta este atajo: aprobar cotizacion, convertir a orden y crear orden
+		// directa llaman los tres a este metodo.
+		if (fila.tracks_inventory === false) return { ok: true, available: Infinity };
 		const available = Number(fila.available_quantity || 0);
 		return { ok: available >= quantity, available };
 	}

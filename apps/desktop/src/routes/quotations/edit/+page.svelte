@@ -116,7 +116,7 @@
         'SELECT id, name, phone, document_id FROM clients WHERE is_active = 1 ORDER BY name ASC'
       ),
       window.api.db.get(
-        `SELECT i.id, i.name, i.internal_code, i.rental_price, i.available_quantity,
+        `SELECT i.id, i.name, i.internal_code, i.rental_price, i.available_quantity, i.tracks_inventory,
                 c.name AS cat_name
            FROM items i
            LEFT JOIN categories c ON i.category_id = c.id
@@ -854,7 +854,7 @@
         <span>{articulo.name}</span>
         <span class="catalog-item-meta">
           <span>{articulo.internal_code || '—'}</span>
-          <span>Disp. {articulo.available_quantity ?? 0}</span>
+          <span>{articulo.tracks_inventory ? `Disp. ${articulo.available_quantity ?? 0}` : 'Sin límite'}</span>
           <span>{formatMoney(articulo.rental_price)}</span>
         </span>
       </button>

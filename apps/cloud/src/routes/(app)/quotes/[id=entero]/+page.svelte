@@ -854,7 +854,7 @@
 						<span class="codigo">{articulo.code || 'sin código'}</span>
 					</span>
 					<span class="catalog-item-meta">
-						<span>Disp. {articulo.available}</span>
+						<span>{articulo.tracksInventory ? `Disp. ${articulo.available}` : 'Sin límite'}</span>
 						<span>{formatMoney(articulo.price)}</span>
 					</span>
 				</button>

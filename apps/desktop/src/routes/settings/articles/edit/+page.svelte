@@ -246,16 +246,17 @@
       const columnas = usesSerial
         ? `internal_code=?, name=?, category_id=?, subcategory_id=?,
            item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
-           uom_id=?, is_active=?, total_quantity=?, available_quantity=?`
+           uom_id=?, is_active=?, tracks_inventory=?, total_quantity=?, available_quantity=?`
         : `internal_code=?, name=?, category_id=?, subcategory_id=?,
            item_type=?, uses_serial=?, rental_price=?, internal_cost=?, notes=?,
-           uom_id=?, is_active=?`;
+           uom_id=?, is_active=?, tracks_inventory=?`;
       const valores = [
         currentItem.internal_code, currentItem.name, currentItem.category_id,
         currentItem.subcategory_id || null,
         currentItem.item_type, currentItem.uses_serial,
         currentItem.rental_price, currentItem.internal_cost, currentItem.notes,
-        currentItem.uom_id || null, currentItem.is_active
+        currentItem.uom_id || null, currentItem.is_active,
+        currentItem.tracks_inventory ? 1 : 0
       ];
       if (usesSerial) valores.push(catalogSerialNumbers.length, catalogSerialNumbers.length);
       valores.push(itemId);
@@ -605,6 +606,18 @@
             </div>
           </div>
 
+          <div>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+              <input type="checkbox" bind:checked={currentItem.tracks_inventory} disabled={!puedeEditarCampos} />
+              Tiene existencias propias
+            </label>
+            <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+              Desmárquelo si es un artículo de renta externa: no se le
+              asignará almacén ni se le exigirá existencia al cotizarlo o
+              incluirlo en una orden.
+            </span>
+          </div>
+
           <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
               <label for="itm-uom">Unidad de Medida</label>
@@ -663,6 +676,7 @@
 
     <!-- ── Almacenes + Proveedores ──────────────────────────────────────── -->
     <div class="record-col">
+      {#if currentItem.tracks_inventory}
       <div class="card">
         <div class="book-header">
           <div class="section-title">Almacenes</div>
@@ -761,6 +775,15 @@
         </table>
         {/if}
       </div>
+      {:else}
+      <div class="card">
+        <div class="section-title">Almacenes</div>
+        <p class="empty-state">
+          Artículo de renta externa: no se administra en almacenes ni
+          registra existencias propias.
+        </p>
+      </div>
+      {/if}
 
       <div class="card">
         <div class="book-header">

@@ -130,6 +130,23 @@
 					</span>
 				</div>
 				<div class="form-field">
+					<label class="casilla">
+						<input
+							type="checkbox"
+							name="tracks_inventory"
+							value="1"
+							checked={item.tracks_inventory ?? true}
+							disabled={!puedeEditarCampos}
+						/>
+						Tiene existencias propias
+					</label>
+					<span class="form-hint">
+						Desmárquelo si es un artículo de renta externa: no se le asignará
+						almacén ni se le exigirá existencia al cotizarlo o incluirlo en
+						una orden.
+					</span>
+				</div>
+				<div class="form-field">
 					<label for="uom_id">Unidad de medida</label>
 					<select id="uom_id" name="uom_id" disabled={!puedeEditarCampos}>
 						<option value="">(Ninguna)</option>
@@ -192,15 +209,25 @@
 	</div>
 
 	<div class="record-col">
-		<ItemWarehouseBook
-			distribution={data.distribution}
-			warehouses={data.warehouses}
-			availableWarehouses={data.availableWarehouses}
-			isSerialized={data.isSerialized}
-			searchTerm={item.internal_code || item.name}
-			readOnly={!puedeEditarCampos}
-			{form}
-		/>
+		{#if item.tracks_inventory ?? true}
+			<ItemWarehouseBook
+				distribution={data.distribution}
+				warehouses={data.warehouses}
+				availableWarehouses={data.availableWarehouses}
+				isSerialized={data.isSerialized}
+				searchTerm={item.internal_code || item.name}
+				readOnly={!puedeEditarCampos}
+				{form}
+			/>
+		{:else}
+			<section class="panel">
+				<h2>Almacenes</h2>
+				<p class="empty-state">
+					Artículo de renta externa: no se administra en almacenes ni
+					registra existencias propias.
+				</p>
+			</section>
+		{/if}
 
 		<ItemSupplierBook
 			itemSuppliers={data.itemSuppliers}
@@ -343,6 +370,13 @@
 {/if}
 
 <style>
+	.casilla {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		font-size: var(--font-sm);
+	}
+
 	/* El nombre del artículo vive DENTRO del panel que describe —igual que
 	   «Almacenes»/«Proveedores» titulan el suyo—, no suelto arriba de la
 	   página. El borde de abajo es el único divisor entre el título y el

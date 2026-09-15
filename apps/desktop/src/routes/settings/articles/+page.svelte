@@ -46,6 +46,7 @@
     name: '',
     category_id: '',
     item_type: 'cantidad',
+    tracks_inventory: true,
     rental_price: 0,
     internal_cost: 0,
     notes: ''
@@ -110,7 +111,7 @@
   function openCreate() {
     nuevo = {
       internal_code: '', name: '', category_id: '',
-      item_type: 'cantidad', rental_price: 0, internal_cost: 0, notes: ''
+      item_type: 'cantidad', tracks_inventory: true, rental_price: 0, internal_cost: 0, notes: ''
     };
     showModal = true;
   }
@@ -155,21 +156,27 @@
     // ficha, que es donde vive esa gestion. El campo de cantidad inicial que
     // habia escribia cien sillas sin dejar rastro de quien ni cuando, y ese
     // rastro es lo que hace auditable un almacen.
+    const tracksInventory = nuevo.tracks_inventory ? 1 : 0;
+
     const res = await window.api.db.run(`
-      INSERT INTO items (internal_code, name, category_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes)
-      VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`,
+      INSERT INTO items (internal_code, name, category_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes, tracks_inventory)
+      VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)`,
       [internalCode, nuevo.name, nuevo.category_id, nuevo.item_type,
-       nuevo.rental_price, nuevo.internal_cost, nuevo.notes]
+       nuevo.rental_price, nuevo.internal_cost, nuevo.notes, tracksInventory]
     );
     const itemId = res.id;
 
     // Su fila de existencias, para que aparezca en Inventario desde el primer
-    // dia: un articulo en cero tiene que verse igual que uno lleno.
-    await window.api.db.run(
-      `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
-       VALUES (?, 0, 'disponible')`,
-      [itemId]
-    );
+    // dia: un articulo en cero tiene que verse igual que uno lleno. Un
+    // articulo de renta externa no tiene almacen que le corresponda, asi
+    // que no nace con esta fila.
+    if (tracksInventory) {
+      await window.api.db.run(
+        `INSERT OR IGNORE INTO item_inventory (item_id, min_stock, physical_status)
+         VALUES (?, 0, 'disponible')`,
+        [itemId]
+      );
+    }
 
     showModal = false;
     goto(`/settings/articles/edit?id=${itemId}`);
@@ -313,6 +320,18 @@
           Subcategoría, proveedor, unidad y seriales se agregan editando, ya con el artículo creado.
         </span>
       </div>
+    </div>
+
+    <div>
+      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+        <input type="checkbox" bind:checked={nuevo.tracks_inventory} />
+        Tiene existencias propias
+      </label>
+      <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+        Desmárquelo si es un artículo de renta externa: no se le asignará
+        almacén ni se le exigirá existencia al cotizarlo o incluirlo en una
+        orden.
+      </span>
     </div>
 
     <!--

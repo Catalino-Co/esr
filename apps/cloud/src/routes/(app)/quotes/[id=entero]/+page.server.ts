@@ -93,7 +93,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: articulo.name,
 			code: articulo.internal_code ?? null,
 			price: Number(articulo.rental_price ?? 0),
-			available: Number(articulo.available_quantity ?? 0)
+			available: Number(articulo.available_quantity ?? 0),
+			tracksInventory: articulo.tracks_inventory ?? true
 		})),
 		// Si el catalogo llega al tope, el dialogo lo dice: sin esto, un
 		// articulo que no aparece parece un fallo de busqueda.

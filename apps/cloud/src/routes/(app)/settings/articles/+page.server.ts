@@ -154,7 +154,9 @@ export const actions: Actions = {
 			rental_price: Number(form.get('rental_price') ?? 0),
 			internal_cost: Number(form.get('internal_cost') ?? 0),
 			supplier_id: String(form.get('supplier_id') ?? '').trim(),
-			uom_id: String(form.get('uom_id') ?? '').trim()
+			uom_id: String(form.get('uom_id') ?? '').trim(),
+			// Un checkbox sin marcar no llega en el formulario: su ausencia ES el "no".
+			tracks_inventory: form.get('tracks_inventory') === '1'
 		};
 
 		const errors = validateCloudInventoryInput(values);
@@ -175,7 +177,8 @@ export const actions: Actions = {
 			internal_cost: values.internal_cost,
 			supplier_id: values.supplier_id || null,
 			uom_id: values.uom_id || null,
-			is_active: 1
+			is_active: 1,
+			tracks_inventory: values.tracks_inventory
 		});
 
 		// `items.supplier_id` es la instantánea que lee el listado; la ficha del

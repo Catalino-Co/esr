@@ -21,6 +21,7 @@ const packagesCode = require('./versioned/0019_packages_code.cjs');
 const serialWarehouseBackfill = require('./versioned/0020_serial_warehouse_backfill.cjs');
 const itemSuppliers = require('./versioned/0021_item_suppliers.cjs');
 const itemsInternalCodeUnique = require('./versioned/0022_items_internal_code_unique.cjs');
+const itemsTracksInventory = require('./versioned/0023_items_tracks_inventory.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -44,7 +45,8 @@ const MIGRATIONS = [
   packagesCode,
   serialWarehouseBackfill,
   itemSuppliers,
-  itemsInternalCodeUnique
+  itemsInternalCodeUnique,
+  itemsTracksInventory
 ];
 
 /**

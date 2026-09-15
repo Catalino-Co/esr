@@ -515,7 +515,9 @@ export const actions: Actions = {
 			// reescribe ni una cotización emitida ni lo que costó una compra.
 			rental_price: Number(form.get('rental_price') ?? 0),
 			internal_cost: Number(form.get('internal_cost') ?? 0),
-			uom_id: String(form.get('uom_id') ?? '').trim()
+			uom_id: String(form.get('uom_id') ?? '').trim(),
+			// Un checkbox sin marcar no llega en el formulario: su ausencia ES el "no".
+			tracks_inventory: form.get('tracks_inventory') === '1'
 		};
 
 		const validationErrors = validateCloudInventoryInput(values);

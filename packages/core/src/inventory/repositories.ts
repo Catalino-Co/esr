@@ -34,6 +34,8 @@ export type InventoryAvailability = {
 	total_quantity: number;
 	available_quantity: number;
 	committed_quantity: number;
+	/** Falso en un articulo de renta externa: ver `InventoryItem.tracks_inventory`. */
+	tracks_inventory?: boolean;
 };
 
 export type TenantCreateInventoryItemInput = Omit<InventoryItem, 'id' | 'company_id'>;

@@ -133,11 +133,12 @@ class SqliteInventoryRepository {
            SUM(ci.quantity) as quantity,
            i.name,
            i.internal_code,
-           i.available_quantity
+           i.available_quantity,
+           i.tracks_inventory
          FROM conduce_items ci
          JOIN items i ON ci.item_id = i.id
          WHERE ci.conduce_id = ?
-         GROUP BY ci.item_id, i.name, i.internal_code, i.available_quantity`,
+         GROUP BY ci.item_id, i.name, i.internal_code, i.available_quantity, i.tracks_inventory`,
         [conduceId]
       );
 
@@ -148,13 +149,18 @@ class SqliteInventoryRepository {
         return { reserved: false, reason: 'empty_conduce' };
       }
 
-      const insufficient = findInsufficientStock(rows, rows);
+      // Renta externa: mismo criterio que `reserveWorkOrderStock` — no entra
+      // a la comprobacion de suficiencia ni se le descuenta existencia.
+      const conInventario = rows.filter((row) => row.tracks_inventory);
+      const rentaExterna = rows.filter((row) => !row.tracks_inventory);
+
+      const insufficient = findInsufficientStock(conInventario, conInventario);
       if (insufficient.length > 0) {
         const detail = formatInsufficientStockDetail(insufficient);
         throw new Error(`Stock insuficiente para emitir el conduce: ${detail}`);
       }
 
-      for (const row of rows) {
+      for (const row of conInventario) {
         await runQuery(
           `UPDATE items
            SET available_quantity = available_quantity - ?
@@ -162,6 +168,15 @@ class SqliteInventoryRepository {
           [row.quantity, row.item_id]
         );
 
+        await runQuery(
+          `INSERT INTO work_order_stock_reservations
+            (work_order_id, item_id, conduce_id, quantity, status)
+           VALUES (?, ?, ?, ?, 'reserved')`,
+          [workOrderId, row.item_id, conduceId, row.quantity]
+        );
+      }
+
+      for (const row of rentaExterna) {
         await runQuery(
           `INSERT INTO work_order_stock_reservations
             (work_order_id, item_id, conduce_id, quantity, status)
@@ -216,11 +231,12 @@ class SqliteInventoryRepository {
            SUM(wi.quantity) as quantity,
            i.name,
            i.internal_code,
-           i.available_quantity
+           i.available_quantity,
+           i.tracks_inventory
          FROM work_order_items wi
          JOIN items i ON wi.item_id = i.id
          WHERE wi.work_order_id = ?
-         GROUP BY wi.item_id, i.name, i.internal_code, i.available_quantity`,
+         GROUP BY wi.item_id, i.name, i.internal_code, i.available_quantity, i.tracks_inventory`,
         [workOrderId]
       );
 
@@ -230,13 +246,20 @@ class SqliteInventoryRepository {
         return { reserved: false, reason: 'empty_order' };
       }
 
-      const insufficient = findInsufficientStock(rows, rows);
+      // Renta externa: no hay almacen que pueda quedarse corto, asi que ni
+      // entra a la comprobacion de suficiencia ni se le descuenta nada -a un
+      // articulo asi nadie le repone existencia, y descontarle igual lo
+      // hubiera dejado negativo para siempre-.
+      const conInventario = rows.filter((row) => row.tracks_inventory);
+      const rentaExterna = rows.filter((row) => !row.tracks_inventory);
+
+      const insufficient = findInsufficientStock(conInventario, conInventario);
       if (insufficient.length > 0) {
         const detail = formatInsufficientStockDetail(insufficient);
         throw new Error(`Stock insuficiente para reservar: ${detail}`);
       }
 
-      for (const row of rows) {
+      for (const row of conInventario) {
         await runQuery(
           `UPDATE items
            SET available_quantity = available_quantity - ?
@@ -244,6 +267,17 @@ class SqliteInventoryRepository {
           [row.quantity, row.item_id]
         );
 
+        await runQuery(
+          `INSERT INTO work_order_stock_reservations
+            (work_order_id, item_id, conduce_id, quantity, status)
+           VALUES (?, ?, NULL, ?, 'reserved')`,
+          [workOrderId, row.item_id, row.quantity]
+        );
+      }
+
+      // Igual se deja constancia de la reserva de renta externa, solo que sin
+      // tocar `available_quantity`: el historial no debe perder el movimiento.
+      for (const row of rentaExterna) {
         await runQuery(
           `INSERT INTO work_order_stock_reservations
             (work_order_id, item_id, conduce_id, quantity, status)
