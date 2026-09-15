@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { formatNumber } from '@esr/core';
-  import { EmptyState, Icon, Modal } from '@esr/ui';
+  import { EmptyState, FormattedNumberField, Icon, Modal } from '@esr/ui';
   import FilterBar from '$lib/components/list/FilterBar.svelte';
   import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
@@ -570,7 +570,7 @@
                 {formatNumber(item.warehouse_quantity ?? 0)}
                 {#if item.uom_abbr}<span class="uom">{item.uom_abbr}</span>{/if}
               </td>
-              <td class="num">{item.min_stock ?? 0}</td>
+              <td class="num">{formatNumber(item.min_stock ?? 0)}</td>
               <td class:atencion={item.physical_status !== 'disponible'}>
                 {CONDICIONES[item.physical_status] || '—'}
               </td>
@@ -665,7 +665,7 @@
     </div>
     <div class="form-field">
       <label for="mov-cant">Cantidad</label>
-      <input id="mov-cant" type="number" min="0" step="1" bind:value={movimiento.cantidad} />
+      <FormattedNumberField id="mov-cant" decimals={0} min={0} bind:value={movimiento.cantidad} />
     </div>
     <!--
       Solo en la ENTRADA: una salida no compra nada y un ajuste corrige un
@@ -678,11 +678,9 @@
     {#if movimiento.tipo === 'entrada'}
       <div class="form-field">
         <label for="mov-costo">Costo unitario</label>
-        <input
+        <FormattedNumberField
           id="mov-costo"
-          type="number"
-          min="0"
-          step="any"
+          min={0}
           placeholder="Sin costo"
           bind:value={movimiento.costo}
         />
@@ -787,7 +785,7 @@
   <div class="form-grid">
     <div class="form-field">
       <label for="inv-min">Mínimo</label>
-      <input id="inv-min" type="number" min="0" step="1" bind:value={existencias.minimo} />
+      <FormattedNumberField id="inv-min" decimals={0} min={0} bind:value={existencias.minimo} />
       <span class="ayuda-campo">
         Por debajo de este total el artículo sale en «Solo stock bajo». Se compara con el
         total de este almacén, no con lo disponible hoy.

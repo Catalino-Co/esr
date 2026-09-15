@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { formatNumber } from '@esr/core';
+	import { FormattedNumberField } from '@esr/ui';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
 	/**
@@ -151,13 +152,12 @@
 									</div>
 									<div class="form-field">
 										<label for="qty-warehouse-{fila.warehouse_id}">Cantidad</label>
-										<input
+										<FormattedNumberField
 											id="qty-warehouse-{fila.warehouse_id}"
 											name="quantity"
-											type="number"
-											min="1"
+											decimals={0}
+											min={1}
 											max={fila.quantity}
-											step="1"
 											value={fila.quantity}
 											required
 										/>

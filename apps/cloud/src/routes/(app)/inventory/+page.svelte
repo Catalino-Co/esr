@@ -3,7 +3,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatNumber } from '@esr/core';
-	import { EmptyState, Icon } from '@esr/ui';
+	import { EmptyState, FormattedNumberField, Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -438,12 +438,11 @@
 		</div>
 		<div class="form-field">
 			<label for="mov_cant">Cantidad</label>
-			<input
+			<FormattedNumberField
 				id="mov_cant"
 				name="quantity"
-				type="number"
-				min="0"
-				step="1"
+				decimals={0}
+				min={0}
 				required
 				bind:value={movimiento.cantidad}
 			/>
@@ -459,12 +458,10 @@
 		{#if movimiento.tipo === 'entrada'}
 			<div class="form-field">
 				<label for="mov_costo">Costo unitario</label>
-				<input
+				<FormattedNumberField
 					id="mov_costo"
 					name="unit_cost"
-					type="number"
-					min="0"
-					step="any"
+					min={0}
 					placeholder="Sin costo"
 					bind:value={movimiento.costo}
 				/>
@@ -590,7 +587,7 @@
 
 		<div class="form-field">
 			<label for="inv_min">Mínimo</label>
-			<input id="inv_min" name="min_stock" type="number" min="0" step="1" required bind:value={existencias.minimo} />
+			<FormattedNumberField id="inv_min" name="min_stock" decimals={0} min={0} required bind:value={existencias.minimo} />
 			<span class="form-hint">
 				Por debajo de este total el artículo sale en «Solo stock bajo». Se compara con el
 				total de este almacén, no con lo disponible hoy.

@@ -12,7 +12,7 @@
   } from '@esr/core';
   import { validateQuoteInput } from '@esr/schemas';
   import { generateQuotationPDF, quoteItemLabel } from '@esr/reports';
-  import { Icon, Modal, PdfPreviewModal } from '@esr/ui';
+  import { FormattedNumberField, Icon, Modal, PdfPreviewModal } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
 
@@ -788,7 +788,7 @@
     </div>
     <div class="form-field">
       <label for="edit-precio">Precio unitario</label>
-      <input id="edit-precio" type="number" min="0" step="0.01" bind:value={edicion.price} />
+      <FormattedNumberField id="edit-precio" min={0} bind:value={edicion.price} />
     </div>
     <div class="form-field">
       <label for="edit-descuento">Descuento %</label>
@@ -870,7 +870,7 @@
     </div>
     <div class="form-field">
       <label for="alta-precio">Precio unitario</label>
-      <input id="alta-precio" type="number" min="0" step="0.01" bind:value={alta.price} />
+      <FormattedNumberField id="alta-precio" min={0} bind:value={alta.price} />
     </div>
     <div class="form-field">
       <label for="alta-descuento">Descuento %</label>

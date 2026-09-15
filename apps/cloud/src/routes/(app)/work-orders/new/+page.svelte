@@ -1,5 +1,5 @@
 <script>
-	import { Icon } from '@esr/ui';
+	import { Icon, FormattedNumberField } from '@esr/ui';
 	import { formatMoney, mergeRentalOrderItem } from '@esr/core';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
@@ -323,12 +323,10 @@
 									/>
 								</td>
 								<td class="num">
-									<input
+									<FormattedNumberField
 										name="line_price"
 										form="orden-nueva"
-										type="number"
-										min="0"
-										step="0.01"
+										min={0}
 										bind:value={linea.price}
 										aria-label="Precio de {linea.name}"
 									/>

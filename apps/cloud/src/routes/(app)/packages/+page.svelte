@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Icon } from '@esr/ui';
+	import { FormattedNumberField, Icon } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
@@ -11,7 +11,7 @@
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
-	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import { formatMoney, recordStateBadgeClass, recordStateLabel } from '@esr/core';
 
 	let { data, form } = $props();
 
@@ -132,9 +132,6 @@
 			errorCrear = result.data?.error ?? 'No se pudo crear el paquete.';
 		}
 	};
-
-	const money = (v) =>
-		Number(v ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 </script>
 
 <div class="herramientas">
@@ -265,7 +262,7 @@
 							<td>{pkg.name}</td>
 							<td>{pkg.description || '—'}</td>
 							<td class="num">{pkg.item_count}</td>
-							<td class="num">{money(pkg.suggested_price)}</td>
+							<td class="num">{formatMoney(pkg.suggested_price)}</td>
 							<td>
 								<span class="badge {recordStateBadgeClass(pkg.is_active)}">
 									{recordStateLabel(pkg.is_active)}
@@ -302,13 +299,11 @@
 		</div>
 		<div class="form-field">
 			<label for="suggested_price">Precio sugerido</label>
-			<input
+			<FormattedNumberField
 				id="suggested_price"
 				name="suggested_price"
-				type="number"
-				min="0"
-				step="0.01"
-				value={draft.suggested_price ?? '0'}
+				min={0}
+				value={draft.suggested_price ?? 0}
 			/>
 		</div>
 		<div class="form-field full">

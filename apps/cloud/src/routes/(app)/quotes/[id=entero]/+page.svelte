@@ -10,7 +10,7 @@
 		statusBadgeClass,
 		statusLabel
 	} from '@esr/core';
-	import { Icon, PdfPreviewModal } from '@esr/ui';
+	import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
@@ -774,12 +774,10 @@
 		</div>
 		<div class="form-field">
 			<label for="edit_price">Precio unitario</label>
-			<input
+			<FormattedNumberField
 				id="edit_price"
 				name="price"
-				type="number"
-				min="0"
-				step="0.01"
+				min={0}
 				required
 				bind:value={edicion.price}
 			/>
@@ -892,12 +890,10 @@
 		</div>
 		<div class="form-field">
 			<label for="alta_price">Precio unitario</label>
-			<input
+			<FormattedNumberField
 				id="alta_price"
 				name="price"
-				type="number"
-				min="0"
-				step="0.01"
+				min={0}
 				required
 				bind:value={alta.price}
 			/>

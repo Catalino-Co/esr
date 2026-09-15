@@ -1,6 +1,8 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { FormattedNumberField } from '@esr/ui';
+	import { formatMoney } from '@esr/core';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
 
@@ -50,7 +52,7 @@
 		</label>
 		<label>
 			Costo estimado
-			<input type="number" name="estimated_cost" min="0" step="0.01" value="0" />
+			<FormattedNumberField name="estimated_cost" min={0} value={0} />
 		</label>
 		<label class="full-width">
 			Descripción
@@ -77,7 +79,7 @@
 						<td>{incident.severity || '—'}</td>
 						<td>{incident.status}</td>
 						<td>{incident.description}</td>
-						<td>{Number(incident.estimated_cost || 0).toFixed(2)}</td>
+						<td>{formatMoney(Number(incident.estimated_cost || 0))}</td>
 						<td>
 							<a class="btn-link" href="/incidents/{incident.id}/print" target="_blank" rel="noopener">Imprimir</a>
 							{#if incident.status !== 'resuelto' && incident.status !== 'anulado' && can('incidents.resolve')}

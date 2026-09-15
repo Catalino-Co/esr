@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { fmt } from '@esr/reports';
   import { RECORD_STATES, RECORD_STATE_FILTER_LABELS, recordStateBadgeClass, recordStateLabel } from '@esr/core';
-  import { Icon, Modal } from '@esr/ui';
+  import { FormattedNumberField, Icon, Modal } from '@esr/ui';
   import StatusSelect from '$lib/components/list/StatusSelect.svelte';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { dangerModal } from '$lib/stores/dangerModal.js';
@@ -336,7 +336,7 @@
     </div>
     <div class="form-field">
       <label for="pkg-price">Precio sugerido</label>
-      <input id="pkg-price" type="number" min="0" step="0.01" bind:value={nuevo.suggested_price} />
+      <FormattedNumberField id="pkg-price" min={0} bind:value={nuevo.suggested_price} />
     </div>
     <div class="form-field full">
       <label for="pkg-desc">Descripción</label>

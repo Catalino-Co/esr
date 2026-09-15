@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon } from '@esr/ui';
-	import { PERIODOS, PERIODO_LABELS, rangoDelPeriodo } from '@esr/core';
+	import { PERIODOS, PERIODO_LABELS, formatMoney, rangoDelPeriodo } from '@esr/core';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
@@ -143,7 +143,7 @@
 						<td>{incident.order_label}</td>
 						<td>{incident.item_name}</td>
 						<td>{incident.short_description || '—'}</td>
-						<td>{Number(incident.estimated_cost || 0).toFixed(2)}</td>
+						<td>{formatMoney(incident.estimated_cost || 0)}</td>
 						<td>{incident.date || incident.created_at?.slice(0, 10) || '—'}</td>
 					</tr>
 				{/each}

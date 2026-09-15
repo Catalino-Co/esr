@@ -1,5 +1,5 @@
 <script>
-	import { Icon } from '@esr/ui';
+	import { FormattedNumberField, Icon } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -142,11 +142,23 @@
 				</div>
 				<div class="form-field">
 					<label for="rental_price">Precio de alquiler</label>
-					<input id="rental_price" name="rental_price" type="number" min="0" step="any" value={item.rental_price ?? 0} disabled={!puedeEditarCampos} />
+					<FormattedNumberField
+						id="rental_price"
+						name="rental_price"
+						min={0}
+						value={item.rental_price ?? 0}
+						disabled={!puedeEditarCampos}
+					/>
 				</div>
 				<div class="form-field">
 					<label for="internal_cost">Precio de compra</label>
-					<input id="internal_cost" name="internal_cost" type="number" min="0" step="any" value={item.internal_cost ?? 0} disabled={!puedeEditarCampos} />
+					<FormattedNumberField
+						id="internal_cost"
+						name="internal_cost"
+						min={0}
+						value={item.internal_cost ?? 0}
+						disabled={!puedeEditarCampos}
+					/>
 					<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 				</div>
 				<!--

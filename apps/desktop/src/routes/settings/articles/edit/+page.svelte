@@ -11,7 +11,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Icon } from '@esr/ui';
+  import { FormattedNumberField, Icon } from '@esr/ui';
   import {
     formatNumber,
     isSerializedInventoryItem,
@@ -597,11 +597,11 @@
             </div>
             <div style="flex: 1;">
               <label for="itm-price">Precio de alquiler</label>
-              <input id="itm-price" type="number" step="any" min="0" bind:value={currentItem.rental_price} class="form-control" disabled={!puedeEditarCampos}>
+              <FormattedNumberField id="itm-price" min={0} bind:value={currentItem.rental_price} class="form-control" disabled={!puedeEditarCampos} />
             </div>
             <div style="flex: 1;">
               <label for="itm-cost">Precio de compra</label>
-              <input id="itm-cost" type="number" step="any" min="0" bind:value={currentItem.internal_cost} class="form-control" disabled={!puedeEditarCampos}>
+              <FormattedNumberField id="itm-cost" min={0} bind:value={currentItem.internal_cost} class="form-control" disabled={!puedeEditarCampos} />
             </div>
           </div>
 
@@ -747,7 +747,7 @@
                       </div>
                       <div class="field">
                         <label for="to-qty">Cantidad</label>
-                        <input id="to-qty" class="form-control" type="number" min="1" max={fila.quantity} step="1" bind:value={trasladarCantidad} />
+                        <FormattedNumberField id="to-qty" class="form-control" decimals={0} min={1} max={fila.quantity} bind:value={trasladarCantidad} />
                       </div>
                       <button type="button" class="btn btn-primary btn-sm" on:click={() => trasladarAlmacen(fila.warehouse_id)}>
                         Trasladar

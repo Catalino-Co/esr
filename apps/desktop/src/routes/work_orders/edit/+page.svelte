@@ -11,7 +11,7 @@
   import { validateRentalOrderInput } from '@esr/schemas';
   import { generateWorkOrderPDF } from '@esr/reports';
   import { PdfPreviewModal } from '@esr/ui';
-  import { fmtN } from '@esr/reports';
+  import { fmt, fmtN } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado principal ──────────────────────────────────────────────────────
@@ -457,7 +457,7 @@
                   <span class="code-pill">#{String(q.id).padStart(5,'0')}</span>
                   {q.client_name || '—'}
                 </span>
-                <span class="combo-option-sub">${q.total?.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '0.00'}</span>
+                <span class="combo-option-sub">${fmt(q.total)}</span>
               </button>
             {/each}
             {#if filteredQuotes.length > 10}

@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { shouldDeductStockForConduce } from '@esr/core';
   import { generateConducePDF } from '@esr/reports';
-  import { PdfPreviewModal } from '@esr/ui';
+  import { FormattedNumberField, PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
@@ -92,6 +92,24 @@
   }
 
   function calculateTotals() {
+    currentConduce.subtotal = conduceItems.reduce((s, i) => s + i.total, 0);
+    currentConduce.total    = currentConduce.subtotal - (Number(currentConduce.discount) || 0);
+  }
+
+  /**
+   * Recalculo reactivo, ademas del imperativo de arriba.
+   *
+   * `FormattedNumberField` (precio de linea y descuento) actualiza su `value`
+   * por `bind:value`, pero no reenvia su evento `input` al padre -ya lo
+   * consume por dentro para su propio formateo-, asi que un `on:input={...}`
+   * puesto sobre el componente no dispara nunca. Este bloque cubre ese caso:
+   * Svelte SI invalida `conduceItems`/`currentConduce` en cuanto el binding
+   * cambia el valor, aunque no llegue ningun evento DOM.
+   */
+  $: {
+    for (const ci of conduceItems) {
+      ci.total = (Number(ci.quantity) || 0) * (Number(ci.price) || 0);
+    }
     currentConduce.subtotal = conduceItems.reduce((s, i) => s + i.total, 0);
     currentConduce.total    = currentConduce.subtotal - (Number(currentConduce.discount) || 0);
   }
@@ -378,10 +396,8 @@
                          aria-label="Cantidad">
                 </td>
                 <td style="text-align:right;">
-                  <input type="number" step="0.01" min="0" class="qty-mini"
-                         style="width:90px;text-align:right;"
-                         bind:value={ci.price} on:input={() => updateLine(i)}
-                         aria-label="Precio">
+                  <FormattedNumberField class="qty-mini price-mini" min={0}
+                         bind:value={ci.price} aria-label="Precio" />
                 </td>
                 <td style="text-align:right;font-weight:600;white-space:nowrap;">
                   ${fmt(ci.total)}
@@ -413,10 +429,8 @@
           <span>Descuento</span>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="color:var(--text-muted);">$</span>
-            <input type="number" min="0" step="0.01" class="discount-input"
-                   bind:value={currentConduce.discount}
-                   on:input={calculateTotals}
-                   aria-label="Descuento">
+            <FormattedNumberField class="discount-input" min={0}
+                   bind:value={currentConduce.discount} aria-label="Descuento" />
           </div>
         </div>
         <div class="totals-row total-final">
@@ -541,6 +555,7 @@
     border-radius:4px; font-size:.85rem; outline:none;
   }
   .qty-mini:focus { border-color:var(--primary); }
+  .price-mini { width:90px; text-align:right; }
   .btn-remove {
     background:none; border:none; cursor:pointer;
     padding:2px; opacity:.45; transition:.15s;

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fmt, fmtN } from '@esr/reports';
+  import { FormattedNumberField } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado del paquete ────────────────────────────────────────────────────
@@ -186,8 +187,8 @@
     </div>
     <div class="field">
       <label for="pkg-price">Precio Sugerido ($)</label>
-      <input id="pkg-price" type="number" step="0.01" min="0" class="form-control"
-             bind:value={currentPackage.suggested_price}>
+      <FormattedNumberField id="pkg-price" class="form-control" min={0}
+             bind:value={currentPackage.suggested_price} />
       {#if suggestedTotal > 0}
         <span class="price-hint">
           Suma de ítems: <strong>${fmt(suggestedTotal)}</strong>

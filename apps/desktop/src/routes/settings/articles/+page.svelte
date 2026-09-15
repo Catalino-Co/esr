@@ -18,7 +18,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { validateInventoryItemInput } from '@esr/schemas';
-  import { Icon, Modal } from '@esr/ui';
+  import { FormattedNumberField, Icon, Modal } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
   import { fmt } from '@esr/reports';
@@ -292,11 +292,11 @@
     <div style="display: flex; gap: 15px;">
       <div style="flex: 1;">
         <label for="itm-price">Precio de alquiler</label>
-        <input id="itm-price" type="number" step="any" min="0" bind:value={nuevo.rental_price} class="form-control">
+        <FormattedNumberField id="itm-price" min={0} bind:value={nuevo.rental_price} class="form-control" />
       </div>
       <div style="flex: 1;">
         <label for="itm-cost">Precio de compra</label>
-        <input id="itm-cost" type="number" step="any" min="0" bind:value={nuevo.internal_cost} class="form-control">
+        <FormattedNumberField id="itm-cost" min={0} bind:value={nuevo.internal_cost} class="form-control" />
         <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
           Se propone como costo al registrar una entrada.
         </span>

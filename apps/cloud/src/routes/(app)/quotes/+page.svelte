@@ -7,6 +7,7 @@
 		PERIODOS,
 		PERIODO_LABELS,
 		formatDateAbsolute,
+		formatMoney,
 		quoteStatusFilterOptions,
 		rangoDelPeriodo,
 		statusBadgeClass,
@@ -502,7 +503,7 @@
 							<td>
 								<span class="badge {statusBadgeClass(quote.status)}">{statusLabel(quote.status)}</span>
 							</td>
-							<td>{Number(quote.total || 0).toFixed(2)}</td>
+							<td>{formatMoney(quote.total || 0)}</td>
 							<td><a class="btn-view" href="/quotes/{quote.id}">Ver</a></td>
 						</tr>
 					{/each}

@@ -10,6 +10,7 @@
 		todayISO
 	} from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
+	import { FormattedNumberField } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -287,12 +288,10 @@
 	<form id="cobro-form" method="POST" action="?/registerPayment" class="form-grid" use:enhance={alCobrar}>
 		<div class="form-field full">
 			<label for="amount">Importe *</label>
-			<input
+			<FormattedNumberField
 				id="amount"
 				name="amount"
-				type="number"
-				step="0.01"
-				min="0.01"
+				min={0.01}
 				required
 				value={borrador.amount ?? ''}
 			/>

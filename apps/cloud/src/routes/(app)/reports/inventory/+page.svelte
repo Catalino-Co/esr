@@ -1,7 +1,7 @@
 <script>
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { formatMoney } from '@esr/core';
+	import { formatMoney, formatNumber } from '@esr/core';
 	import { Icon } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
@@ -123,10 +123,10 @@
 						<td>{item.name}</td>
 						<td>{item.internal_code || '—'}</td>
 						<td>{item.category_name}</td>
-						<td>{item.total_quantity ?? 0}</td>
-						<td>{item.available_quantity ?? 0}</td>
-						<td>{item.committed_quantity}</td>
-						<td>{item.min_stock ?? 0}</td>
+						<td>{formatNumber(item.total_quantity ?? 0)}</td>
+						<td>{formatNumber(item.available_quantity ?? 0)}</td>
+						<td>{formatNumber(item.committed_quantity)}</td>
+						<td>{formatNumber(item.min_stock ?? 0)}</td>
 						<td>{CONDICIONES[item.physical_status ?? ''] ?? '—'}</td>
 						<!-- «—» y no cero cuando no hay costo: las entradas anteriores a
 						     esta reforma no lo guardaban, y un cero sería inventárselo. -->

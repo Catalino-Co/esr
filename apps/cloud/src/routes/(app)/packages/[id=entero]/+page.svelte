@@ -1,5 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { formatMoney } from '@esr/core';
+	import { FormattedNumberField } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -13,9 +15,6 @@
 
 	const pkg = $derived(data.pkg);
 	const editable = $derived(can('packages.update'));
-
-	const money = (v) =>
-		Number(v ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 	// El importe real del paquete sale de sus artículos al precio vigente; el
 	// precio sugerido es solo orientativo.
@@ -34,8 +33,8 @@
 
 	<div class="grid" style="margin-bottom: 16px">
 		<div class="metric"><strong>{data.items.length}</strong><span>Artículos</span></div>
-		<div class="metric"><strong>{money(realTotal)}</strong><span>Total a precio vigente</span></div>
-		<div class="metric"><strong>{money(pkg.suggested_price)}</strong><span>Precio sugerido</span></div>
+		<div class="metric"><strong>{formatMoney(realTotal)}</strong><span>Total a precio vigente</span></div>
+		<div class="metric"><strong>{formatMoney(pkg.suggested_price)}</strong><span>Precio sugerido</span></div>
 	</div>
 
 	<form method="POST" action="?/update" class="form-grid" use:enhance>
@@ -45,12 +44,10 @@
 		</div>
 		<div class="form-field">
 			<label for="suggested_price">Precio sugerido</label>
-			<input
+			<FormattedNumberField
 				id="suggested_price"
 				name="suggested_price"
-				type="number"
-				min="0"
-				step="0.01"
+				min={0}
 				value={pkg.suggested_price ?? 0}
 				disabled={!editable}
 			/>
@@ -136,8 +133,8 @@
 								{line.quantity}
 							{/if}
 						</td>
-						<td class="num">{money(line.rental_price)}</td>
-						<td class="num">{money(Number(line.rental_price || 0) * Number(line.quantity || 0))}</td>
+						<td class="num">{formatMoney(line.rental_price)}</td>
+						<td class="num">{formatMoney(Number(line.rental_price || 0) * Number(line.quantity || 0))}</td>
 						<td class="num" class:insuficiente>
 							{line.available_quantity ?? 0}
 						</td>

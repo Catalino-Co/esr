@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { Modal } from '@esr/ui';
+  import { FormattedNumberField, Modal } from '@esr/ui';
   import { fmt } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
@@ -267,7 +267,7 @@
       </div>
       <div style="flex: 1;">
         <label for="inc-cost">Costo Estimado ($)</label>
-        <input id="inc-cost" type="number" step="0.01" bind:value={currentIncident.estimated_cost} class="form-control">
+        <FormattedNumberField id="inc-cost" class="form-control" bind:value={currentIncident.estimated_cost} />
       </div>
       <div style="flex: 1;">
         <label for="inc-date">Fecha del Reporte</label>

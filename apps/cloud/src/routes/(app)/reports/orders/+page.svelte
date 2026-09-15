@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon } from '@esr/ui';
-	import { PERIODOS, PERIODO_LABELS, rangoDelPeriodo } from '@esr/core';
+	import { PERIODOS, PERIODO_LABELS, formatMoney, rangoDelPeriodo } from '@esr/core';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
@@ -129,7 +129,7 @@
 						<td>{order.event_name}</td>
 						<td>{order.status}</td>
 						<td>{order.date || '—'}</td>
-						<td>{Number(order.total || 0).toFixed(2)}</td>
+						<td>{formatMoney(order.total || 0)}</td>
 					</tr>
 				{/each}
 			</tbody>

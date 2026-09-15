@@ -1,5 +1,6 @@
 <script>
 	import { formatDate, formatMoney } from '@esr/core';
+	import { FormattedNumberField } from '@esr/ui';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
@@ -117,12 +118,10 @@
 				</div>
 				<div class="form-field">
 					<label for="discount">Descuento</label>
-					<input
+					<FormattedNumberField
 						id="discount"
 						name="discount"
-						type="number"
-						step="0.01"
-						min="0"
+						min={0}
 						bind:value={descuento}
 					/>
 				</div>

@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fmt } from '@esr/reports';
+  import { FormattedNumberField } from '@esr/ui';
   import { unwrap, unwrapOr } from '$lib/ipc';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
@@ -296,12 +297,12 @@
       </div>
       <div class="field">
         <label for="desc">Descuento</label>
-        <input id="desc" class="form-control" type="number" min="0" step="0.01" bind:value={descuento} />
+        <FormattedNumberField id="desc" class="form-control" min={0} bind:value={descuento} />
         <small style="color:var(--text-muted);">Heredado de las entregas; editable.</small>
       </div>
       <div class="field">
         <label for="imp">ITBIS</label>
-        <input id="imp" class="form-control" type="number" min="0" step="0.01" bind:value={impuesto} />
+        <FormattedNumberField id="imp" class="form-control" min={0} bind:value={impuesto} />
       </div>
       <div class="field field-lg">
         <label for="notas">Notas</label>

@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Icon } from '@esr/ui';
+	import { Icon, FormattedNumberField } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -267,23 +267,19 @@
 		     que cambiarlos aquí no reescribe ninguna ya emitida. -->
 		<div class="form-field">
 			<label for="a-rental_price">Precio de alquiler</label>
-			<input
+			<FormattedNumberField
 				id="a-rental_price"
 				name="rental_price"
-				type="number"
-				min="0"
-				step="any"
+				min={0}
 				value={values.rental_price ?? 0}
 			/>
 		</div>
 		<div class="form-field">
 			<label for="a-internal_cost">Precio de compra</label>
-			<input
+			<FormattedNumberField
 				id="a-internal_cost"
 				name="internal_cost"
-				type="number"
-				min="0"
-				step="any"
+				min={0}
 				value={values.internal_cost ?? 0}
 			/>
 			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
