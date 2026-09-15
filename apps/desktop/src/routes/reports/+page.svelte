@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { createOperationalDashboardReport, fmt, fmtN } from '@esr/reports';
+  import { ICONS } from '@esr/ui/icons';
 
   let summary = {
     totalQuotations: 0,
@@ -64,15 +65,16 @@
   });
 </script>
 
-<div class="card" style="margin-bottom: 20px;">
-  <div class="card-title">
-    <span>Catálogo de productos</span>
-  </div>
-  <p style="color: var(--text-muted); margin: 0 0 12px;">
-    Lista de precios por categoría y subcategoría, para exportar o entregar a un cliente.
-  </p>
-  <a href="/reports/catalog" class="btn btn-secondary">Abrir catálogo →</a>
-</div>
+<a class="report-card" href="/reports/catalog">
+  <span class="report-card-icon" aria-hidden="true">{ICONS.reports}</span>
+  <span class="report-card-text">
+    <strong>Catálogo de productos</strong>
+    <span class="report-card-desc">
+      Lista de precios por categoría y subcategoría, para exportar o entregar a un cliente.
+    </span>
+    <span class="report-link">Abrir catálogo →</span>
+  </span>
+</a>
 
 <div class="card">
   <div class="card-title">
@@ -156,6 +158,74 @@
 </div>
 
 <style>
+  /* Calcada de `.settings-card` (settings/+page.svelte) y de `.report-card`
+     de ESR Cloud (app/reports/+page.svelte): tarjeta suelta con icono,
+     borde y hover, en vez del `.card` blanco plano de arriba. */
+  .report-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    text-decoration: none;
+    color: inherit;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .report-card:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md);
+  }
+
+  .report-card:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+  }
+
+  .report-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    background: var(--accent-subtle);
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .report-card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .report-card-text strong {
+    font-size: var(--font-md);
+    color: var(--text-primary);
+  }
+
+  .report-card-desc {
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .report-link {
+    margin-top: 4px;
+    color: var(--text-brand);
+    font-size: var(--font-sm);
+    font-weight: 600;
+  }
+
   .stat-card {
     background: var(--bg-color);
     border: 1px solid var(--border-color);
