@@ -17,7 +17,7 @@ import autoTable from 'jspdf-autotable';
 // revienta en desarrollo aunque `vite build` lo resuelva. Por eso la prueba de
 // maquetacion del PDF corre con `tsx` y no con Node pelado.
 import { calculateQuoteLineAmounts } from '@esr/core';
-import { fmt, fmtMoney } from '../formatters/number.js';
+import { fmt, fmtMoney, fmtN } from '../formatters/number.js';
 
 /**
  * Una tasa, sin ceros de relleno: 18 y no «18.00», 6.818 y no «6.82».
@@ -873,4 +873,168 @@ function orderDocumentNumber(order) {
   const numero = String(order?.order_number ?? '').trim();
   if (numero) return numero;
   return `WO-${String(order?.id ?? '').padStart(5, '0')}`;
+}
+
+/**
+ * El reporte de Inventario tal como se ve en pantalla: mismas columnas,
+ * mismo texto de Condición -la etiqueta, no el valor crudo del enum-.
+ *
+ * Apaisado (landscape) y no vertical como los demas: son nueve columnas, y
+ * en vertical el `autoTable` las hubiera apretado hasta ilegibles.
+ *
+ * @param {Array<any>} items
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateInventoryPDF(items, action = 'save', companyInfo = null) {
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('INVENTARIO', COL_ETIQUETA, 20);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
+
+  const CONDICIONES = {
+    disponible: 'Disponible',
+    mantenimiento: 'Mantenimiento',
+    retirado: 'Retirado',
+    no_disponible: 'No disponible'
+  };
+
+  const body = (items || []).map((item) => [
+    item.name,
+    item.internal_code || '—',
+    item.category_name || '—',
+    fmtN(item.total_quantity ?? 0),
+    fmtN(item.available_quantity ?? 0),
+    fmtN(item.committed_quantity ?? 0),
+    fmtN(item.min_stock ?? 0),
+    CONDICIONES[item.physical_status ?? ''] ?? '—',
+    item.valuation_cost == null ? '—' : fmtMoney(Number(item.valuation_cost) * Number(item.total_quantity ?? 0))
+  ]);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Artículo', 'SKU', 'Categoría', 'Total', 'Disponible', 'Comprometido', 'Mínimo', 'Condición', 'Valor']],
+    body,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
+    columnStyles: {
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'right' },
+      6: { halign: 'right' },
+      8: { halign: 'right' }
+    }
+  });
+
+  paginar(doc);
+
+  return createPdfResult(doc, 'Inventario.pdf', action);
+}
+
+/**
+ * El reporte de Órdenes: mismas columnas y el mismo texto crudo de Estado
+ * que ya se ve en pantalla -esta lista no lo pasa por `statusLabel`, y el
+ * PDF no tiene por que inventar una etiqueta que la pantalla no muestra-.
+ *
+ * @param {Array<any>} orders
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateOrdersReportPDF(orders, action = 'save', companyInfo = null) {
+  const doc = new jsPDF();
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('ÓRDENES', COL_ETIQUETA, 20);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
+
+  const body = (orders || []).map((order) => [
+    order.order_number || `#${order.id}`,
+    order.client_name || '—',
+    order.event_name || '—',
+    order.status || '—',
+    order.date || '—',
+    fmtMoney(order.total || 0)
+  ]);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Número', 'Cliente', 'Evento', 'Estado', 'Fecha', 'Total']],
+    body,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
+    columnStyles: {
+      5: { halign: 'right' }
+    }
+  });
+
+  paginar(doc);
+
+  return createPdfResult(doc, 'Ordenes.pdf', action);
+}
+
+/**
+ * El reporte de Incidencias: mismas columnas y el mismo texto crudo de Tipo/
+ * Severidad/Estado que ya se ve en pantalla.
+ *
+ * Apaisado: la Descripción necesita ancho propio y en vertical se comía el
+ * de las demas columnas.
+ *
+ * @param {Array<any>} incidents
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateIncidentsReportPDF(incidents, action = 'save', companyInfo = null) {
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('INCIDENCIAS', COL_ETIQUETA, 20);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
+
+  const body = (incidents || []).map((incident) => [
+    incident.type || '—',
+    incident.severity || '—',
+    incident.status || '—',
+    incident.order_label || '—',
+    incident.item_name || '—',
+    incident.short_description || '—',
+    fmtMoney(incident.estimated_cost || 0),
+    incident.date || (incident.created_at ? String(incident.created_at).slice(0, 10) : '—')
+  ]);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Tipo', 'Severidad', 'Estado', 'Orden', 'Artículo', 'Descripción', 'Costo est.', 'Fecha']],
+    body,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
+    columnStyles: {
+      6: { halign: 'right' }
+    }
+  });
+
+  paginar(doc);
+
+  return createPdfResult(doc, 'Incidencias.pdf', action);
 }

@@ -102,10 +102,9 @@
 		<button type="button" class="btn-secondary no-print" onclick={descargarExcel} disabled={generandoExcel}>
 			{generandoExcel ? 'Generando…' : 'Exportar Excel'}
 		</button>
-		<button type="button" class="btn-secondary no-print" onclick={abrirPdf} disabled={generandoPdf}>
+		<button type="button" class="btn-primary no-print" onclick={abrirPdf} disabled={generandoPdf}>
 			{generandoPdf ? 'Generando…' : 'Vista previa PDF'}
 		</button>
-		<button type="button" class="btn-primary" onclick={() => window.print()}>Imprimir</button>
 	</div>
 </div>
 

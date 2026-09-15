@@ -1,3 +1,5 @@
+export { generateInventoryPDF } from '../templates/pdf-generator.js';
+
 export function createInventoryReportRows(items = []) {
 	return items.map((item) => ({
 		id: item.id,

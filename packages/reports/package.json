@@ -12,6 +12,8 @@
 		"./inventory": "./src/inventory/index.js",
 		"./rentals": "./src/rentals/index.js",
 		"./catalog": "./src/catalog/index.js",
+		"./orders": "./src/orders/index.js",
+		"./incidents": "./src/incidents/index.js",
 		"./formatters": "./src/formatters/index.js",
 		"./documents": "./src/documents/index.js"
 	},

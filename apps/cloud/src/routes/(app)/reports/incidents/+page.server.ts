@@ -1,7 +1,12 @@
 import type { PageServerLoad } from './$types';
 import { periodoDeRango } from '@esr/core';
 import { recordAuditLog } from '$lib/server/audit';
-import { getIncidentRepository, getInventoryRepository, getRentalRepository } from '$lib/server/repositories';
+import {
+	getCompanyDocumentInfo,
+	getIncidentRepository,
+	getInventoryRepository,
+	getRentalRepository
+} from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
 
@@ -21,9 +26,10 @@ export const load: PageServerLoad = async (event) => {
 	if (dateFrom) incidents = incidents.filter((row) => !row.date || row.date >= dateFrom);
 	if (dateTo) incidents = incidents.filter((row) => !row.date || row.date <= dateTo);
 
-	const [orders, inventory] = await Promise.all([
+	const [orders, inventory, companyInfo] = await Promise.all([
 		getRentalRepository().list(ctx, { limit: 500, offset: 0 }),
-		getInventoryRepository().list(ctx, { limit: 500, offset: 0 })
+		getInventoryRepository().list(ctx, { limit: 500, offset: 0 }),
+		getCompanyDocumentInfo(ctx)
 	]);
 	const orderMap = new Map(orders.map((o) => [String(o.id), o.order_number || `#${o.id}`]));
 	const itemMap = new Map(inventory.map((i) => [String(i.id), i.name]));
@@ -47,6 +53,7 @@ export const load: PageServerLoad = async (event) => {
 		type: type ?? '',
 		dateFrom: dateFrom ?? '',
 		dateTo: dateTo ?? '',
-		rangoActivo: periodoDeRango(dateFrom, dateTo)
+		rangoActivo: periodoDeRango(dateFrom, dateTo),
+		companyInfo
 	};
 };

@@ -2,11 +2,34 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatMoney, formatNumber } from '@esr/core';
-	import { Icon } from '@esr/ui';
+	import { Icon, PdfPreviewModal } from '@esr/ui';
 	import FilterBar from '$lib/components/list/FilterBar.svelte';
 	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
 	let { data } = $props();
+
+	let verPdf = $state(false);
+	let pdfUrl = $state('');
+	let generandoPdf = $state(false);
+	let errorExportar = $state('');
+
+	async function abrirPdf() {
+		if (generandoPdf) return;
+		generandoPdf = true;
+		errorExportar = '';
+		try {
+			// Import DINAMICO: jsPDF no tiene por que estar en el bundle inicial,
+			// y `doc.output('bloburl')` necesita `Blob`/`URL`, que no existen en SSR.
+			const { generateInventoryPDF } = await import('@esr/reports/inventory');
+			const { url } = generateInventoryPDF(data.items, 'preview', data.companyInfo);
+			pdfUrl = url;
+			verPdf = true;
+		} catch (e) {
+			errorExportar = `No se pudo generar el PDF. ${e?.message ?? ''}`.trim();
+		} finally {
+			generandoPdf = false;
+		}
+	}
 
 	/** Las tres condiciones físicas. En sentence case, como el resto. */
 	/** @type {Record<string, string>} */
@@ -85,9 +108,15 @@
 		>
 			Exportar CSV
 		</a>
-		<button type="button" class="btn-primary" onclick={() => window.print()}>Imprimir</button>
+		<button type="button" class="btn-primary no-print" onclick={abrirPdf} disabled={generandoPdf}>
+			{generandoPdf ? 'Generando…' : 'Vista previa PDF'}
+		</button>
 	</div>
 </div>
+
+{#if errorExportar}
+	<p class="form-error no-print">{errorExportar}</p>
+{/if}
 
 <section class="panel">
 	<p class="panel-hint no-print">
@@ -141,3 +170,5 @@
 		</table>
 	{/if}
 </section>
+
+<PdfPreviewModal bind:show={verPdf} {pdfUrl} filename="Inventario.pdf" title="Vista previa del inventario" />

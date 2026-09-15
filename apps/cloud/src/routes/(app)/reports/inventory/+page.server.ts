@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import {
 	getCategoryRepository,
+	getCompanyDocumentInfo,
 	getCompanySettingsRepository,
 	getInventoryRepository
 } from '$lib/server/repositories';
@@ -25,14 +26,15 @@ export const load: PageServerLoad = async (event) => {
 	const settings = await getCompanySettingsRepository().get(ctx);
 	const valuationRule = settings?.default_valuation_rule === 'promedio3' ? 'promedio3' : 'ultimo';
 
-	const [items, categories] = await Promise.all([
+	const [items, categories, companyInfo] = await Promise.all([
 		getInventoryRepository().listStock(ctx, {
 			search,
 			physical_status: status,
 			category_id: category,
 			valuation_rule: valuationRule
 		}),
-		getCategoryRepository().list(ctx)
+		getCategoryRepository().list(ctx),
+		getCompanyDocumentInfo(ctx)
 	]);
 
 	await recordAuditLog(event, {
@@ -53,6 +55,7 @@ export const load: PageServerLoad = async (event) => {
 		status: status ?? '',
 		category: category ?? '',
 		categories,
-		valuationRule
+		valuationRule,
+		companyInfo
 	};
 };

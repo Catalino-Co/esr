@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { periodoDeRango } from '@esr/core';
 import { recordAuditLog } from '$lib/server/audit';
 import {
+	getCompanyDocumentInfo,
 	getCustomerRepository,
 	getEventRepository,
 	getRentalRepository
@@ -32,9 +33,10 @@ export const load: PageServerLoad = async (event) => {
 		offset: 0
 	});
 
-	const [customers, events] = await Promise.all([
+	const [customers, events, companyInfo] = await Promise.all([
 		getCustomerRepository().list(ctx, { limit: 500, offset: 0 }),
-		getEventRepository().list(ctx, { limit: 500, offset: 0 })
+		getEventRepository().list(ctx, { limit: 500, offset: 0 }),
+		getCompanyDocumentInfo(ctx)
 	]);
 	const customerMap = new Map(customers.map((c) => [String(c.id), c.name]));
 	const eventMap = new Map(events.map((e) => [String(e.id), e.name]));
@@ -56,6 +58,7 @@ export const load: PageServerLoad = async (event) => {
 		status: status ?? '',
 		dateFrom: dateFrom ?? '',
 		dateTo: dateTo ?? '',
-		rangoActivo: periodoDeRango(dateFrom, dateTo)
+		rangoActivo: periodoDeRango(dateFrom, dateTo),
+		companyInfo
 	};
 };
