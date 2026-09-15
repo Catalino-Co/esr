@@ -110,9 +110,13 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	 * Ahora nace en cero y el stock entra por un movimiento, que si dice cuando,
 	 * a que almacen, a que costo y quien lo hizo.
 	 *
-	 * Su fila de `item_inventory` se crea en la misma transaccion: sin ella, el
-	 * articulo no aparece en Inventario hasta que alguien le ponga un minimo, y
-	 * un articulo en cero tiene que verse igual que uno lleno.
+	 * Su fila de `item_inventory` se crea en la misma transaccion, con minimo y
+	 * condicion en blanco listos para cuando el articulo SI tenga almacen: un
+	 * articulo en cero tiene que verse igual que uno lleno. Pero esa fila sola
+	 * ya no basta para aparecer en Inventario -ver el filtro de presencia real
+	 * en `listStock`-: el articulo nace sin almacen, y hasta que alguien lo
+	 * agregue a uno (`addToWarehouse`) no tiene «donde» que esa pantalla pueda
+	 * contestar.
 	 */
 	async create(ctx: RepositoryContext, data: TenantCreateInventoryItemInput): Promise<InventoryItem> {
 		const companyId = requireCompanyId(ctx);
@@ -275,7 +279,24 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		const params: unknown[] = [requireCompanyId(ctx)];
 		// Inactivo se queda: inactivar un artículo no lo saca del inventario,
 		// solo impide usarlo y editarlo. Archivado sí se quita de esta vista.
-		const where = ['i.company_id = $1', 'i.is_active != 0'];
+		//
+		// Sin presencia real en NINGUN almacen tambien se queda fuera: esta
+		// pantalla responde «cuanto hay y donde», y un articulo que no esta en
+		// ningun lado no tiene «donde» que contestar. Antes `create()` dejaba
+		// el articulo «visible en Inventario desde cero» a proposito -"un
+		// articulo en cero tiene que verse igual que uno lleno"-, pero eso
+		// hablaba de CANTIDAD cero, no de la ausencia total de almacen que
+		// `addToWarehouse`/`listStockByWarehouse` volvieron un estado real y
+		// visible en la ficha. Mismo filtro que ahi, aqui a nivel de EMPRESA:
+		// no importa en que almacen, solo que exista en alguno.
+		const where = [
+			'i.company_id = $1',
+			'i.is_active != 0',
+			`(
+				EXISTS (SELECT 1 FROM item_stock st WHERE st.item_id = i.id AND st.company_id = i.company_id)
+				OR EXISTS (SELECT 1 FROM item_serials s WHERE s.item_id = i.id AND s.company_id = i.company_id)
+			)`
+		];
 
 		if (filters.search) {
 			params.push(`%${filters.search}%`);

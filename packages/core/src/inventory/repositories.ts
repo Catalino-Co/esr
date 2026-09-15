@@ -89,7 +89,9 @@ export interface TenantInventoryRepository {
 	setState(ctx: RepositoryContext, id: ESRId, state: RecordState): Promise<void>;
 	/**
 	 * El inventario tal como se mira: por almacen, con el minimo y el estado
-	 * fisico de cada articulo.
+	 * fisico de cada articulo. Solo articulos con presencia real en ALGUN
+	 * almacen -fila en `item_stock`, o algun serial suyo-: sin eso no hay
+	 * «donde» que esta pantalla pueda contestar.
 	 */
 	listStock(ctx: RepositoryContext, filters?: InventoryStockFilters): Promise<InventoryStockRow[]>;
 	/**
