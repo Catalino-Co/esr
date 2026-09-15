@@ -1,5 +1,5 @@
 import type { AvailabilityInput, CatalogReportFilters, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, MoveStockInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository, TransferStockInput } from '@esr/core';
-import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
+import { categoryToSkuPrefix, DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
 import type { CatalogReportRow, ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -121,6 +121,10 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	async create(ctx: RepositoryContext, data: TenantCreateInventoryItemInput): Promise<InventoryItem> {
 		const companyId = requireCompanyId(ctx);
 		return withTransaction(async (client) => {
+			const internalCode = data.internal_code?.trim()
+				? data.internal_code.trim()
+				: await this.nextInternalCode(client, companyId, data.category_id || null);
+
 			const result = await client.query<InventoryItem>(
 				`INSERT INTO items
 					(company_id, internal_code, name, category_id, subcategory_id, description, item_type,
@@ -128,7 +132,7 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 				 RETURNING ${ITEM_RETURNING}`,
 				[
-					companyId, data.internal_code || null, data.name, data.category_id || null,
+					companyId, internalCode, data.name, data.category_id || null,
 					data.subcategory_id || null, data.description || null, data.item_type || 'cantidad',
 					data.uses_serial ? 1 : 0, data.rental_price ?? 0, data.internal_cost ?? 0,
 					data.supplier_id || null, data.uom_id || null, data.notes || null, data.is_active ?? 1
@@ -143,6 +147,48 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			);
 			return item;
 		});
+	}
+
+	/**
+	 * Siguiente codigo libre para un articulo sin `internal_code`, dentro de la
+	 * MISMA transaccion de `create()`. Prefijo de la categoria elegida (o `ART`
+	 * sin categoria), numero de 3 digitos por prefijo y por empresa: son SKU que
+	 * lee y teclea una persona, no un numero de factura, asi que no hace falta
+	 * el relleno a 6 digitos de `nextInvoiceNumber`.
+	 *
+	 * Ancla el `\d+` al FINAL del codigo (`nextInvoiceNumber` no lo hace): un
+	 * codigo de articulo si puede escribirse a mano con digitos en medio (p.ej.
+	 * `AUD-001-B`), y sin el ancla ese digito de en medio se leeria como si
+	 * fuera el numero de serie.
+	 *
+	 * Lee el maximo y suma uno -carrera posible- pero el indice unico parcial de
+	 * la migracion 034 la convierte en un 23505 en vez de en dos articulos con
+	 * el mismo codigo. Sin reintento, igual que `packages.create()`: un articulo
+	 * se da de alta a mano, de uno en uno, no al volumen concurrente de una
+	 * factura.
+	 */
+	private async nextInternalCode(
+		client: pg.PoolClient,
+		companyId: ESRId,
+		categoryId: ESRId | null
+	): Promise<string> {
+		let categoryName: string | null = null;
+		if (categoryId) {
+			const category = await client.query<{ name: string }>(
+				`SELECT name FROM categories WHERE company_id = $1 AND id = $2`,
+				[companyId, categoryId]
+			);
+			categoryName = category.rows[0]?.name ?? null;
+		}
+		const prefix = categoryToSkuPrefix(categoryName);
+
+		const result = await client.query<{ siguiente: string }>(
+			`SELECT COALESCE(MAX(SUBSTRING(internal_code FROM '\\d+$')::INTEGER), 0) + 1 AS siguiente
+			 FROM items WHERE company_id = $1 AND internal_code LIKE $2`,
+			[companyId, `${prefix}-%`]
+		);
+		const next = Number(result.rows[0]?.siguiente ?? 1);
+		return `${prefix}-${String(next).padStart(3, '0')}`;
 	}
 
 	async update(ctx: RepositoryContext, id: ESRId, data: Partial<TenantCreateInventoryItemInput>): Promise<InventoryItem> {

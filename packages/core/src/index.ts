@@ -19,6 +19,7 @@ export * from './events/use-cases';
 
 export * from './inventory/repositories';
 export * from './inventory/stock';
+export * from './inventory/sku';
 
 export * from './rentals/repositories';
 export * from './rentals/use-cases';

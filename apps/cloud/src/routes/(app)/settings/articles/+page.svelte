@@ -208,12 +208,13 @@
 
 	<form id="articulo-form" method="POST" action="?/create" class="form-grid form-grid--3" use:enhance={alGuardar}>
 		<div class="form-field">
-			<label for="a-name">Nombre *</label>
-			<input id="a-name" name="name" value={values.name ?? ''} required />
-		</div>
-		<div class="form-field">
 			<label for="a-internal_code">Código / SKU</label>
 			<input id="a-internal_code" name="internal_code" value={values.internal_code ?? ''} />
+			<span class="form-hint">Si se deja en blanco, se genera uno a partir de la categoría.</span>
+		</div>
+		<div class="form-field span-2">
+			<label for="a-name">Nombre *</label>
+			<input id="a-name" name="name" value={values.name ?? ''} required />
 		</div>
 		<div class="form-field">
 			<label for="a-category_id">Categoría</label>
@@ -319,6 +320,14 @@
 	   depende de cuántas columnas tenga el grid. */
 	.form-grid--3 {
 		grid-template-columns: repeat(3, 1fr);
+	}
+
+	/* Nombre ocupa el ancho que antes usaba Categoría, para que el código
+	   -corto- y el nombre -largo- no compitan por la misma columna. `span 2`
+	   y no una tercera clase de grid: el resto del formulario sigue en 3
+	   columnas iguales, solo esta fila cambia el reparto. */
+	.form-field.span-2 {
+		grid-column: span 2;
 	}
 
 	.nota {

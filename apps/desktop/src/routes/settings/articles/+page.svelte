@@ -18,6 +18,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { validateInventoryItemInput } from '@esr/schemas';
+  import { categoryToSkuPrefix } from '@esr/core';
   import { FormattedNumberField, Icon, Modal } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
@@ -114,11 +115,41 @@
     showModal = true;
   }
 
+  /**
+   * Siguiente codigo libre para un articulo sin `internal_code`. Calcado del
+   * de Cloud (`postgres-inventory.repository.ts`): mismo prefijo por
+   * categoria, mismo relleno a 3 digitos, mismo `LIKE prefijo-%`. Sin
+   * `company_id` -ESR Pro es una instalacion por empresa, `items` no lleva
+   * esa columna aqui-.
+   *
+   * `ORDER BY id DESC LIMIT 1` y no `MAX(internal_code)`: mismo motivo que
+   * `nextQuoteNumber()` en `sqlite-quote.repository.cjs` -SQLite ordena TEXT
+   * alfabeticamente, y eso se rompe en cuanto cambia el ancho del relleno-.
+   */
+  async function proximoCodigoInterno(categoryId) {
+    let categoryName = null;
+    if (categoryId) {
+      const cat = await window.api.db.getOne('SELECT name FROM categories WHERE id = ?', [categoryId]);
+      categoryName = cat?.name ?? null;
+    }
+    const prefix = categoryToSkuPrefix(categoryName);
+    const fila = await window.api.db.getOne(
+      `SELECT internal_code FROM items WHERE internal_code LIKE ? ORDER BY id DESC LIMIT 1`,
+      [`${prefix}-%`]
+    );
+    const siguiente = fila?.internal_code
+      ? Number(String(fila.internal_code).match(/\d+$/)?.[0] ?? 0) + 1
+      : 1;
+    return `${prefix}-${String(siguiente).padStart(3, '0')}`;
+  }
+
   async function crear() {
     if (!validateInventoryItemInput(nuevo).valid) {
       dangerModal.show("Nombre y Categoría son obligatorios");
       return;
     }
+
+    const internalCode = nuevo.internal_code.trim() || await proximoCodigoInterno(nuevo.category_id);
 
     // Nace EN CERO, sin almacen ni proveedor: eso se decide en su propia
     // ficha, que es donde vive esa gestion. El campo de cantidad inicial que
@@ -127,7 +158,7 @@
     const res = await window.api.db.run(`
       INSERT INTO items (internal_code, name, category_id, item_type, uses_serial, total_quantity, available_quantity, rental_price, internal_cost, notes)
       VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`,
-      [nuevo.internal_code, nuevo.name, nuevo.category_id, nuevo.item_type,
+      [internalCode, nuevo.name, nuevo.category_id, nuevo.item_type,
        nuevo.rental_price, nuevo.internal_cost, nuevo.notes]
     );
     const itemId = res.id;
@@ -252,6 +283,9 @@
       <div style="flex: 1;">
         <label for="itm-code">Código Interno</label>
         <input id="itm-code" type="text" bind:value={nuevo.internal_code} class="form-control" placeholder="Ej. AUD-001">
+        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+          Se genera automáticamente si se deja en blanco.
+        </span>
       </div>
       <div style="flex: 2;">
         <label for="itm-name">Nombre *</label>
