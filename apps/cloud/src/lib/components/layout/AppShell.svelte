@@ -27,6 +27,24 @@
 	function closeMobile() {
 		mobileOpen = false;
 	}
+
+	/**
+	 * Cierra el cajón móvil solo con navegar, sin que el usuario tenga que
+	 * volver a tocar el fondo oscurecido.
+	 *
+	 * Los enlaces del menú no tienen -ni deben tener- su propio `onclick` para
+	 * esto: `AppShell` sobrevive a la navegación entre páginas (es el layout
+	 * raíz), así que sin este efecto `mobileOpen` se quedaba en `true` después
+	 * de tocar un enlace, y el fondo -`position: fixed; inset: 0`- seguía ahí
+	 * tapando la pantalla nueva. Quien lo pisaba veía que "el clic no
+	 * respondía": en realidad sí respondía, pero al fondo invisible, no a lo
+	 * que había debajo. Solo un refresco completo, que remonta `AppShell` de
+	 * cero, lo quitaba.
+	 */
+	$effect(() => {
+		pathname;
+		mobileOpen = false;
+	});
 </script>
 
 <div class="app-shell">
