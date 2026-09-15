@@ -277,24 +277,55 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		filters: InventoryStockFilters = {}
 	): Promise<InventoryStockRow[]> {
 		const params: unknown[] = [requireCompanyId(ctx)];
+
+		// Se necesita ANTES del filtro de presencia: con almacen elegido, la
+		// presencia tiene que comprobarse EN ESE almacen, no en la empresa
+		// entera (ver mas abajo).
+		params.push(filters.warehouse_id ?? null);
+		const warehouseParam = params.length;
+
 		// Inactivo se queda: inactivar un artículo no lo saca del inventario,
 		// solo impide usarlo y editarlo. Archivado sí se quita de esta vista.
 		//
-		// Sin presencia real en NINGUN almacen tambien se queda fuera: esta
-		// pantalla responde «cuanto hay y donde», y un articulo que no esta en
-		// ningun lado no tiene «donde» que contestar. Antes `create()` dejaba
-		// el articulo «visible en Inventario desde cero» a proposito -"un
-		// articulo en cero tiene que verse igual que uno lleno"-, pero eso
-		// hablaba de CANTIDAD cero, no de la ausencia total de almacen que
+		// Sin presencia real tambien se queda fuera: esta pantalla responde
+		// «cuanto hay y donde», y un articulo que no esta en ningun lado no
+		// tiene «donde» que contestar. Antes `create()` dejaba el articulo
+		// «visible en Inventario desde cero» a proposito -"un articulo en cero
+		// tiene que verse igual que uno lleno"-, pero eso hablaba de CANTIDAD
+		// cero, no de la ausencia total de almacen que
 		// `addToWarehouse`/`listStockByWarehouse` volvieron un estado real y
-		// visible en la ficha. Mismo filtro que ahi, aqui a nivel de EMPRESA:
-		// no importa en que almacen, solo que exista en alguno.
+		// visible en la ficha.
+		//
+		// Con almacen elegido, la presencia se exige EN ESE almacen: filtrar
+		// Inventario por "Secundario" y seguir viendo ahi un articulo que solo
+		// esta en "Principal" repetiria el mismo bug de listStockByWarehouse,
+		// solo que a nivel de pantalla en vez de a nivel de ficha. Sin almacen
+		// elegido (vista de toda la empresa), basta con existir en alguno.
 		const where = [
 			'i.company_id = $1',
 			'i.is_active != 0',
 			`(
-				EXISTS (SELECT 1 FROM item_stock st WHERE st.item_id = i.id AND st.company_id = i.company_id)
-				OR EXISTS (SELECT 1 FROM item_serials s WHERE s.item_id = i.id AND s.company_id = i.company_id)
+				(
+					$${warehouseParam}::bigint IS NULL AND (
+						EXISTS (SELECT 1 FROM item_stock st WHERE st.item_id = i.id AND st.company_id = i.company_id)
+						OR EXISTS (SELECT 1 FROM item_serials s WHERE s.item_id = i.id AND s.company_id = i.company_id)
+					)
+				)
+				OR
+				(
+					$${warehouseParam}::bigint IS NOT NULL AND (
+						EXISTS (
+							SELECT 1 FROM item_stock st
+							WHERE st.item_id = i.id AND st.company_id = i.company_id
+							  AND st.warehouse_id = $${warehouseParam}::bigint
+						)
+						OR EXISTS (
+							SELECT 1 FROM item_serials s
+							WHERE s.item_id = i.id AND s.company_id = i.company_id
+							  AND s.warehouse_id = $${warehouseParam}::bigint
+						)
+					)
+				)
 			)`
 		];
 
@@ -317,9 +348,6 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 		// de la consulta dejaria ese reporte en ceros.
 		params.push(AVAILABILITY_ORDER_STATUSES);
 		const statusParam = params.length;
-
-		params.push(filters.warehouse_id ?? null);
-		const warehouseParam = params.length;
 
 		// Cuantas entradas mira la valoracion: 1 con «ultimo», 3 con «promedio3».
 		// La regla viaja como un LIMITE y no como un `CASE`, porque el promedio de
