@@ -860,6 +860,28 @@
 		white-space: nowrap;
 	}
 
+	/* Encabezado clicable para ordenar una tabla por columna. Empezo local en
+	   Artículos -la primera tabla de Cloud con esto-, pero con Inventario deja
+	   de ser la unica, asi que sube aqui para que el resto de las tablas lo
+	   reutilicen sin repetir el bloque. `all: unset` porque es un `<button>`
+	   dentro de un `<th>`: sin esto hereda el relleno y el fondo nativos del
+	   navegador, no los del encabezado de la tabla. */
+	.th-sort {
+		all: unset;
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+	}
+	.th-sort:hover {
+		text-decoration: underline;
+	}
+	.th-sort:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+		border-radius: var(--border-radius-sm);
+	}
+
 	/* Cabecera en acento. MODIFICADOR, nunca la regla general.
 
 	   Es una EXCEPCION declarada: rompe la regla 1 —«`--accent` solido solo en

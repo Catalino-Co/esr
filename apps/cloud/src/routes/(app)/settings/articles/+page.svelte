@@ -364,28 +364,6 @@
 		text-align: right;
 	}
 
-	/* Encabezado clicable para ordenar. Primera tabla de Cloud con esto -no
-	   hay todavia una version compartida en theme.css que extender-, asi que
-	   queda local aqui, igual que `.form-grid--3`/`.form-field.span-2` de
-	   mas abajo. `all: unset` porque es un `<button>` dentro de un `<th>`: sin
-	   esto hereda el relleno y el fondo nativos del navegador, no los del
-	   encabezado de la tabla. */
-	.th-sort {
-		all: unset;
-		cursor: pointer;
-		display: inline-flex;
-		align-items: center;
-		gap: 2px;
-	}
-	.th-sort:hover {
-		text-decoration: underline;
-	}
-	.th-sort:focus-visible {
-		outline: none;
-		box-shadow: var(--focus-ring);
-		border-radius: var(--border-radius-sm);
-	}
-
 	/* Tres columnas fijas y no `auto-fit`: con ocho campos, el reparto
 	   irregular de `.form-grid` (que a veces cae en 2 columnas, a veces en 3)
 	   dejaba el formulario más alto y menos compacto de lo necesario. `.full`

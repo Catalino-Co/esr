@@ -27,6 +27,40 @@ const UN_AÑO = 60 * 60 * 24 * 365;
 const TIPOS_MOVIMIENTO = ['entrada', 'salida', 'ajuste'] as const;
 const ESTADOS_FISICOS = ['disponible', 'mantenimiento', 'retirado', 'no_disponible'] as const;
 
+/** Mismo texto que ve el usuario en la columna Condición, para ordenar por lo
+ *  que se lee y no por la clave interna del enum. */
+const CONDICIONES: Record<string, string> = {
+	disponible: 'Disponible',
+	mantenimiento: 'Mantenimiento',
+	retirado: 'Retirado',
+	no_disponible: 'No disponible'
+};
+
+/**
+ * Columnas ordenables de la tabla, y por qué campo de la fila YA ENRIQUECIDA
+ * se ordena cada una. En memoria, no en el `ORDER BY` de `listStock()`: es la
+ * misma razon que en Artículos -Categoría es un nombre resuelto, no una
+ * columna de `items`-, y esta pantalla no pagina, asi que ordenar despues de
+ * traer las filas no cuesta nada.
+ */
+const SORT_FIELDS: Record<string, { field: string; numeric?: boolean; map?: Record<string, string> }> = {
+	code: { field: 'internal_code' },
+	name: { field: 'name' },
+	category: { field: 'category_name' },
+	total: { field: 'warehouse_quantity', numeric: true },
+	// Hoy Total y Disponible son la misma cifra -no existe todavia un
+	// "reservado por almacen"-, asi que ordenan igual. El dia que dejen de
+	// serlo, esta linea es lo unico que cambia.
+	available: { field: 'warehouse_quantity', numeric: true },
+	min_stock: { field: 'min_stock', numeric: true },
+	condition: { field: 'physical_status', map: CONDICIONES }
+};
+
+/** @param {string | null} value */
+function parseSort(value: string | null) {
+	return value && Object.hasOwn(SORT_FIELDS, value) ? value : 'name';
+}
+
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	const { companyId } = requirePermission(locals, 'inventory.view');
 	const ctx = toTenantContext(companyId);
@@ -35,6 +69,8 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	const categoryId = url.searchParams.get('category')?.trim() || undefined;
 	const lowStock = url.searchParams.get('bajo') === '1';
 	const physicalStatus = url.searchParams.get('condicion')?.trim() || undefined;
+	const sort = parseSort(url.searchParams.get('sort'));
+	const dir = url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
 
 	const [warehouses, categories, settings] = await Promise.all([
 		getWarehouseRepository().list(ctx),
@@ -73,6 +109,16 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 		valuation_rule: valuationRule
 	});
 
+	const { field, numeric, map } = SORT_FIELDS[sort];
+	const factor = dir === 'desc' ? -1 : 1;
+	const textOf = (row) => String(map ? map[String(row[field] ?? '')] ?? '' : row[field] ?? '');
+	items.sort((a, b) => {
+		const comparison = numeric
+			? Number(a[field] ?? 0) - Number(b[field] ?? 0)
+			: textOf(a).localeCompare(textOf(b), 'es');
+		return comparison * factor;
+	});
+
 	return {
 		items,
 		warehouses,
@@ -82,7 +128,9 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 		categoryId: categoryId ?? '',
 		physicalStatus: physicalStatus ?? '',
 		lowStock,
-		valuationRule
+		valuationRule,
+		sort,
+		dir
 	};
 };
 

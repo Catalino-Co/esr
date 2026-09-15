@@ -28,6 +28,22 @@
 		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
 	}
 
+	/**
+	 * Clic en un encabezado sorteable: si ya es la columna activa, invierte el
+	 * sentido; si no, la vuelve activa en ascendente. Calcado de Artículos.
+	 * @param {string} campo
+	 */
+	function ordenarPor(campo) {
+		const dir = data.sort === campo && data.dir === 'asc' ? 'desc' : 'asc';
+		irCon({ sort: campo, dir });
+	}
+
+	/** @param {string} campo */
+	function indicador(campo) {
+		if (data.sort !== campo) return '';
+		return data.dir === 'desc' ? ' ▼' : ' ▲';
+	}
+
 	let recargando = $state(false);
 	async function recargar() {
 		recargando = true;
@@ -305,13 +321,13 @@
 		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
-					<th>Código</th>
-					<th>Nombre</th>
-					<th>Categoría</th>
-					<th class="num">Total</th>
-					<th class="num">Disponible</th>
-					<th class="num">Mínimo</th>
-					<th>Condición</th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('code')}>Código{indicador('code')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('name')}>Nombre{indicador('name')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('category')}>Categoría{indicador('category')}</button></th>
+					<th class="num"><button type="button" class="th-sort" onclick={() => ordenarPor('total')}>Total{indicador('total')}</button></th>
+					<th class="num"><button type="button" class="th-sort" onclick={() => ordenarPor('available')}>Disponible{indicador('available')}</button></th>
+					<th class="num"><button type="button" class="th-sort" onclick={() => ordenarPor('min_stock')}>Mínimo{indicador('min_stock')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('condition')}>Condición{indicador('condition')}</button></th>
 					{#if puedeMover}<th><span class="sr-only">Acciones</span></th>{/if}
 				</tr>
 			</thead>
