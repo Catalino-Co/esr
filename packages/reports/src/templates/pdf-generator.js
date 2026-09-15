@@ -810,7 +810,12 @@ export function generateCatalogPDF(groups, action = 'save', companyInfo = null) 
 
   doc.setFontSize(18);
   doc.setTextColor(0);
-  doc.text('CATÁLOGO DE PRODUCTOS', COL_ETIQUETA, 20);
+  // Alineado al margen derecho y no a `COL_ETIQUETA` como los demas titulos
+  // (COTIZACIÓN, ORDEN DE TRABAJO, EVENTO): esos caben sueltos desde esa
+  // columna, pero "CATÁLOGO DE PRODUCTOS" es mas largo y a 18pt se salia de
+  // la pagina. Alinear a la derecha lo deja siempre dentro del margen sin
+  // tocar el tamaño de letra ni el de los otros documentos.
+  doc.text('CATÁLOGO DE PRODUCTOS', anchoPagina(doc) - MARGEN_X, 20, { align: 'right' });
   doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
