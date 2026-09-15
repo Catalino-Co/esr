@@ -399,7 +399,7 @@
 
   <svelte:fragment slot="footer">
     <button type="button" class="btn btn-secondary" on:click={() => (buscandoPorNumero = false)}>
-      Cancelar
+      <Icon name="x" size={16} />Cancelar
     </button>
     <button type="button" class="btn btn-primary" on:click={abrirElegidaNumero} disabled={elegidaNumero < 0}>
       Abrir factura

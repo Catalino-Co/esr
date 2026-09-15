@@ -135,7 +135,7 @@
 
 	<div class="herramientas-datos">
 		<button type="submit" form="orden-nueva" class="btn-primary" disabled={!puedeCrear}>
-			Crear orden
+			<Icon name="check" size={16} />Crear orden
 		</button>
 		<div class="grupo">
 			<a class="grupo-btn" href="/work-orders" aria-label="Volver a órdenes" title="Volver a órdenes">

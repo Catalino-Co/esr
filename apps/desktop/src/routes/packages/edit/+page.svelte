@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fmt, fmtN } from '@esr/reports';
-  import { FormattedNumberField } from '@esr/ui';
+  import { FormattedNumberField, Icon } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
   // ── Estado del paquete ────────────────────────────────────────────────────
@@ -165,7 +165,7 @@
     </h2>
   </div>
   <button class="btn btn-primary" on:click={savePackage} disabled={isSaving}>
-    {isSaving ? 'Guardando…' : '💾 Guardar Paquete'}
+    <Icon name="check" size={16} />{isSaving ? 'Guardando…' : 'Guardar Paquete'}
   </button>
 </div>
 

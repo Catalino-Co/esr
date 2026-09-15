@@ -566,10 +566,10 @@
 
   <div slot="footer">
     <button type="button" class="btn btn-secondary" on:click={() => (creando = false)}>
-      Cancelar
+      <Icon name="x" size={16} />Cancelar
     </button>
     <button type="button" class="btn btn-primary" on:click={crear} disabled={guardando}>
-      {guardando ? 'Creando…' : 'Crear cotización'}
+      <Icon name="check" size={16} />{guardando ? 'Creando…' : 'Crear cotización'}
     </button>
   </div>
 </Modal>
@@ -630,7 +630,7 @@
 
   <svelte:fragment slot="footer">
     <button type="button" class="btn btn-secondary" on:click={() => (buscandoPorNumero = false)}>
-      Cancelar
+      <Icon name="x" size={16} />Cancelar
     </button>
     <button type="button" class="btn btn-primary" on:click={abrirElegidaNumero} disabled={elegidaNumero < 0}>
       Abrir cotización

@@ -513,9 +513,9 @@
   </div>
 
   <div slot="footer">
-    <button type="button" class="btn btn-secondary" on:click={() => (creando = false)}>Cancelar</button>
+    <button type="button" class="btn btn-secondary" on:click={() => (creando = false)}><Icon name="x" size={16} />Cancelar</button>
     <button type="button" class="btn btn-primary" on:click={crear} disabled={guardando}>
-      {guardando ? 'Creando…' : 'Crear evento'}
+      <Icon name="check" size={16} />{guardando ? 'Creando…' : 'Crear evento'}
     </button>
   </div>
 </Modal>
@@ -572,7 +572,7 @@
 
   <svelte:fragment slot="footer">
     <button type="button" class="btn btn-secondary" on:click={() => (buscandoNombre = false)}>
-      Cancelar
+      <Icon name="x" size={16} />Cancelar
     </button>
     <button type="button" class="btn btn-primary" on:click={abrirElegidoNombre} disabled={elegidoNombre < 0}>
       Abrir evento

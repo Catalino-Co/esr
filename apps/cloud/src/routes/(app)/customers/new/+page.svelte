@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { Icon } from '@esr/ui';
 	import CustomerAddressBook from '$lib/components/customers/CustomerAddressBook.svelte';
 	import CustomerFormFields from '$lib/components/customers/CustomerFormFields.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
@@ -35,7 +36,7 @@
 
 			<div class="form-actions">
 				<a class="btn-secondary back-link" href="/customers">Volver al listado</a>
-				<button type="submit" class="btn-primary">Crear cliente</button>
+				<button type="submit" class="btn-primary"><Icon name="check" size={16} />Crear cliente</button>
 			</div>
 		</form>
 	</section>

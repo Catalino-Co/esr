@@ -126,7 +126,7 @@
       label="Estado"
       onchange={(e) => { viewState = e.currentTarget.value; loadData(); }}
     />
-    <button class="btn btn-primary btn-new" on:click={openCreate}>+ Crear Usuario</button>
+    <button class="btn btn-primary btn-new" on:click={openCreate}><Icon name="check" size={16} />+ Crear Usuario</button>
   </div>
 </div>
 
@@ -208,8 +208,8 @@
   </div>
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveUser}>Guardar Usuario</button>
+    <button class="btn btn-secondary" on:click={() => showModal = false}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={saveUser}><Icon name="check" size={16} />Guardar Usuario</button>
   </div>
 </Modal>
 

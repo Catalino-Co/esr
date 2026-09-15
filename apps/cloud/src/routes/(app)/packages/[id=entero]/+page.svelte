@@ -1,7 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { formatMoney } from '@esr/core';
-	import { FormattedNumberField } from '@esr/ui';
+	import { FormattedNumberField, Icon } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -62,7 +62,7 @@
 		</div>
 		<div class="form-actions">
 			{#if editable}
-				<button type="submit" class="btn-primary">Guardar cambios</button>
+				<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar cambios</button>
 			{:else}
 				<p class="panel-hint">Su rol no permite editar paquetes.</p>
 			{/if}

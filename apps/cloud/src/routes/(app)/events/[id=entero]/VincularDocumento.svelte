@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import Modal from '$lib/components/Modal.svelte';
+	import { Icon } from '@esr/ui';
 	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
 
 	/**
@@ -138,7 +139,7 @@
 	</p>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={onclose}>Cerrar</button>
+		<button type="button" class="btn-secondary" onclick={onclose}><Icon name="x" size={16} />Cerrar</button>
 	{/snippet}
 </Modal>
 

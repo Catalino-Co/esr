@@ -130,7 +130,7 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarConfirmar}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrarConfirmar}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="reset-form" class="btn-danger" disabled={!puedeConfirmar}>
 			🗑️ Confirmar reinicio
 		</button>

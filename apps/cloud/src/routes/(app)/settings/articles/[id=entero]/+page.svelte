@@ -182,7 +182,7 @@
 				</div>
 				<div class="form-actions">
 					{#if can('inventory.update')}
-						<button type="submit" class="btn-primary">Guardar cambios</button>
+						<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar cambios</button>
 					{:else}
 						<p class="panel-hint">Su rol no permite editar este registro.</p>
 					{/if}

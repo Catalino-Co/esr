@@ -11,7 +11,7 @@
     toggleChecklistItemComplete
   } from '@esr/core';
   import { generateChecklistPDF } from '@esr/reports';
-  import { PdfPreviewModal } from '@esr/ui';
+  import { Icon, PdfPreviewModal } from '@esr/ui';
   import { toasts } from '$lib/stores/toasts.js';
 
   let woId           = null;
@@ -304,7 +304,7 @@
       🖨️ Imprimir Checklist de {activeTab === 'salida' ? 'Salida' : 'Retorno'}
     </button>
     <button class="btn btn-primary btn-save" on:click={saveAndReturn} disabled={creatingIncidents}>
-      {creatingIncidents ? 'Creando incidencias…' : '💾 Guardar Checklist'}
+      <Icon name="check" size={16} />{creatingIncidents ? 'Creando incidencias…' : 'Guardar Checklist'}
     </button>
   </div>
 

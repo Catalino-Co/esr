@@ -10,7 +10,7 @@
   } from '@esr/core';
   import { validateRentalOrderInput } from '@esr/schemas';
   import { generateWorkOrderPDF } from '@esr/reports';
-  import { PdfPreviewModal } from '@esr/ui';
+  import { Icon, PdfPreviewModal } from '@esr/ui';
   import { fmt, fmtN } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
@@ -424,7 +424,7 @@
               title="Facturar las entregas de esta orden">🧾 Facturar</button>
     {/if}
     <button class="btn btn-primary" on:click={saveWO} disabled={isSaving}>
-      {isSaving ? 'Guardando…' : '💾 Guardar'}
+      <Icon name="check" size={16} />{isSaving ? 'Guardando…' : 'Guardar'}
     </button>
   </div>
 </div>

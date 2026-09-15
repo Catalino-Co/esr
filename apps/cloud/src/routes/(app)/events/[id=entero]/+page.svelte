@@ -134,7 +134,7 @@
 			/>
 			{#if can('events.update')}
 				<div class="form-actions">
-					<button type="submit" class="btn-primary">Guardar cambios</button>
+					<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar cambios</button>
 				</div>
 			{/if}
 		</form>

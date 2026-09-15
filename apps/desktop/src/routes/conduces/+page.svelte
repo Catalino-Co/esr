@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { shouldDeductStockForConduce } from '@esr/core';
   import { generateConducePDF } from '@esr/reports';
-  import { PdfPreviewModal } from '@esr/ui';
+  import { Icon, PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
@@ -110,7 +110,7 @@
         <option value="0">📁 Archivados</option>
       </select>
     </div>
-    <button class="btn btn-primary" on:click={() => goto('/conduces/edit')}>+ Crear Conduce</button>
+    <button class="btn btn-primary" on:click={() => goto('/conduces/edit')}><Icon name="check" size={16} />+ Crear Conduce</button>
   </div>
 
   <div class="table-wrapper">

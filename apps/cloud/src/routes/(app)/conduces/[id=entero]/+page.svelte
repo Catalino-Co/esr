@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { formatDate, statusBadgeClass, statusLabel } from '@esr/core';
+	import { Icon } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
@@ -195,7 +196,7 @@
 	{/if}
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarAnulacion}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrarAnulacion}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="anular-conduce" class="btn-danger">Anular conduce</button>
 	{/snippet}
 </Modal>

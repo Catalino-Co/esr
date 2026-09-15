@@ -1,6 +1,7 @@
 <script>
 	import { goto } from '$app/navigation';
 	import Modal from '$lib/components/Modal.svelte';
+	import { Icon } from '@esr/ui';
 	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
 
 	/**
@@ -138,7 +139,7 @@
 	{/if}
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={onclose}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={onclose}><Icon name="x" size={16} />Cancelar</button>
 		<button type="button" class="btn-primary" onclick={abrir} disabled={elegida < 0}>
 			Abrir paquete
 		</button>

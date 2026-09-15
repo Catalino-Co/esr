@@ -345,8 +345,8 @@
 		</form>
 
 		{#snippet footer()}
-			<button type="button" class="btn-secondary" onclick={cerrarAlta}>Cancelar</button>
-			<button type="submit" form="alta-evento" class="btn-primary">Crear evento</button>
+			<button type="button" class="btn-secondary" onclick={cerrarAlta}><Icon name="x" size={16} />Cancelar</button>
+			<button type="submit" form="alta-evento" class="btn-primary"><Icon name="check" size={16} />Crear evento</button>
 		{/snippet}
 	</Modal>
 {/if}

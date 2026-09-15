@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { summarizePayments, validatePaymentAmount, canVoidPayment } from '@esr/core';
   import { fmt } from '@esr/reports';
-  import { FormattedNumberField } from '@esr/ui';
+  import { FormattedNumberField, Icon } from '@esr/ui';
   import { unwrap, unwrapOr } from '$lib/ipc';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
@@ -269,7 +269,7 @@
         </div>
         <div class="field">
           <button class="btn btn-primary" disabled={trabajando} on:click={registrarCobro}>
-            {trabajando ? 'Registrando…' : 'Registrar cobro'}
+            <Icon name="check" size={16} />{trabajando ? 'Registrando…' : 'Registrar cobro'}
           </button>
         </div>
       </div>

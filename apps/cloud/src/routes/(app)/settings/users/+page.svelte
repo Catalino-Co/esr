@@ -246,7 +246,7 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarInvitar}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrarInvitar}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="invite-form" class="btn-primary">Agregar</button>
 	{/snippet}
 </Modal>
@@ -306,8 +306,8 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarEdicion}>Cancelar</button>
-		<button type="submit" form="user-form" class="btn-primary">Guardar cambios</button>
+		<button type="button" class="btn-secondary" onclick={cerrarEdicion}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="user-form" class="btn-primary"><Icon name="check" size={16} />Guardar cambios</button>
 	{/snippet}
 </Modal>
 

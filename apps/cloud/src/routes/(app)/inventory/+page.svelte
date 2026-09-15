@@ -484,9 +484,9 @@
 	</p>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={() => (moviendo = false)}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={() => (moviendo = false)}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="mover-stock" class="btn-primary" disabled={resultante < 0}>
-			Registrar
+			<Icon name="check" size={16} />Registrar
 		</button>
 	{/snippet}
 </Modal>
@@ -566,7 +566,7 @@
 	{/if}
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={() => (viendoReparto = false)}>Cerrar</button>
+		<button type="button" class="btn-secondary" onclick={() => (viendoReparto = false)}><Icon name="x" size={16} />Cerrar</button>
 	{/snippet}
 </Modal>
 
@@ -616,8 +616,8 @@
 	</p>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={() => (editando = false)}>Cancelar</button>
-		<button type="submit" form="guardar-existencias" class="btn-primary">Guardar</button>
+		<button type="button" class="btn-secondary" onclick={() => (editando = false)}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="guardar-existencias" class="btn-primary"><Icon name="check" size={16} />Guardar</button>
 	{/snippet}
 </Modal>
 

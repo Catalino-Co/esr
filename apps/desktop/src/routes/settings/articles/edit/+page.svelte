@@ -654,7 +654,7 @@
 
           <div style="display:flex; justify-content:flex-end;">
             <button class="btn btn-primary" on:click={guardar} disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Guardar cambios'}
+              <Icon name="check" size={16} />{guardando ? 'Guardando…' : 'Guardar cambios'}
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { entrar } from '$lib/stores/session.js';
   import { dangerModal } from '$lib/stores/dangerModal.js';
+  import { Icon } from '@esr/ui';
 
   let username = '';
   let password = '';
@@ -130,7 +131,7 @@
         </div>
 
         <button type="submit" class="btn-login" disabled={loading}>
-          {loading ? 'Creando…' : 'Crear administrador'}
+          <Icon name="check" size={16} />{loading ? 'Creando…' : 'Crear administrador'}
         </button>
       </form>
     {:else}

@@ -556,7 +556,7 @@
       <button class="btn btn-secondary" on:click={abrirPdf}>Vista previa PDF</button>
     {/if}
     <button class="btn btn-primary" on:click={guardar} disabled={guardando}>
-      {guardando ? 'Guardando…' : 'Guardar'}
+      <Icon name="check" size={16} />{guardando ? 'Guardando…' : 'Guardar'}
     </button>
   </div>
 </div>
@@ -825,8 +825,8 @@
   </p>
 
   <svelte:fragment slot="footer">
-    <button class="btn btn-secondary" on:click={() => (editandoLinea = false)}>Cancelar</button>
-    <button class="btn btn-primary" on:click={confirmarEdicion}>Guardar línea</button>
+    <button class="btn btn-secondary" on:click={() => (editandoLinea = false)}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={confirmarEdicion}><Icon name="check" size={16} />Guardar línea</button>
   </svelte:fragment>
 </Modal>
 
@@ -906,7 +906,7 @@
     <span class="contador">
       {agregados === 0 ? 'Sin líneas agregadas' : `${agregados} línea(s) agregada(s)`}
     </span>
-    <button class="btn btn-secondary" on:click={() => (agregandoArticulo = false)}>Cerrar</button>
+    <button class="btn btn-secondary" on:click={() => (agregandoArticulo = false)}><Icon name="x" size={16} />Cerrar</button>
     <button class="btn btn-primary" on:click={confirmarArticulo} disabled={!seleccion}>
       Agregar
     </button>
@@ -995,7 +995,7 @@
   {/if}
 
   <svelte:fragment slot="footer">
-    <button class="btn btn-secondary" on:click={() => (agregandoPaquete = false)}>Cancelar</button>
+    <button class="btn btn-secondary" on:click={() => (agregandoPaquete = false)}><Icon name="x" size={16} />Cancelar</button>
     <button
       class="btn btn-primary"
       on:click={confirmarPaquete}
@@ -1050,7 +1050,7 @@
   {/if}
 
   <svelte:fragment slot="footer">
-    <button class="btn btn-secondary" on:click={() => (desglosando = false)}>Cancelar</button>
+    <button class="btn btn-secondary" on:click={() => (desglosando = false)}><Icon name="x" size={16} />Cancelar</button>
     <button class="btn btn-primary" on:click={confirmarDesglose} disabled={!desglose.length}>
       Desglosar
     </button>

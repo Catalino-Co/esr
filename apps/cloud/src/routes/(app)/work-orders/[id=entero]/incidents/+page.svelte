@@ -1,7 +1,7 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
-	import { FormattedNumberField } from '@esr/ui';
+	import { FormattedNumberField, Icon } from '@esr/ui';
 	import { formatMoney } from '@esr/core';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -59,7 +59,7 @@
 			<textarea name="description" rows="3" required></textarea>
 		</label>
 		<div class="full-width">
-			<button type="submit" class="btn-primary">Crear incidencia</button>
+			<button type="submit" class="btn-primary"><Icon name="check" size={16} />Crear incidencia</button>
 		</div>
 	</form>
 	{/if}

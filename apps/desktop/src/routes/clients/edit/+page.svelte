@@ -1,7 +1,7 @@
 <script>
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Modal } from '@esr/ui';
+  import { Icon, Modal } from '@esr/ui';
   import { validateCustomerInput } from '@esr/schemas';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
@@ -445,7 +445,7 @@
            derecha en todas las demas pantallas. -->
       <a href="/clients" class="btn btn-secondary back-link">Volver al listado</a>
       <button class="btn btn-primary" on:click={guardar} disabled={isSaving}>
-        {isSaving ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Crear cliente'}
+        <Icon name="check" size={16} />{isSaving ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Crear cliente'}
       </button>
     </div>
   </div>
@@ -597,8 +597,8 @@
   </div>
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => (showModal = false)}>Cancelar</button>
-    <button class="btn btn-primary" on:click={guardarDireccion}>Guardar dirección</button>
+    <button class="btn btn-secondary" on:click={() => (showModal = false)}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={guardarDireccion}><Icon name="check" size={16} />Guardar dirección</button>
   </div>
 </Modal>
 

@@ -589,8 +589,8 @@
 	<p class="panel-hint">Las dos aparecen impresas en la cotización que ve el cliente.</p>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarAlta}>Cancelar</button>
-		<button type="submit" form="alta-cotizacion" class="btn-primary">Crear cotización</button>
+		<button type="button" class="btn-secondary" onclick={cerrarAlta}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="alta-cotizacion" class="btn-primary"><Icon name="check" size={16} />Crear cotización</button>
 	{/snippet}
 </Modal>
 {/if}

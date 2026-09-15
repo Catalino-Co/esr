@@ -314,8 +314,8 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarAlta}>Cancelar</button>
-		<button type="submit" form="package-form" class="btn-primary">Crear paquete</button>
+		<button type="button" class="btn-secondary" onclick={cerrarAlta}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="package-form" class="btn-primary"><Icon name="check" size={16} />Crear paquete</button>
 	{/snippet}
 </Modal>
 

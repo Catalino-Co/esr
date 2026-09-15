@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fmt } from '@esr/reports';
-  import { FormattedNumberField } from '@esr/ui';
+  import { FormattedNumberField, Icon } from '@esr/ui';
   import { unwrap, unwrapOr } from '$lib/ipc';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
@@ -324,11 +324,11 @@
     {/if}
 
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
-      <button class="btn btn-secondary" on:click={() => goto('/invoices')}>Cancelar</button>
+      <button class="btn btn-secondary" on:click={() => goto('/invoices')}><Icon name="x" size={16} />Cancelar</button>
       <button class="btn btn-primary"
               disabled={guardando || excede || seleccion.size === 0 || lineas.length === 0}
               on:click={emitir}>
-        {guardando ? 'Emitiendo…' : 'Emitir factura'}
+        <Icon name="check" size={16} />{guardando ? 'Emitiendo…' : 'Emitir factura'}
       </button>
     </div>
   {/if}

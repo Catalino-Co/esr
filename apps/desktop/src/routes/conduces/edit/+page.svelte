@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { shouldDeductStockForConduce } from '@esr/core';
   import { generateConducePDF } from '@esr/reports';
-  import { FormattedNumberField, PdfPreviewModal } from '@esr/ui';
+  import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
   import { fmt } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
 
@@ -278,7 +278,7 @@
       <button class="btn btn-secondary" on:click={openPDF}>🖨️ Ver PDF</button>
     {/if}
     <button class="btn btn-primary" on:click={saveConduce} disabled={isSaving}>
-      {isSaving ? 'Guardando…' : '💾 Guardar'}
+      <Icon name="check" size={16} />{isSaving ? 'Guardando…' : 'Guardar'}
     </button>
   </div>
 </div>

@@ -184,9 +184,9 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" on:click={closeModal}>Cancelar</button>
+        <button class="btn btn-secondary" on:click={closeModal}><Icon name="x" size={16} />Cancelar</button>
         <button class="btn btn-primary" on:click={saveCategory}>
-          {isEditing ? 'Guardar cambios' : 'Agregar'}
+          <Icon name="check" size={16} />{isEditing ? 'Guardar cambios' : 'Agregar'}
         </button>
       </div>
     </div>

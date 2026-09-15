@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { FormattedNumberField, Modal } from '@esr/ui';
+  import { FormattedNumberField, Icon, Modal } from '@esr/ui';
   import { fmt } from '@esr/reports';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { confirmDialog } from '$lib/stores/confirmDialog.js';
@@ -301,8 +301,8 @@
   </div>
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveIncident}>Guardar Incidencia</button>
+    <button class="btn btn-secondary" on:click={() => showModal = false}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={saveIncident}><Icon name="check" size={16} />Guardar Incidencia</button>
   </div>
 </Modal>
 

@@ -206,8 +206,8 @@
     </div>
   </div>
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={saveCollaborator}>Guardar</button>
+    <button class="btn btn-secondary" on:click={() => showModal = false}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={saveCollaborator}><Icon name="check" size={16} />Guardar</button>
   </div>
 </Modal>
 

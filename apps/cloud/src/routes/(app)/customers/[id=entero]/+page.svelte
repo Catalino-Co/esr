@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import { Icon } from '@esr/ui';
 	import CustomerAddressBook from '$lib/components/customers/CustomerAddressBook.svelte';
 	import CustomerFormFields from '$lib/components/customers/CustomerFormFields.svelte';
 	import { can } from '$lib/can';
@@ -59,7 +60,7 @@
 				     y sigue alineando a la derecha en todas las demas pantallas. -->
 				<a class="btn-secondary back-link" href="/customers">Volver al listado</a>
 				{#if can('customers.update')}
-					<button type="submit" class="btn-primary">Guardar cambios</button>
+					<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar cambios</button>
 				{:else}
 					<p class="panel-hint">Su rol no permite editar este registro.</p>
 				{/if}

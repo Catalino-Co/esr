@@ -821,9 +821,9 @@
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={() => (editando = false)}>
-			Cancelar
+			<Icon name="x" size={16} />Cancelar
 		</button>
-		<button type="submit" form="editar-linea" class="btn-primary">Guardar línea</button>
+		<button type="submit" form="editar-linea" class="btn-primary"><Icon name="check" size={16} />Guardar línea</button>
 	{/snippet}
 </Modal>
 
@@ -932,7 +932,7 @@
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={() => (agregandoArticulo = false)}>
-			Cancelar
+			<Icon name="x" size={16} />Cancelar
 		</button>
 		<button type="submit" form="alta-articulo" class="btn-primary" disabled={!seleccion}>
 			Agregar
@@ -1040,7 +1040,7 @@
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={() => (agregandoPaquete = false)}>
-			Cancelar
+			<Icon name="x" size={16} />Cancelar
 		</button>
 		<button
 			type="submit"
@@ -1101,7 +1101,7 @@
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={() => (copiando = false)}>
-			Cancelar
+			<Icon name="x" size={16} />Cancelar
 		</button>
 		<button type="submit" form="copiar-cotizacion" class="btn-primary">Copiar</button>
 	{/snippet}

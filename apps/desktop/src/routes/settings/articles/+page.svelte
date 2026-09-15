@@ -344,8 +344,8 @@
   </div>
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => showModal = false}>Cancelar</button>
-    <button class="btn btn-primary" on:click={crear}>Crear ítem</button>
+    <button class="btn btn-secondary" on:click={() => showModal = false}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={crear}><Icon name="check" size={16} />Crear ítem</button>
   </div>
 </Modal>
 

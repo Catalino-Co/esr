@@ -230,9 +230,9 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrar}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="sub-form" class="btn-primary">
-			{editando_ ? 'Guardar cambios' : 'Agregar subcategoría'}
+			<Icon name="check" size={16} />{editando_ ? 'Guardar cambios' : 'Agregar subcategoría'}
 		</button>
 	{/snippet}
 </Modal>

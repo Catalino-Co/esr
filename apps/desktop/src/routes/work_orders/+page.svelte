@@ -510,7 +510,7 @@
 
   <svelte:fragment slot="footer">
     <button type="button" class="btn btn-secondary" on:click={() => (buscandoOrden = false)}>
-      Cancelar
+      <Icon name="x" size={16} />Cancelar
     </button>
     <button type="button" class="btn btn-primary" on:click={abrirElegida} disabled={elegida < 0}>
       Abrir orden

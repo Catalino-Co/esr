@@ -1,6 +1,7 @@
 <script>
 	import { can } from '$lib/can';
 	import { enhance } from '$app/forms';
+	import { Icon } from '@esr/ui';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
 
@@ -48,7 +49,7 @@
 		</table>
 		<div class="page-actions" style="margin-top: 12px">
 			{#if can('checklists.save')}
-				<button type="submit" class="btn-primary">Guardar checklist de salida</button>
+				<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar checklist de salida</button>
 			{/if}
 		</div>
 	</form>
@@ -79,7 +80,7 @@
 		</table>
 		<div class="page-actions" style="margin-top: 12px">
 			{#if can('checklists.save')}
-				<button type="submit" class="btn-primary">Guardar checklist de retorno</button>
+				<button type="submit" class="btn-primary"><Icon name="check" size={16} />Guardar checklist de retorno</button>
 			{/if}
 		</div>
 	</form>

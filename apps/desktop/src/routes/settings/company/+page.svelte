@@ -161,7 +161,7 @@
 
   <div style="margin-top: 30px; display: flex; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--border-color);">
     <button class="btn btn-primary" style="padding: 10px 25px; font-weight: 600; font-size: 1rem;" on:click={saveCompanyInfo} disabled={saving}>
-      {saving ? 'Guardando...' : 'Guardar Configuración'}
+      <Icon name="check" size={16} />{saving ? 'Guardando...' : 'Guardar Configuración'}
     </button>
   </div>
 </div>

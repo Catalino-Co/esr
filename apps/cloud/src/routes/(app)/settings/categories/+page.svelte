@@ -210,9 +210,9 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrar}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="cat-form" class="btn-primary">
-			{editando_ ? 'Guardar cambios' : 'Agregar categoría'}
+			<Icon name="check" size={16} />{editando_ ? 'Guardar cambios' : 'Agregar categoría'}
 		</button>
 	{/snippet}
 </Modal>

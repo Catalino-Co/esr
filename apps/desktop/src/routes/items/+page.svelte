@@ -701,9 +701,9 @@
   </p>
 
   <svelte:fragment slot="footer">
-    <button class="btn btn-secondary" on:click={() => (moviendo = false)}>Cancelar</button>
+    <button class="btn btn-secondary" on:click={() => (moviendo = false)}><Icon name="x" size={16} />Cancelar</button>
     <button class="btn btn-primary" on:click={registrarMovimiento} disabled={resultante < 0}>
-      Registrar
+      <Icon name="check" size={16} />Registrar
     </button>
   </svelte:fragment>
 </Modal>
@@ -772,7 +772,7 @@
   {/if}
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => (viendoReparto = false)}>Cerrar</button>
+    <button class="btn btn-secondary" on:click={() => (viendoReparto = false)}><Icon name="x" size={16} />Cerrar</button>
   </div>
 </Modal>
 
@@ -814,8 +814,8 @@
   </p>
 
   <div slot="footer">
-    <button class="btn btn-secondary" on:click={() => (editando = false)}>Cancelar</button>
-    <button class="btn btn-primary" on:click={guardarExistencias}>Guardar</button>
+    <button class="btn btn-secondary" on:click={() => (editando = false)}><Icon name="x" size={16} />Cancelar</button>
+    <button class="btn btn-primary" on:click={guardarExistencias}><Icon name="check" size={16} />Guardar</button>
   </div>
 </Modal>
 

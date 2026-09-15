@@ -10,7 +10,7 @@
 		todayISO
 	} from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
-	import { FormattedNumberField } from '@esr/ui';
+	import { FormattedNumberField, Icon } from '@esr/ui';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -320,8 +320,8 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarCobro}>Cancelar</button>
-		<button type="submit" form="cobro-form" class="btn-primary">Registrar</button>
+		<button type="button" class="btn-secondary" onclick={cerrarCobro}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="cobro-form" class="btn-primary"><Icon name="check" size={16} />Registrar</button>
 	{/snippet}
 </Modal>
 
@@ -344,7 +344,7 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrarAnular}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrarAnular}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="anular-form" class="btn-danger">Anular factura</button>
 	{/snippet}
 </Modal>

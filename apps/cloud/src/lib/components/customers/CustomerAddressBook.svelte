@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { RECORD_STATE, recordStateBadgeClass, recordStateLabel } from '@esr/core';
+	import { Icon } from '@esr/ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -300,9 +301,9 @@
 	</form>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
+		<button type="button" class="btn-secondary" onclick={cerrar}><Icon name="x" size={16} />Cancelar</button>
 		<button type="submit" form="address-form" class="btn-primary">
-			{isEditing ? 'Guardar dirección' : 'Agregar'}
+			<Icon name="check" size={16} />{isEditing ? 'Guardar dirección' : 'Agregar'}
 		</button>
 	{/snippet}
 </Modal>
