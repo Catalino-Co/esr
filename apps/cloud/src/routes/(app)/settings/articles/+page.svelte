@@ -353,8 +353,8 @@
 	</div>
 
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={cerrar}>Cancelar</button>
-		<button type="submit" form="articulo-form" class="btn-primary">Crear artículo</button>
+		<button type="button" class="btn-secondary" onclick={cerrar}><Icon name="x" size={16} />Cancelar</button>
+		<button type="submit" form="articulo-form" class="btn-primary"><Icon name="check" size={16} />Crear artículo</button>
 	{/snippet}
 </Modal>
 {/if}
