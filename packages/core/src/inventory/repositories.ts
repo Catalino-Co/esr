@@ -100,9 +100,11 @@ export interface TenantInventoryRepository {
 	 */
 	listCatalog(ctx: RepositoryContext, filters?: CatalogReportFilters): Promise<CatalogReportRow[]>;
 	/**
-	 * Donde esta repartido UN articulo: una fila por almacen activo, las de cero
-	 * incluidas. La vuelta de `listStock`, que fija el almacen y recorre los
-	 * articulos.
+	 * Donde esta repartido UN articulo: una fila por almacen donde tiene
+	 * presencia real -fila en `item_stock`, o algun serial suyo-, las de cero
+	 * incluidas. Un almacen donde el articulo nunca entro no sale aqui: ver
+	 * `addToWarehouse`. La vuelta de `listStock`, que fija el almacen y recorre
+	 * los articulos.
 	 */
 	listStockByWarehouse(ctx: RepositoryContext, itemId: ESRId): Promise<ItemWarehouseStock[]>;
 	/**
@@ -122,6 +124,13 @@ export interface TenantInventoryRepository {
 	 * almacen que dejo de tener alguna.
 	 */
 	removeFromWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void>;
+	/**
+	 * Registra al articulo en un almacen donde todavia no tenia presencia,
+	 * a cantidad CERO. Es la vuelta de `removeFromWarehouse`, y por eso no deja
+	 * asiento en `stock_movements`: no se movio nada, solo se dijo donde vive.
+	 * Entrar existencias de verdad es cosa de `moveStock`.
+	 */
+	addToWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void>;
 	/** Los proveedores registrados para UN articulo, el principal primero. */
 	listSuppliersForItem(ctx: RepositoryContext, itemId: ESRId): Promise<ItemSupplier[]>;
 	/** Agrega un proveedor a la lista del articulo. */

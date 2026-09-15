@@ -17,6 +17,7 @@
 	let {
 		distribution = [],
 		warehouses = [],
+		availableWarehouses = [],
 		isSerialized = false,
 		searchTerm = '',
 		readOnly = false,
@@ -30,14 +31,22 @@
 	});
 
 	let trasladando = $state(null); // warehouse_id de origen, o null
+	let agregando = $state(false);
+	let agregarWarehouseId = $state('');
 
 	function alternarTraslado(warehouseId) {
 		trasladando = trasladando === warehouseId ? null : warehouseId;
 	}
 
+	function alternarAgregar() {
+		agregando = !agregando;
+		agregarWarehouseId = availableWarehouses[0] ? String(availableWarehouses[0].id) : '';
+	}
+
 	const alEnviar = () => async ({ update }) => {
 		await update({ reset: false });
 		trasladando = null;
+		agregando = false;
 	};
 </script>
 
@@ -47,10 +56,37 @@
 			<h2>Almacenes</h2>
 			<p class="panel-hint">En qué almacenes está este artículo y cuánto hay en cada uno.</p>
 		</div>
+		{#if !isSerialized && !readOnly && availableWarehouses.length > 0}
+			<button type="button" class="btn-primary btn-sm" onclick={alternarAgregar}>
+				Agregar a almacén
+			</button>
+		{/if}
 	</div>
 
+	{#if agregando}
+		<form method="POST" action="?/addToWarehouse" class="sunken-card inline-form" use:enhance={alEnviar}>
+			<div class="form-field">
+				<label for="add-warehouse">Almacén</label>
+				<select id="add-warehouse" name="warehouse_id" bind:value={agregarWarehouseId} required>
+					{#each availableWarehouses as almacen (almacen.id)}
+						<option value={almacen.id}>{almacen.name}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="form-field form-field--action">
+				<button type="submit" class="btn-primary btn-sm">Agregar</button>
+			</div>
+		</form>
+	{/if}
+
 	{#if distribution.length === 0}
-		<p class="empty-state">No hay almacenes creados.</p>
+		{#if warehouses.length === 0}
+			<p class="empty-state">No hay almacenes creados.</p>
+		{:else}
+			<p class="empty-state">
+				Este artículo no está en ningún almacén todavía. Agréguelo a uno para registrar existencias.
+			</p>
+		{/if}
 	{:else}
 		<table class="data-table">
 			<thead>
@@ -72,16 +108,21 @@
 							>
 								Ver en Inventario
 							</a>
-							{#if !isSerialized && !readOnly}
+							{#if !isSerialized}
 								{#if fila.quantity > 0}
-									<button
-										type="button"
-										class="btn-secondary btn-sm"
-										onclick={() => alternarTraslado(fila.warehouse_id)}
-									>
-										Trasladar
-									</button>
+									{#if !readOnly}
+										<button
+											type="button"
+											class="btn-secondary btn-sm"
+											onclick={() => alternarTraslado(fila.warehouse_id)}
+										>
+											Trasladar
+										</button>
+									{/if}
 								{:else}
+									<!-- Sin `readOnly`: quitar una fila en cero no es una edicion
+									     del catalogo, es limpiar un almacen que no tiene nada. Un
+									     articulo inactivo o archivado sigue pudiendo hacerlo. -->
 									<form method="POST" action="?/removeFromWarehouse" use:enhance={alEnviar}>
 										<input type="hidden" name="warehouse_id" value={fila.warehouse_id} />
 										<button type="submit" class="btn-danger btn-sm">Quitar</button>

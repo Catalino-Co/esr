@@ -60,6 +60,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getInventoryRepository().listSuppliersForItem(ctx, params.id)
 		]);
 
+	// Los que todavia no tienen presencia real: los unicos que tiene sentido
+	// ofrecer en «Agregar a almacen». `distribution` ya no trae almacenes
+	// fantasma, asi que esto es simplemente el resto.
+	const availableWarehouses = warehouses.filter(
+		(w) => !distribution.some((d) => String(d.warehouse_id) === String(w.id))
+	);
+
 	return {
 		item,
 		categories,
@@ -69,6 +76,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		units,
 		warehouses,
 		distribution,
+		availableWarehouses,
 		itemSuppliers,
 		isSerialized: isSerializedInventoryItem(item),
 		puedeArchivar: can(locals.role, 'inventory.archive')
@@ -295,7 +303,50 @@ export const actions: Actions = {
 		}
 	},
 
-	/** Quita al artículo de un almacén sin existencias. */
+	/**
+	 * Agrega al artículo a un almacén donde todavía no tenía presencia, a
+	 * cantidad cero. No es una edición del catálogo —nombre, precio,
+	 * categoría—, pero sigue siendo una decisión sobre el artículo, así que se
+	 * queda detrás del mismo candado que el resto de esta ficha.
+	 */
+	addToWarehouse: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'inventory.update');
+		const ctx = toTenantContext(companyId);
+		const form = await event.request.formData();
+
+		const warehouseId = String(form.get('warehouse_id') ?? '').trim();
+		if (!warehouseId) return fail(400, { scope: 'almacenes', error: 'Elija el almacén.' });
+
+		const item = await getInventoryRepository().findById(ctx, event.params.id);
+		if (!item) return fail(404, { scope: 'almacenes', error: 'Artículo no encontrado.' });
+		if (item.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { scope: 'almacenes', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
+		}
+		if (isSerializedInventoryItem(item)) {
+			return fail(400, { scope: 'almacenes', error: 'Un artículo serializado entra a un almacén dando de alta sus unidades, no aquí.' });
+		}
+
+		await getInventoryRepository().addToWarehouse(ctx, event.params.id, warehouseId);
+
+		await recordAuditLog(event, {
+			action: 'inventory.warehouse_added',
+			entity_type: 'inventory',
+			entity_id: String(event.params.id),
+			description: 'Artículo agregado a un almacén',
+			metadata: { warehouseId }
+		});
+
+		return { scope: 'almacenes', success: true };
+	},
+
+	/**
+	 * Quita al artículo de un almacén sin existencias.
+	 *
+	 * Sin el candado de Inactivo/Archivado que llevan las demás actions: no es
+	 * una edición del catálogo, es limpiar una fila en cero, y el propio
+	 * repositorio ya exige `quantity = 0` -esa es la única garantía que hace
+	 * falta.
+	 */
 	removeFromWarehouse: async (event) => {
 		const { companyId } = requirePermission(event.locals, 'inventory.update');
 		const ctx = toTenantContext(companyId);
@@ -305,9 +356,7 @@ export const actions: Actions = {
 		if (!warehouseId) return fail(400, { scope: 'almacenes', error: 'Falta el almacén.' });
 
 		const item = await getInventoryRepository().findById(ctx, event.params.id);
-		if (!item || item.is_active !== RECORD_STATE.ACTIVE) {
-			return fail(400, { scope: 'almacenes', error: 'Este artículo está inactivo o archivado: reactívelo para poder editarlo.' });
-		}
+		if (!item) return fail(404, { scope: 'almacenes', error: 'Artículo no encontrado.' });
 
 		try {
 			await getInventoryRepository().removeFromWarehouse(ctx, event.params.id, warehouseId);

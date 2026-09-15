@@ -139,8 +139,14 @@
   }
 
   /**
-   * Donde esta repartido el articulo: una fila por almacen activo, las de
-   * cero incluidas. Misma consulta que ya usa Inventario para lo mismo.
+   * Donde esta repartido el articulo: SOLO los almacenes donde tiene
+   * presencia real -fila en `item_stock`, o algun serial suyo-, las de cero
+   * incluidas.
+   *
+   * Antes no filtraba, y un articulo recien creado salia ya «presente» en
+   * TODOS los almacenes activos sin que nadie lo hubiera puesto ahi: la unica
+   * accion que quedaba era «Quitar», y «Agregar a almacen» no existia.
+   * Gemela de la de Cloud.
    */
   async function cargarDistribucion() {
     distribution = await window.api.db.get(
@@ -155,6 +161,10 @@
          FROM warehouses w
          CROSS JOIN items i
         WHERE w.is_active = 1 AND i.id = ?
+          AND (
+            EXISTS (SELECT 1 FROM item_stock st WHERE st.item_id = i.id AND st.warehouse_id = w.id)
+            OR EXISTS (SELECT 1 FROM item_serials s WHERE s.item_id = i.id AND s.warehouse_id = w.id)
+          )
         ORDER BY CASE WHEN w.code = 'PRIN' THEN 0 ELSE 1 END, w.name`,
       [itemId]
     );
@@ -314,6 +324,36 @@
   let trasladando = null;
   let trasladarDestino = '';
   let trasladarCantidad = 1;
+
+  /** Los que todavia no tienen presencia real: los unicos que tiene sentido
+      ofrecer en «Agregar a almacen». `distribution` ya no trae almacenes
+      fantasma, asi que esto es simplemente el resto. */
+  $: almacenesDisponibles = almacenes.filter(
+    (a) => !distribution.some((d) => String(d.warehouse_id) === String(a.id))
+  );
+  let mostrandoAgregarAlmacen = false;
+  let agregarWarehouseId = '';
+
+  function alternarAgregarAlmacen() {
+    mostrandoAgregarAlmacen = !mostrandoAgregarAlmacen;
+    agregarWarehouseId = almacenesDisponibles[0] ? String(almacenesDisponibles[0].id) : '';
+  }
+
+  /**
+   * Registra al articulo en un almacen donde todavia no tenia presencia, a
+   * cantidad CERO. Sin asiento en `stock_movements`: no se movio nada, solo
+   * se dijo donde vive.
+   */
+  async function agregarAlmacen() {
+    if (!agregarWarehouseId) return;
+    await window.api.db.run(
+      `INSERT INTO item_stock (item_id, warehouse_id, quantity) VALUES (?, ?, 0)
+       ON CONFLICT (item_id, warehouse_id) DO NOTHING`,
+      [itemId, agregarWarehouseId]
+    );
+    mostrandoAgregarAlmacen = false;
+    await cargarDistribucion();
+  }
 
   /**
    * `/items` no lee la URL: recuerda el almacén elegido solo en `localStorage`.
@@ -618,9 +658,37 @@
       <div class="card">
         <div class="book-header">
           <div class="section-title">Almacenes</div>
+          {#if !isSerializedInventoryItem(currentItem) && almacenesDisponibles.length > 0 && puedeEditarCampos}
+            <button type="button" class="btn btn-primary btn-sm" on:click={alternarAgregarAlmacen}>
+              Agregar a almacén
+            </button>
+          {/if}
         </div>
         <p class="panel-hint">En qué almacenes está este artículo y cuánto hay en cada uno.</p>
 
+        {#if mostrandoAgregarAlmacen && puedeEditarCampos}
+          <div class="inline-form">
+            <div class="field">
+              <label for="add-wh">Almacén</label>
+              <select id="add-wh" class="form-control" bind:value={agregarWarehouseId}>
+                {#each almacenesDisponibles as almacen (almacen.id)}
+                  <option value={String(almacen.id)}>{almacen.name}</option>
+                {/each}
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" on:click={agregarAlmacen}>Agregar</button>
+          </div>
+        {/if}
+
+        {#if distribution.length === 0}
+          {#if almacenes.length === 0}
+            <p class="empty-state">No hay almacenes creados.</p>
+          {:else}
+            <p class="empty-state">
+              Este artículo no está en ningún almacén todavía. Agréguelo a uno para registrar existencias.
+            </p>
+          {/if}
+        {:else}
         <table class="table">
           <thead>
             <tr>
@@ -638,12 +706,18 @@
                   <button type="button" class="btn-link" on:click={() => verEnInventario(fila.warehouse_id)}>
                     Ver en Inventario
                   </button>
-                  {#if !isSerializedInventoryItem(currentItem) && puedeEditarCampos}
+                  {#if !isSerializedInventoryItem(currentItem)}
                     {#if fila.quantity > 0}
-                      <button type="button" class="btn-link" on:click={() => alternarTraslado(fila.warehouse_id)}>
-                        Trasladar
-                      </button>
+                      {#if puedeEditarCampos}
+                        <button type="button" class="btn-link" on:click={() => alternarTraslado(fila.warehouse_id)}>
+                          Trasladar
+                        </button>
+                      {/if}
                     {:else}
+                      <!-- Sin `puedeEditarCampos`: quitar una fila en cero no es
+                           una edicion del catalogo, es limpiar un almacen que no
+                           tiene nada. Un articulo inactivo o archivado sigue
+                           pudiendo hacerlo. -->
                       <button type="button" class="btn-link text-danger" on:click={() => quitarAlmacen(fila.warehouse_id)}>
                         Quitar
                       </button>
@@ -677,6 +751,7 @@
             {/each}
           </tbody>
         </table>
+        {/if}
       </div>
 
       <div class="card">

@@ -368,11 +368,19 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 	}
 
 	/**
-	 * Donde esta repartido UN articulo.
+	 * Donde esta repartido UN articulo: SOLO los almacenes donde tiene
+	 * presencia real -fila en `item_stock`, o algun serial suyo-, las de cero
+	 * incluidas.
 	 *
-	 * Se parte de `warehouses` y no de `item_stock` con un LEFT JOIN al reves:
-	 * un almacen donde no queda nada tiene que salir en cero, porque «aqui no
-	 * hay» es la mitad de la respuesta a «donde esta esto».
+	 * Antes partia de `warehouses` con un `CROSS JOIN items` sin este filtro,
+	 * a proposito: la idea era que un almacen sin nada saliera en cero, porque
+	 * «aqui no hay» es la mitad de la respuesta a «donde esta esto». El efecto
+	 * secundario es que un articulo RECIEN CREADO salia ya «presente» en TODOS
+	 * los almacenes activos de la empresa, sin que nadie lo hubiera puesto ahi:
+	 * la unica accion que quedaba para esa fila fantasma era «Quitar», y
+	 * «Agregar a almacen» no existia en ningun lado. Ahora agregar es una
+	 * accion explicita (`addToWarehouse`), y por eso un almacen donde el
+	 * articulo nunca entro sencillamente no aparece aqui.
 	 *
 	 * Las dos ramas del CASE son las mismas de `listStock`: en un serializado la
 	 * existencia son sus unidades y en uno de cantidad es su fila de
@@ -400,10 +408,36 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			   CROSS JOIN items i
 			  WHERE w.company_id = $1 AND w.is_active = 1
 			    AND i.company_id = $1 AND i.id = $2
+			    AND (
+			      EXISTS (
+			        SELECT 1 FROM item_stock st
+			         WHERE st.item_id = i.id AND st.company_id = i.company_id AND st.warehouse_id = w.id
+			      )
+			      OR EXISTS (
+			        SELECT 1 FROM item_serials s
+			         WHERE s.item_id = i.id AND s.company_id = i.company_id AND s.warehouse_id = w.id
+			      )
+			    )
 			  ORDER BY CASE WHEN w.code = 'PRIN' THEN 0 ELSE 1 END, w.name`,
 			[requireCompanyId(ctx), itemId]
 		);
 		return result.rows;
+	}
+
+	/**
+	 * Registra al articulo en un almacen donde todavia no tenia presencia, a
+	 * cantidad CERO. Sin asiento en `stock_movements`: no se movio nada, solo
+	 * se dijo donde vive. `ON CONFLICT ... DO NOTHING` porque agregar dos veces
+	 * el mismo almacen no es un error, es un no-op.
+	 */
+	async addToWarehouse(ctx: RepositoryContext, itemId: ESRId, warehouseId: ESRId): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		await this.pool.query(
+			`INSERT INTO item_stock (company_id, item_id, warehouse_id, quantity)
+			 VALUES ($1, $2, $3, 0)
+			 ON CONFLICT (company_id, item_id, warehouse_id) DO NOTHING`,
+			[companyId, itemId, warehouseId]
+		);
 	}
 
 	/**

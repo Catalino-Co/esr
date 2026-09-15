@@ -173,6 +173,7 @@
 		<ItemWarehouseBook
 			distribution={data.distribution}
 			warehouses={data.warehouses}
+			availableWarehouses={data.availableWarehouses}
 			isSerialized={data.isSerialized}
 			searchTerm={item.internal_code || item.name}
 			readOnly={!puedeEditarCampos}
