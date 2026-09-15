@@ -120,6 +120,14 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Notas de entrega de la operación' },
 	{ prefix: '/incidents', title: 'Incidencias', subtitle: 'Seguimiento operativo' },
 	{ prefix: '/packages', title: 'Paquetes', subtitle: 'Artículos que se alquilan juntos' },
+	// Las 4 subrutas de Reportes van ANTES de la genérica: `.find()` para en
+	// la primera que matchea, mismo mecanismo que usan las subrutas de
+	// Configuración de aqui abajo. Mismos textos que sus tarjetas en
+	// `reports/+page.svelte` -una sola redaccion, dos sitios.
+	{ prefix: '/reports/inventory', title: 'Inventario disponible', subtitle: 'Stock total, disponible y comprometido por artículo.' },
+	{ prefix: '/reports/orders', title: 'Órdenes activas', subtitle: 'Estado, fechas y totales de las órdenes.' },
+	{ prefix: '/reports/incidents', title: 'Incidencias abiertas', subtitle: 'Seguimiento de incidencias operativas.' },
+	{ prefix: '/reports/catalog', title: 'Catálogo de productos', subtitle: 'Lista de precios por categoría y subcategoría, para clientes.' },
 	{ prefix: '/reports', title: 'Reportes', subtitle: 'Consultas operativas básicas' },
 	{
 		prefix: '/settings/appearance',

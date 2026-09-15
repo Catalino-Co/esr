@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { periodoDeRango } from '@esr/core';
 import { recordAuditLog } from '$lib/server/audit';
 import { getIncidentRepository, getInventoryRepository, getRentalRepository } from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
@@ -45,6 +46,7 @@ export const load: PageServerLoad = async (event) => {
 		severity: severity ?? '',
 		type: type ?? '',
 		dateFrom: dateFrom ?? '',
-		dateTo: dateTo ?? ''
+		dateTo: dateTo ?? '',
+		rangoActivo: periodoDeRango(dateFrom, dateTo)
 	};
 };

@@ -1,8 +1,38 @@
 <script>
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { formatMoney } from '@esr/core';
-	import { PdfPreviewModal, downloadBlob } from '@esr/ui';
+	import { Icon, PdfPreviewModal, downloadBlob } from '@esr/ui';
+	import FilterBar from '$lib/components/list/FilterBar.svelte';
+	import StatusSelect from '$lib/components/list/StatusSelect.svelte';
 
 	let { data } = $props();
+
+	const opcionesCategoria = [
+		{ value: '', label: 'Todas las categorías' },
+		...data.categories.map((cat) => ({ value: String(cat.id), label: cat.name }))
+	];
+
+	/** Navega conservando el resto de la query. Mismo helper que Inventario. */
+	/** @param {Record<string, string | null>} cambios */
+	function irCon(cambios) {
+		const url = new URL(page.url);
+		for (const [clave, valor] of Object.entries(cambios)) {
+			if (valor === null || valor === '') url.searchParams.delete(clave);
+			else url.searchParams.set(clave, String(valor));
+		}
+		goto(url, { replaceState: true, noScroll: true, invalidateAll: true });
+	}
+
+	let recargando = $state(false);
+	async function recargar() {
+		recargando = true;
+		try {
+			await invalidateAll();
+		} finally {
+			recargando = false;
+		}
+	}
 
 	let verPdf = $state(false);
 	let pdfUrl = $state('');
@@ -44,37 +74,49 @@
 	}
 </script>
 
-<section class="panel">
-	<div class="page-header">
-		<h1>Reporte — Catálogo de productos</h1>
-		<div class="page-header-actions no-print">
-			<a class="btn-secondary" href="/reports">Volver</a>
-			<button type="button" class="btn-secondary" onclick={descargarExcel} disabled={generandoExcel}>
-				{generandoExcel ? 'Generando…' : 'Exportar Excel'}
-			</button>
-			<button type="button" class="btn-secondary" onclick={abrirPdf} disabled={generandoPdf}>
-				{generandoPdf ? 'Generando…' : 'Vista previa PDF'}
-			</button>
-			<button type="button" class="btn-primary" onclick={() => window.print()}>Imprimir</button>
-		</div>
+<div class="herramientas">
+	<div class="grupo">
+		<a class="grupo-btn" href="/reports" aria-label="Volver a Reportes" title="Volver a Reportes">
+			<Icon name="back" size={18} />
+		</a>
+		<button
+			type="button"
+			class="grupo-btn"
+			onclick={recargar}
+			disabled={recargando}
+			aria-label="Recargar"
+			title="Recargar"
+		>
+			<span class:girando={recargando}><Icon name="refresh" size={18} /></span>
+		</button>
 	</div>
 
-	{#if errorExportar}
-		<p class="form-error no-print">{errorExportar}</p>
-	{/if}
+	<div class="herramientas-datos">
+		<StatusSelect
+			name="category"
+			value={data.category}
+			options={opcionesCategoria}
+			label="Categoría"
+			onchange={(e) => irCon({ category: e.currentTarget.value })}
+		/>
+		<button type="button" class="btn-secondary no-print" onclick={descargarExcel} disabled={generandoExcel}>
+			{generandoExcel ? 'Generando…' : 'Exportar Excel'}
+		</button>
+		<button type="button" class="btn-secondary no-print" onclick={abrirPdf} disabled={generandoPdf}>
+			{generandoPdf ? 'Generando…' : 'Vista previa PDF'}
+		</button>
+		<button type="button" class="btn-primary" onclick={() => window.print()}>Imprimir</button>
+	</div>
+</div>
 
+{#if errorExportar}
+	<p class="form-error no-print">{errorExportar}</p>
+{/if}
+
+<section class="panel">
 	<p class="panel-hint no-print">Solo artículos activos: es una lista de precios, no un inventario.</p>
 
-	<form class="filter-bar no-print" method="GET">
-		<input type="search" name="search" placeholder="Buscar" value={data.search} />
-		<select name="category">
-			<option value="">Todas las categorías</option>
-			{#each data.categories as cat (cat.id)}
-				<option value={cat.id} selected={String(data.category) === String(cat.id)}>{cat.name}</option>
-			{/each}
-		</select>
-		<button type="submit" class="btn-secondary">Filtrar</button>
-	</form>
+	<FilterBar search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }} />
 
 	{#if data.groups.length === 0}
 		<p class="empty-state">Sin artículos activos para los filtros seleccionados.</p>
@@ -111,11 +153,6 @@
 <PdfPreviewModal bind:show={verPdf} {pdfUrl} filename="Catalogo_de_productos.pdf" title="Vista previa del catálogo" />
 
 <style>
-	.page-header-actions {
-		display: flex;
-		gap: 8px;
-		flex-wrap: wrap;
-	}
 	.fila-grupo th {
 		text-align: left;
 		background: var(--surface-sunken);
@@ -126,10 +163,5 @@
 		background: var(--surface);
 		font-style: italic;
 		color: var(--text-secondary);
-	}
-	@media print {
-		.no-print {
-			display: none !important;
-		}
 	}
 </style>

@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { periodoDeRango } from '@esr/core';
 import { recordAuditLog } from '$lib/server/audit';
 import {
 	getCustomerRepository,
@@ -54,6 +55,7 @@ export const load: PageServerLoad = async (event) => {
 		search: search ?? '',
 		status: status ?? '',
 		dateFrom: dateFrom ?? '',
-		dateTo: dateTo ?? ''
+		dateTo: dateTo ?? '',
+		rangoActivo: periodoDeRango(dateFrom, dateTo)
 	};
 };

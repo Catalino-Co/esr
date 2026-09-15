@@ -2418,6 +2418,16 @@
    Utilidades
    ═══════════════════════════════════════════════════════════════ */
 @layer esr.utilities {
+	/* Oculta el elemento SOLO al imprimir. Antes cada pantalla con vista
+	   imprimible (Reportes, `PrintViewer`) repetia este mismo `@media print`
+	   en su propio `<style>` -en `PrintViewer` ni siquiera existia, asi que
+	   su `.no-print` no ocultaba nada. Una sola regla compartida. */
+	@media print {
+		.no-print {
+			display: none !important;
+		}
+	}
+
 	.flex {
 		display: flex;
 	}

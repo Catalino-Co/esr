@@ -200,37 +200,6 @@ p {
 	align-items: center;
 }
 
-/* `.filter-bar` ya no la usan los nueve listados —tienen <FilterBar>— pero
-   siguen usandola las tres pantallas de reportes, que filtran por rango de
-   fechas y quedan fuera de este rediseño. */
-.filter-bar {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--sp-3);
-	margin-bottom: var(--sp-4);
-}
-
-/* Estos dos selectores eran el mismo bloque que los de `.form-grid`, que se
-   fueron a theme.css. No se promueven con ellos: `.filter-bar` es la barra
-   VIEJA, que solo usan las tres pantallas de reportes, y compartirla con
-   Desktop seria exportar algo que estamos retirando. */
-.filter-bar input,
-.filter-bar select {
-	width: 100%;
-	padding: var(--sp-2) var(--sp-3);
-	border: 1px solid var(--border);
-	border-radius: var(--border-radius-sm);
-	background: var(--bg-input);
-	color: var(--text-primary);
-}
-
-.filter-bar input:focus,
-.filter-bar select:focus {
-	outline: none;
-	border-color: var(--border-focus);
-	box-shadow: var(--focus-ring);
-}
-
 /* Deltas sobre las alertas compartidas: Cloud las usa como banda
    superior de bloque, no como fila en linea. */
 .alert-error,
