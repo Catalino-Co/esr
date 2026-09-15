@@ -1,6 +1,6 @@
-import type { AvailabilityInput, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, MoveStockInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository, TransferStockInput } from '@esr/core';
+import type { AvailabilityInput, CatalogReportFilters, InventoryAvailability, InventoryListFilters, InventoryStockFilters, ItemInventoryInput, MoveStockInput, RecordState, RepositoryContext, TenantCreateInventoryItemInput, TenantInventoryRepository, TransferStockInput } from '@esr/core';
 import { DEFAULT_RECORD_STATE, requireCompanyId } from '@esr/core';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock } from '@esr/schemas';
+import type { CatalogReportRow, ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { appendStateFilter } from './state-filter';
@@ -58,6 +58,45 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			`SELECT ${ITEM_COLUMNS}, ${availabilityColumnsSql(params.length)}
 			 FROM items i WHERE ${where.join(' AND ')}
 			 ORDER BY i.name${appendPagination(params, filters)}`,
+			params
+		);
+		return result.rows;
+	}
+
+	/**
+	 * El catalogo TAL COMO LO VE UN CLIENTE: articulo, categoria, subcategoria
+	 * y unidad ya resueltas, tarifa de alquiler, sin una sola columna de
+	 * existencias. Distinto de `list()` (cualquier estado, sin joins de
+	 * nombres) y de `listStock()` (inventario/almacen): esta es la tercera
+	 * forma, la de una lista de precios.
+	 *
+	 * `is_active = 1` va FIJO en el WHERE y no en `filters`: un articulo
+	 * inactivo no se cotiza, asi que no pertenece a esta lista pase lo que
+	 * pase en pantalla.
+	 */
+	async listCatalog(ctx: RepositoryContext, filters: CatalogReportFilters = {}): Promise<CatalogReportRow[]> {
+		const params: unknown[] = [requireCompanyId(ctx)];
+		const where = ['i.company_id = $1', 'i.is_active = 1'];
+
+		if (filters.search) {
+			params.push(`%${filters.search}%`);
+			where.push(`(i.name ILIKE $${params.length} OR i.internal_code ILIKE $${params.length})`);
+		}
+		if (filters.category_id) {
+			params.push(filters.category_id);
+			where.push(`i.category_id = $${params.length}`);
+		}
+
+		const result = await this.pool.query<CatalogReportRow>(
+			`SELECT i.id, i.internal_code, i.name, i.rental_price, i.category_id, i.subcategory_id,
+			        c.name AS category_name, sc.name AS subcategory_name,
+			        COALESCE(u.abbr, u.name) AS uom_abbr
+			   FROM items i
+			   LEFT JOIN categories c ON c.id = i.category_id AND c.company_id = i.company_id
+			   LEFT JOIN subcategories sc ON sc.id = i.subcategory_id AND sc.company_id = i.company_id
+			   LEFT JOIN units_of_measure u ON u.id = i.uom_id AND u.company_id = i.company_id
+			  WHERE ${where.join(' AND ')}
+			  ORDER BY c.name, sc.name, i.name`,
 			params
 		);
 		return result.rows;

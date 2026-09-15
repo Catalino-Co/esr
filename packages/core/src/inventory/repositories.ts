@@ -1,5 +1,5 @@
 import type { RecordState, RecordStateFilter } from '../shared/record-state';
-import type { ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock, PhysicalStatus, ValuationRule } from '@esr/schemas';
+import type { CatalogReportRow, ESRId, InventoryItem, InventoryStockRow, ItemInventory, ItemSupplier, ItemWarehouseStock, PhysicalStatus, ValuationRule } from '@esr/schemas';
 import type { RepositoryContext } from '../shared/tenant';
 
 /** Lo que se sabe al mover existencias de un articulo DE CANTIDAD. */
@@ -46,6 +46,13 @@ export type InventoryListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
 	state?: RecordStateFilter; search?: string; category_id?: ESRId; limit?: number; offset?: number };
 
+/**
+ * Filtros del REPORTE de catalogo comercial. Sin `state`: es una lista de
+ * precios para un cliente, siempre solo activos, no una pantalla con
+ * selector de estado.
+ */
+export type CatalogReportFilters = { search?: string; category_id?: ESRId };
+
 /** Filtros del INVENTARIO: los mismos del catalogo mas lo que solo el sabe. */
 export type InventoryStockFilters = {
 	/** Sin almacen, la cantidad que se devuelve es el total de la empresa. */
@@ -85,6 +92,13 @@ export interface TenantInventoryRepository {
 	 * fisico de cada articulo.
 	 */
 	listStock(ctx: RepositoryContext, filters?: InventoryStockFilters): Promise<InventoryStockRow[]>;
+	/**
+	 * El catalogo TAL COMO LO VE UN CLIENTE: codigo, nombre, unidad y tarifa de
+	 * alquiler, agrupable por categoria y subcategoria. Siempre solo activos —un
+	 * articulo inactivo no se cotiza, y esta lista es de precios, no un
+	 * inventario—. Es el reporte "Catálogo de productos".
+	 */
+	listCatalog(ctx: RepositoryContext, filters?: CatalogReportFilters): Promise<CatalogReportRow[]>;
 	/**
 	 * Donde esta repartido UN articulo: una fila por almacen activo, las de cero
 	 * incluidas. La vuelta de `listStock`, que fija el almacen y recorre los

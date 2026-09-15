@@ -789,6 +789,76 @@ function eventFilenamePart(evento) {
 }
 
 /**
+ * El catálogo de productos: código, ítem, unidad y tarifa de alquiler,
+ * agrupados por categoría y subcategoría.
+ *
+ * NO lleva el `head` de la tabla repetido por cada subcategoría: `head` se
+ * declara UNA vez y `jspdf-autotable` ya lo repite solo en los saltos de
+ * página. Repetirlo a mano por cada una de las que haya (pueden ser
+ * decenas) seria mucho mas ruido que la cabecera de categoria/subcategoria,
+ * que si va una vez por grupo con `colSpan: 4` — mismo espiritu que
+ * `<tr class="fila-grupo"><th colspan>` de Configuración › Roles y permisos.
+ *
+ * @param {Array<{categoryName:string, subcategories:Array<{subcategoryName:string, items:Array<{code:string,name:string,uom:string,price:number}>}>}>} groups
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateCatalogPDF(groups, action = 'save', companyInfo = null) {
+  const doc = new jsPDF();
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('CATÁLOGO DE PRODUCTOS', COL_ETIQUETA, 20);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
+
+  const body = [];
+  for (const cat of groups || []) {
+    body.push([
+      {
+        content: cat.categoryName,
+        colSpan: 4,
+        styles: { fontStyle: 'bold', fillColor: [225, 229, 245], textColor: [30, 30, 30] }
+      }
+    ]);
+    for (const sub of cat.subcategories || []) {
+      body.push([
+        {
+          content: sub.subcategoryName,
+          colSpan: 4,
+          styles: { fontStyle: 'italic', fillColor: [245, 245, 245], textColor: [80, 80, 80] }
+        }
+      ]);
+      for (const item of sub.items || []) {
+        body.push([item.code || '—', item.name, item.uom, fmtMoney(item.price)]);
+      }
+    }
+  }
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Código', 'Ítem', 'Unidad', 'Precio de renta']],
+    body,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
+    columnStyles: {
+      0: { cellWidth: 24 },
+      2: { halign: 'center', cellWidth: 20 },
+      3: { halign: 'right', cellWidth: 32 }
+    }
+  });
+
+  paginar(doc);
+
+  return createPdfResult(doc, 'Catalogo_de_productos.pdf', action);
+}
+
+/**
  * `WO-00007`, el mismo formato que ya usan la orden y el conduce.
  * @param {any} order
  */

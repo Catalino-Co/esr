@@ -94,6 +94,24 @@ export type InventoryStockRow = InventoryItem &
 	};
 
 /**
+ * Una fila del CATALOGO COMERCIAL: el articulo con sus etiquetas resueltas,
+ * sin una sola columna de existencias. Es lo que ve un cliente en una lista
+ * de precios (Reporte › Catálogo de productos), no lo que ve un almacenista
+ * — para eso esta `InventoryStockRow`.
+ */
+export type CatalogReportRow = {
+	id: ESRId;
+	internal_code?: Nullable<string>;
+	name: string;
+	rental_price?: number;
+	category_id?: Nullable<ESRId> | '';
+	subcategory_id?: Nullable<ESRId> | '';
+	category_name?: Nullable<string>;
+	subcategory_name?: Nullable<string>;
+	uom_abbr?: Nullable<string>;
+};
+
+/**
  * Cuanto hay de UN articulo en UN almacen.
  *
  * Es la vuelta a `InventoryStockRow`: aquella fija el almacen y recorre los

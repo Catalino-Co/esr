@@ -64,6 +64,16 @@
   });
 </script>
 
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-title">
+    <span>Catálogo de productos</span>
+  </div>
+  <p style="color: var(--text-muted); margin: 0 0 12px;">
+    Lista de precios por categoría y subcategoría, para exportar o entregar a un cliente.
+  </p>
+  <a href="/reports/catalog" class="btn btn-secondary">Abrir catálogo →</a>
+</div>
+
 <div class="card">
   <div class="card-title">
     <span>Panel de Reportes Operativos y Comerciales</span>
