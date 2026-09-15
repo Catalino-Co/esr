@@ -18,7 +18,13 @@
 	 *             width?: string }} FilterSelect
 	 */
 	let {
-		/** Configuración del buscador. `null` si la pantalla no busca. */
+		/**
+		 * Configuración del buscador. `null` si la pantalla no busca.
+		 * `maxWidth` es la excepción a "el buscador crece": una pantalla con
+		 * varios selects a su lado puede necesitar cederles espacio en vez de
+		 * comerse el ancho que sobra.
+		 * @type {{ name: string, placeholder: string, value: string, maxWidth?: string } | null}
+		 */
 		search = null,
 		/** @type {FilterSelect[]} */
 		selects = [],
@@ -65,7 +71,7 @@
      página sin hidratar se quedaría sin ninguna forma de filtrar. -->
 <form class="filters" method="GET" data-sveltekit-keepfocus data-sveltekit-replacestate>
 	{#if search}
-		<div class="filters-search">
+		<div class="filters-search" style={search.maxWidth ? `max-width:${search.maxWidth}` : undefined}>
 			<span class="filters-search-icon" aria-hidden="true">
 				<svg viewBox="0 0 16 16" width="15" height="15">
 					<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />

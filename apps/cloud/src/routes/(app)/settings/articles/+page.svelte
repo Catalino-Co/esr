@@ -111,6 +111,19 @@
 			? data.subcategories.filter((s) => String(s.category_id) === categoriaElegida)
 			: []
 	);
+
+	/**
+	 * Las del FILTRO de la lista, no las del modal de alta: se limitan a la
+	 * categoría ya elegida en la URL si hay una, pero SIN categoría muestran
+	 * todas -a diferencia de `subcategoriasDisponibles`-, porque aquí filtrar
+	 * por subcategoría es una decisión independiente, no un paso que dependa
+	 * de haber elegido categoría primero.
+	 */
+	const subcategoriasFiltro = $derived(
+		data.categoryId
+			? data.subcategories.filter((s) => String(s.category_id) === data.categoryId)
+			: data.subcategories
+	);
 </script>
 
 <div class="herramientas">
@@ -148,7 +161,7 @@
 	</p>
 
 	<FilterBar
-		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search }}
+		search={{ name: 'search', placeholder: 'Nombre o código', value: data.search, maxWidth: '16rem' }}
 		selects={[
 			{
 				name: 'category',
@@ -158,6 +171,16 @@
 				options: [
 					{ value: '', label: 'Cualquier categoría' },
 					...data.categories.map((c) => ({ value: String(c.id), label: c.name }))
+				]
+			},
+			{
+				name: 'subcategory',
+				label: 'Cualquier subcategoría',
+				value: data.subcategoryId,
+				width: '11rem',
+				options: [
+					{ value: '', label: 'Cualquier subcategoría' },
+					...subcategoriasFiltro.map((s) => ({ value: String(s.id), label: s.name }))
 				]
 			}
 		]}

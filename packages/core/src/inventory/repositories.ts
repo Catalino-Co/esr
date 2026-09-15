@@ -44,7 +44,7 @@ export type TenantCreateInventoryItemInput = Omit<InventoryItem, 'id' | 'company
  */
 export type InventoryListFilters = {
 	/** Estado de circulacion; por defecto, solo activos. */
-	state?: RecordStateFilter; search?: string; category_id?: ESRId; limit?: number; offset?: number };
+	state?: RecordStateFilter; search?: string; category_id?: ESRId; subcategory_id?: ESRId; limit?: number; offset?: number };
 
 /**
  * Filtros del REPORTE de catalogo comercial. Sin `state`: es una lista de

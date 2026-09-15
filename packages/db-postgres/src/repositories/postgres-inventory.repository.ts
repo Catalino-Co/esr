@@ -48,6 +48,7 @@ export class PostgresInventoryRepository implements TenantInventoryRepository {
 			where.push(`(i.name ILIKE $${params.length} OR i.internal_code ILIKE $${params.length})`);
 		}
 		if (filters.category_id) { params.push(filters.category_id); where.push(`i.category_id = $${params.length}`); }
+		if (filters.subcategory_id) { params.push(filters.subcategory_id); where.push(`i.subcategory_id = $${params.length}`); }
 		// Sin estado explicito se listan solo los activos.
 		appendStateFilter(params, where, filters.state, 'i.');
 		// La disponibilidad viaja con cada articulo, calculada. Antes el listado

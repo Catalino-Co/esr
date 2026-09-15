@@ -26,10 +26,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const ctx = toTenantContext(companyId);
 	const search = url.searchParams.get('search')?.trim() || undefined;
 	const categoryId = url.searchParams.get('category')?.trim() || undefined;
+	const rawSubcategoryId = url.searchParams.get('subcategory')?.trim() || undefined;
 	const state = parseRecordState(url.searchParams.get('state'));
 
-	const [items, categories, subcategories, suppliers, units] = await Promise.all([
-		getInventoryRepository().list(ctx, { search, state, category_id: categoryId, limit: 200, offset: 0 }),
+	const [categories, subcategories, suppliers, units] = await Promise.all([
 		getCategoryRepository().list(ctx),
 		// Sin `categoryId`: trae las de TODA la empresa de una vez, para que el
 		// modal de alta filtre en el cliente segun la categoria elegida sin un
@@ -38,6 +38,29 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		getSupplierRepository().list(ctx),
 		getUnitOfMeasureRepository().list(ctx)
 	]);
+
+	/**
+	 * Si la URL trae una categoria Y una subcategoria que no es SUYA -se llega
+	 * ahi cambiando de categoria sin tocar el filtro de subcategoria, que el
+	 * `<FilterBar>` deja intacto por diseño-, la subcategoria vieja se ignora
+	 * en vez de filtrar a una lista garantizada vacia con el select mostrando
+	 * "Cualquier subcategoría" como si no hubiera filtro.
+	 */
+	const subcategoryId =
+		rawSubcategoryId && (!categoryId || subcategories.some(
+			(s) => String(s.id) === rawSubcategoryId && String(s.category_id) === categoryId
+		))
+			? rawSubcategoryId
+			: undefined;
+
+	const items = await getInventoryRepository().list(ctx, {
+		search,
+		state,
+		category_id: categoryId,
+		subcategory_id: subcategoryId,
+		limit: 200,
+		offset: 0
+	});
 
 	const categoryMap = new Map(categories.map((c) => [String(c.id), c.name]));
 	const subcategoryMap = new Map(subcategories.map((s) => [String(s.id), s.name]));
@@ -58,7 +81,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		units,
 		search: search ?? '',
 		state,
-		categoryId: categoryId ?? ''
+		categoryId: categoryId ?? '',
+		subcategoryId: subcategoryId ?? ''
 	};
 };
 
