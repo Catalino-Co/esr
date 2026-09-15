@@ -79,7 +79,11 @@ export const PERMISSIONS = [
 	'settings.view',
 	'settings.company.update',
 	'settings.catalogs.manage',
-	'settings.members.manage'
+	'settings.members.manage',
+	// Reinicio de fabrica: borra todo lo operativo de la empresa. Separado de
+	// `settings.company.update` a proposito -editar el nombre de la empresa y
+	// borrarle los datos no son la misma clase de decision.
+	'settings.factory_reset'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -150,7 +154,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'settings.view': 'Abrir Configuracion',
 	'settings.company.update': 'Editar datos de la empresa',
 	'settings.catalogs.manage': 'Gestionar catalogos',
-	'settings.members.manage': 'Gestionar usuarios'
+	'settings.members.manage': 'Gestionar usuarios',
+	'settings.factory_reset': 'Reiniciar de fabrica'
 };
 
 /** Los permisos agrupados por modulo, en el orden en que se muestran. */
@@ -230,7 +235,8 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 			'settings.view',
 			'settings.company.update',
 			'settings.catalogs.manage',
-			'settings.members.manage'
+			'settings.members.manage',
+			'settings.factory_reset'
 		]
 	}
 ];
@@ -335,7 +341,8 @@ const MANAGER_PERMISSIONS: Permission[] = [
 const ADMIN_PERMISSIONS: Permission[] = [
 	...MANAGER_PERMISSIONS,
 	'settings.company.update',
-	'settings.members.manage'
+	'settings.members.manage',
+	'settings.factory_reset'
 ];
 
 export const ROLE_PERMISSIONS: Record<CompanyRole, readonly Permission[]> = {

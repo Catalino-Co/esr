@@ -137,6 +137,13 @@ export const settingsSections: SettingsSection[] = [
 		// `audit.view`, NO `settings.members.manage`: un gerente audita pero no
 		// gestiona usuarios, asi que ve esta tarjeta y no las dos de arriba.
 		permission: 'audit.view'
+	},
+	{
+		href: '/settings/danger-zone',
+		title: 'Zona de peligro',
+		icon: ICONS.danger,
+		description: 'Reinicio de fábrica: borra los datos operativos de la empresa. Irreversible.',
+		permission: 'settings.factory_reset'
 	}
 ];
 

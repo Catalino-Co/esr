@@ -38,6 +38,7 @@ export const ICONS = {
 	addressTypes: '📍',
 	members: '🪪',
 	roles: '🛡️',
+	danger: '☢️',
 
 	// Marca
 	brand: '🏢',

@@ -31,7 +31,8 @@ import {
 	QuoteCopyService,
 	WorkOrderCreationService,
 	getCompanyDocumentInfo,
-	WorkOrderOperationsService
+	WorkOrderOperationsService,
+	FactoryResetService
 } from '@esr/db-postgres';
 
 let customerRepository: PostgresCustomerRepository | null = null;
@@ -66,6 +67,7 @@ let invoiceService: InvoiceService | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
 let packageRepository: PostgresPackageRepository | null = null;
 let serialRepository: PostgresSerialRepository | null = null;
+let factoryResetService: FactoryResetService | null = null;
 
 export function getCustomerRepository(): PostgresCustomerRepository {
 	if (!customerRepository) customerRepository = new PostgresCustomerRepository();
@@ -225,6 +227,11 @@ export function getPackageRepository(): PostgresPackageRepository {
 export function getSerialRepository(): PostgresSerialRepository {
 	if (!serialRepository) serialRepository = new PostgresSerialRepository();
 	return serialRepository;
+}
+
+export function getFactoryResetService(): FactoryResetService {
+	if (!factoryResetService) factoryResetService = new FactoryResetService();
+	return factoryResetService;
 }
 
 export { getCompanyDocumentInfo };

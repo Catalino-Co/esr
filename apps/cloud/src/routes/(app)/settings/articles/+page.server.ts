@@ -110,6 +110,14 @@ export const actions: Actions = {
 			is_active: 1
 		});
 
+		// `items.supplier_id` es la instantánea que lee el listado; la ficha del
+		// artículo (Proveedores) lee la tabla puente, que hasta ahora nadie
+		// llenaba al crear: el proveedor elegido aquí se veía en la columna de
+		// la lista pero no aparecía como principal al abrir la ficha.
+		if (values.supplier_id) {
+			await getInventoryRepository().addSupplier(ctx, item.id, values.supplier_id, true);
+		}
+
 		await recordAuditLog({ locals, request, getClientAddress }, {
 			action: 'inventory.created',
 			entity_type: 'inventory',

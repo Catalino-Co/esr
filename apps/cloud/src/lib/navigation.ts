@@ -149,6 +149,7 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/settings/sectors', title: 'Sectores comerciales', subtitle: 'A qué se dedica el cliente. Campo opcional de su ficha.' },
 	{ prefix: '/settings/address-types', title: 'Tipos de dirección', subtitle: 'Clasifican las direcciones de servicio del cliente.' },
 	{ prefix: '/settings/audit', title: 'Auditoría', subtitle: 'Registro de acciones críticas' },
+	{ prefix: '/settings/danger-zone', title: 'Zona de peligro', subtitle: 'Reinicio de fábrica: acciones irreversibles' },
 	{ prefix: '/settings', title: 'Configuración', subtitle: 'Ajustes de la empresa activa' },
 	{ prefix: '/docs', title: 'Documentación', subtitle: 'Manual de usuario de ESR Cloud' }
 ];
