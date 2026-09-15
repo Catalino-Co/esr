@@ -113,6 +113,12 @@ const groups = [
 				icon: ICONS.inventory,
 				title: 'Inventario',
 				summary: 'Artículos, categorías, cantidades y disponibilidad comprometida.'
+			},
+			{
+				slug: 'paquetes',
+				icon: ICONS.packages,
+				title: 'Paquetes',
+				summary: 'Agrupar artículos en paquetes reutilizables para cotizar más rápido.'
 			}
 		]
 	},
@@ -153,6 +159,12 @@ const groups = [
 				icon: '🏢',
 				title: 'Multiempresa',
 				summary: 'Cómo se aísla la información entre empresas y cómo se cambia de una a otra.'
+			},
+			{
+				slug: 'zona-de-peligro',
+				icon: ICONS.danger,
+				title: 'Zona de peligro',
+				summary: 'Reinicio de fábrica: borra los datos operativos de la empresa activa. Acción irreversible, solo para administradores.'
 			}
 		]
 	}

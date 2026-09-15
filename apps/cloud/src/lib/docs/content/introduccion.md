@@ -31,9 +31,9 @@ El manual sigue el orden natural del trabajo, no el del menú:
 2. **Comercial** — de la cotización a la orden de trabajo.
 3. **Logística** — entregas, devoluciones e incidencias.
 4. **Cobro** — facturas y estado de cuenta.
-5. **Operación** — los catálogos que alimentan todo: eventos, clientes e inventario.
+5. **Operación** — los catálogos que alimentan todo: eventos, clientes, inventario y paquetes.
 6. **Análisis** — reportes y auditoría.
-7. **Administración** — configuración, roles y modelo multiempresa.
+7. **Administración** — configuración, roles, modelo multiempresa y la zona de peligro.
 
 Las secciones marcadas como **En redacción** todavía no tienen texto: muestran
 el esquema previsto para que se sepa qué cubrirán.

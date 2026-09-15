@@ -31,7 +31,7 @@ El manual sigue el orden natural del trabajo, no el del menú:
 
 1. **Introducción** — esta sección y los primeros pasos.
 2. **Comercial** — de la cotización a la orden de trabajo.
-3. **Logística** — conduces, entregas, devoluciones e incidencias.
+3. **Logística** — conduces, facturas, entregas, devoluciones e incidencias.
 4. **Operación** — los catálogos que alimentan todo: eventos, clientes, inventario y paquetes.
 5. **Análisis** — reportes.
 6. **Administración** — configuración y usuarios.
