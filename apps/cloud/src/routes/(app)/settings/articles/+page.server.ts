@@ -14,6 +14,33 @@ import { toTenantContext } from '$lib/server/tenant';
 import { firstFormError, formErrorsToObject, validateCloudInventoryInput } from '$lib/server/validators';
 
 /**
+ * Columnas ordenables de la tabla, y por qué campo del item YA ENRIQUECIDO
+ * (con `category_name`/`subcategory_name`/`uom_abbr` ya resueltos) se ordena
+ * cada una. Ordenar aquí, en memoria, y no en el `ORDER BY` de
+ * `PostgresInventoryRepository.list()`: tres de estas siete columnas no son
+ * columnas de `items` -son nombres resueltos con un mapa, DESPUES de traer
+ * las filas-, y esta pantalla ya limita a 200 filas, así que no vale la pena
+ * enseñarle a esa consulta un `ORDER BY` dinamico con joins a tres tablas
+ * para una lista de este tamaño. `numeric: true` son las columnas donde el
+ * campo es un numero (precio, estado) y hay que restar en vez de comparar
+ * texto. Fuera de este mapa no hay «Acciones»: no hay nada que ordenar ahi.
+ */
+const SORT_FIELDS = {
+	code: { field: 'internal_code', numeric: false },
+	name: { field: 'name', numeric: false },
+	category: { field: 'category_name', numeric: false },
+	unit: { field: 'uom_abbr', numeric: false },
+	subcategory: { field: 'subcategory_name', numeric: false },
+	price: { field: 'rental_price', numeric: true },
+	state: { field: 'is_active', numeric: true }
+};
+
+/** @param {string | null} value */
+function parseSort(value) {
+	return value && Object.hasOwn(SORT_FIELDS, value) ? value : 'name';
+}
+
+/**
  * El CATALOGO de artículos: qué existe, cómo se llama, quién lo suministra y en
  * qué estado de circulación está.
  *
@@ -28,6 +55,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const categoryId = url.searchParams.get('category')?.trim() || undefined;
 	const rawSubcategoryId = url.searchParams.get('subcategory')?.trim() || undefined;
 	const state = parseRecordState(url.searchParams.get('state'));
+	const sort = parseSort(url.searchParams.get('sort'));
+	const dir = url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
 
 	const [categories, subcategories, suppliers, units] = await Promise.all([
 		getCategoryRepository().list(ctx),
@@ -67,14 +96,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const supplierMap = new Map(suppliers.map((s) => [String(s.id), s.name]));
 	const unitMap = new Map(units.map((u) => [String(u.id), u.abbr || u.name]));
 
+	const enriched = items.map((item) => ({
+		...item,
+		category_name: item.category_id ? categoryMap.get(String(item.category_id)) ?? '—' : '—',
+		subcategory_name: item.subcategory_id ? subcategoryMap.get(String(item.subcategory_id)) ?? '—' : '—',
+		supplier_name: item.supplier_id ? supplierMap.get(String(item.supplier_id)) ?? '—' : '—',
+		uom_abbr: item.uom_id ? unitMap.get(String(item.uom_id)) ?? '' : ''
+	}));
+
+	const { field, numeric } = SORT_FIELDS[sort];
+	const factor = dir === 'desc' ? -1 : 1;
+	enriched.sort((a, b) => {
+		const comparison = numeric
+			? Number(a[field] ?? 0) - Number(b[field] ?? 0)
+			: String(a[field] ?? '').localeCompare(String(b[field] ?? ''), 'es');
+		return comparison * factor;
+	});
+
 	return {
-		items: items.map((item) => ({
-			...item,
-			category_name: item.category_id ? categoryMap.get(String(item.category_id)) ?? '—' : '—',
-			subcategory_name: item.subcategory_id ? subcategoryMap.get(String(item.subcategory_id)) ?? '—' : '—',
-			supplier_name: item.supplier_id ? supplierMap.get(String(item.supplier_id)) ?? '—' : '—',
-			uom_abbr: item.uom_id ? unitMap.get(String(item.uom_id)) ?? '' : ''
-		})),
+		items: enriched,
 		categories,
 		subcategories,
 		suppliers,
@@ -82,7 +122,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		search: search ?? '',
 		state,
 		categoryId: categoryId ?? '',
-		subcategoryId: subcategoryId ?? ''
+		subcategoryId: subcategoryId ?? '',
+		sort,
+		dir
 	};
 };
 

@@ -32,6 +32,22 @@
 	}
 
 	/**
+	 * Clic en un encabezado sorteable: si ya es la columna activa, invierte el
+	 * sentido; si no, la vuelve activa en ascendente.
+	 * @param {string} campo
+	 */
+	function ordenarPor(campo) {
+		const dir = data.sort === campo && data.dir === 'asc' ? 'desc' : 'asc';
+		irCon({ sort: campo, dir });
+	}
+
+	/** @param {string} campo */
+	function indicador(campo) {
+		if (data.sort !== campo) return '';
+		return data.dir === 'desc' ? ' ▼' : ' ▲';
+	}
+
+	/**
 	 * Los tres estados de circulación, escritos aquí y no traídos de
 	 * `RECORD_STATE_LABELS`, porque en esta columna se leen como una propiedad
 	 * del artículo —«¿se puede cotizar?»— y no como el nombre de una acción.
@@ -184,7 +200,19 @@
 				]
 			}
 		]}
-	/>
+	>
+		{#snippet actions()}
+			{#if data.search || data.categoryId || data.subcategoryId}
+				<button
+					type="button"
+					class="btn-secondary btn-sm"
+					onclick={() => irCon({ search: null, category: null, subcategory: null })}
+				>
+					Limpiar filtros
+				</button>
+			{/if}
+		{/snippet}
+	</FilterBar>
 
 	{#if data.items.length === 0}
 		<p class="empty-state">No hay artículos para mostrar.</p>
@@ -192,16 +220,16 @@
 		<table class="data-table data-table--acento">
 			<thead>
 				<tr>
-					<th>Código</th>
-					<th>Nombre</th>
-					<th>Categoría</th>
-					<th>Unidad</th>
-					<th>Subcategoría</th>
-					<th class="num">Precio alquiler</th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('code')}>Código{indicador('code')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('name')}>Nombre{indicador('name')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('category')}>Categoría{indicador('category')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('unit')}>Unidad{indicador('unit')}</button></th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('subcategory')}>Subcategoría{indicador('subcategory')}</button></th>
+					<th class="num"><button type="button" class="th-sort" onclick={() => ordenarPor('price')}>Precio alquiler{indicador('price')}</button></th>
 					<!-- «Publicación» y no «Estado»: aquí se decide si el artículo se
 					     puede cotizar, no si la mercancía está sana. Esa otra es la
 					     condición física y vive en Inventario. -->
-					<th>Publicación</th>
+					<th><button type="button" class="th-sort" onclick={() => ordenarPor('state')}>Publicación{indicador('state')}</button></th>
 					<th><span class="sr-only">Acciones</span></th>
 				</tr>
 			</thead>
@@ -334,6 +362,28 @@
 <style>
 	.num {
 		text-align: right;
+	}
+
+	/* Encabezado clicable para ordenar. Primera tabla de Cloud con esto -no
+	   hay todavia una version compartida en theme.css que extender-, asi que
+	   queda local aqui, igual que `.form-grid--3`/`.form-field.span-2` de
+	   mas abajo. `all: unset` porque es un `<button>` dentro de un `<th>`: sin
+	   esto hereda el relleno y el fondo nativos del navegador, no los del
+	   encabezado de la tabla. */
+	.th-sort {
+		all: unset;
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+	}
+	.th-sort:hover {
+		text-decoration: underline;
+	}
+	.th-sort:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+		border-radius: var(--border-radius-sm);
 	}
 
 	/* Tres columnas fijas y no `auto-fit`: con ocho campos, el reparto
