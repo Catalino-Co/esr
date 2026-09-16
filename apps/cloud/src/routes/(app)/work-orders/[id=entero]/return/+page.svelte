@@ -96,4 +96,11 @@
 		gap: var(--sp-1);
 		font-size: var(--font-sm);
 	}
+
+	.unidad input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
 </style>

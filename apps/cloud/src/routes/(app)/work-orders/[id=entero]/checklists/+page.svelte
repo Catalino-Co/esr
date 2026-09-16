@@ -88,4 +88,12 @@
 
 <style>
 	.input-narrow { width: 100px; }
+
+	input[type='checkbox'][name^='out_'],
+	input[type='checkbox'][name^='ret_'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
 </style>

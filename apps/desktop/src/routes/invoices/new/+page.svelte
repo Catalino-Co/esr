@@ -176,11 +176,9 @@
       Solo se factura lo que ya se entregó. Elija la orden cuyas entregas quiere cobrar.
     </p>
 
-    <label style="display:flex;gap:8px;align-items:center;margin:12px 0;">
+    <label class="casilla">
       <input type="checkbox" bind:checked={soloRecientes} on:change={cargar} />
-      <span style="font-size:.9em;color:var(--text-muted);">
-        Solo entregas de los últimos {DIAS_RECIENTES} días
-      </span>
+      <span>Solo entregas de los últimos {DIAS_RECIENTES} días</span>
     </label>
 
     <div class="table-wrapper">
@@ -231,7 +229,7 @@
       <table class="table">
         <thead>
           <tr>
-            <th style="width:40px;"></th>
+            <th class="check" style="width:40px;"></th>
             <th>Conduce</th>
             <th>Fecha</th>
             <th style="text-align:right;">Líneas</th>
@@ -241,7 +239,7 @@
         <tbody>
           {#each conduces as c}
             <tr>
-              <td>
+              <td class="check">
                 <input type="checkbox" checked={seleccion.has(c.id)}
                        on:change={() => alternar(c.id)}
                        aria-label={`Incluir COND-${String(c.id).padStart(5, '0')}`} />
@@ -346,4 +344,27 @@
   .field-lg { flex: 1.5; min-width: 220px; }
   .field label { font-size: .82rem; font-weight: 600; margin-bottom: 4px; }
   .field small { margin-top: 4px; }
+
+  /* Fondo hundido + pastilla, igual que "Solo stock bajo" en Inventario. */
+  .casilla {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    margin: 12px 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-size: .9em;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .casilla input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
 </style>

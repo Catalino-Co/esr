@@ -929,6 +929,16 @@
 		background: var(--bg-table-alt);
 	}
 
+	/* Checkbox de seleccion masiva de filas (columna `.check`, las dos apps):
+	   mismo acento y tamaño mas grande que el resto de checkboxes de la app,
+	   sin fondo hundido -aqui ya lo acota la propia celda de la tabla. */
+	.check input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
 	/* ─── Badges ──────────────────────────────────────────────────
 	   Desktop las tenia cuadradas (4px); pasan a pildora para unificar
 	   con Cloud y con Workshop. */

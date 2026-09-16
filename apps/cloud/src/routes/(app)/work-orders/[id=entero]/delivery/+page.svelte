@@ -123,6 +123,13 @@
 		font-size: var(--font-sm);
 	}
 
+	.unidad input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
 	.sin-unidades {
 		font-size: var(--font-sm);
 		color: var(--text-warning);

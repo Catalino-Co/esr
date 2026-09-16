@@ -426,8 +426,29 @@
 		font-weight: 400;
 	}
 
+	.inherit-check input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
 	.inherit-check input {
 		width: auto;
+	}
+
+	/* La única "Marcar como dirección principal", sola en su propio
+	   `.form-field.full` -no un hint junto a un input, como las de arriba-:
+	   mismo fondo hundido que "Tiene existencias propias" en Artículos. */
+	.form-field.full > .inherit-check {
+		margin-top: 0;
+		width: fit-content;
+		padding: var(--sp-2) var(--sp-3);
+		border-radius: var(--radius);
+		background: var(--surface-sunken);
+		font-size: var(--font-sm);
+		color: var(--text-primary);
+		cursor: pointer;
 	}
 
 	.is-inherited {
