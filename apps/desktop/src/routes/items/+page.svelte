@@ -834,13 +834,34 @@
     margin-top: 4px;
   }
 
+  /* Fondo hundido + pastilla, igual que "Rango rápido" cuando vive DENTRO
+     de un panel: mismo tratamiento que el check de Artículos. */
   .casilla {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--sp-3);
+    width: fit-content;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
     font-size: var(--font-sm);
+    color: var(--text-primary);
     white-space: nowrap;
+    cursor: pointer;
     margin: 0;
+  }
+
+  .casilla:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .casilla input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
   .num {
