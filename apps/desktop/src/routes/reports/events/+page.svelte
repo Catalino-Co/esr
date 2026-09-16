@@ -39,7 +39,7 @@
   let calendario = false;
   let recargando = false;
   let generandoPdf = false;
-  let generandoCsv = false;
+  let generandoExcel = false;
   let error = '';
 
   let showPdfPreview = false;
@@ -142,31 +142,20 @@
     }
   }
 
-  /** Igual que `escapeCsvCell` de Cloud ($lib/server/csv): aquí no hay servidor. */
-  function celda(valor) {
-    return `"${String(valor ?? '').replace(/"/g, '""')}"`;
-  }
-
-  function exportarCsv() {
-    if (generandoCsv) return;
-    generandoCsv = true;
+  // En reportes se exporta a Excel y PDF, nunca CSV -ver memoria
+  // `reports-exportan-excel-pdf`. Mismo patrón que `reports/catalog`.
+  async function exportarExcel() {
+    if (generandoExcel) return;
+    generandoExcel = true;
     error = '';
     try {
-      const encabezados = ['Fecha', 'Evento', 'Tipo', 'Cliente', 'Lugar', 'Estado'];
-      const filas = visiblesTabla.map((ev) => [
-        ev.date,
-        ev.name,
-        ev.event_type,
-        ev.client_name,
-        ev.location,
-        ev.status
-      ]);
-      const csv = [encabezados, ...filas].map((fila) => fila.map(celda).join(',')).join('\n');
-      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'eventos.csv');
+      const { generateEventsWorkbook } = await import('@esr/reports/events');
+      const { blob, filename } = await generateEventsWorkbook(visiblesTabla);
+      downloadBlob(blob, filename);
     } catch (e) {
-      error = `No se pudo generar el CSV. ${e?.message ?? ''}`.trim();
+      error = `No se pudo generar el Excel. ${e?.message ?? ''}`.trim();
     } finally {
-      generandoCsv = false;
+      generandoExcel = false;
     }
   }
 </script>
@@ -222,8 +211,8 @@
       label="Estado del evento"
       onchange={(e) => (estado = e.currentTarget.value)}
     />
-    <button type="button" class="btn btn-secondary" on:click={exportarCsv} disabled={generandoCsv}>
-      {generandoCsv ? 'Generando…' : 'Exportar CSV'}
+    <button type="button" class="btn btn-secondary" on:click={exportarExcel} disabled={generandoExcel}>
+      {generandoExcel ? 'Generando…' : 'Exportar Excel'}
     </button>
     <button type="button" class="btn btn-primary" on:click={abrirPdf} disabled={generandoPdf}>
       {generandoPdf ? 'Generando…' : 'Vista previa PDF'}

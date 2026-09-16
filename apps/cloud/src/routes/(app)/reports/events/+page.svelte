@@ -1,7 +1,7 @@
 <script>
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { EventCalendar, Icon, PdfPreviewModal } from '@esr/ui';
+	import { EventCalendar, Icon, PdfPreviewModal, downloadBlob } from '@esr/ui';
 	import {
 		PERIODOS,
 		PERIODO_LABELS,
@@ -17,7 +17,25 @@
 	let verPdf = $state(false);
 	let pdfUrl = $state('');
 	let generandoPdf = $state(false);
+	let generandoExcel = $state(false);
 	let errorExportar = $state('');
+
+	// En reportes se exporta a Excel y PDF, nunca CSV -ver memoria
+	// `reports-exportan-excel-pdf`.
+	async function exportarExcel() {
+		if (generandoExcel) return;
+		generandoExcel = true;
+		errorExportar = '';
+		try {
+			const { generateEventsWorkbook } = await import('@esr/reports/events');
+			const { blob, filename } = await generateEventsWorkbook(data.events);
+			downloadBlob(blob, filename);
+		} catch (e) {
+			errorExportar = `No se pudo generar el Excel. ${e?.message ?? ''}`.trim();
+		} finally {
+			generandoExcel = false;
+		}
+	}
 
 	async function abrirPdf() {
 		if (generandoPdf) return;
@@ -140,12 +158,14 @@
 			label="Estado"
 			onchange={(e) => irCon({ status: e.currentTarget.value })}
 		/>
-		<a
+		<button
+			type="button"
 			class="btn-secondary no-print"
-			href="/reports/events.csv?{new URLSearchParams({ search: data.search, status: data.status, dateFrom: data.dateFrom, dateTo: data.dateTo }).toString()}"
+			onclick={exportarExcel}
+			disabled={generandoExcel}
 		>
-			Exportar CSV
-		</a>
+			{generandoExcel ? 'Generando…' : 'Exportar Excel'}
+		</button>
 		<button type="button" class="btn-primary no-print" onclick={abrirPdf} disabled={generandoPdf}>
 			{generandoPdf ? 'Generando…' : 'Vista previa PDF'}
 		</button>
