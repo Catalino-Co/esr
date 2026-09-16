@@ -323,7 +323,7 @@
     </div>
 
     <div>
-      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+      <label class="casilla">
         <input type="checkbox" bind:checked={nuevo.tracks_inventory} />
         Tiene existencias propias
       </label>
@@ -372,6 +372,37 @@
   .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; }
   .form-control:focus { border-color: var(--primary); }
   label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
+
+  /* Fondo hundido + pastilla: le da al check el mismo peso visual que sus
+     campos vecinos (inputs/selects de 36px de alto) en vez de quedar como
+     texto suelto de una sola línea de alto. */
+  .casilla {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-size: 0.85rem;
+    font-weight: normal;
+    color: var(--text-main);
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+
+  .casilla:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .casilla input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
   .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s; display: inline-flex; text-decoration: none; }
   .btn-icon:hover { opacity: 1; transform: scale(1.1); }
   .text-danger { color: var(--danger); }

@@ -381,11 +381,33 @@
 		text-align: right;
 	}
 
+	/* Fondo hundido + pastilla, igual que "Rango rápido" cuando vive DENTRO
+	   de un panel: le da al check el mismo peso visual que sus vecinos de
+	   `.form-grid` (36px de alto) en vez de quedar como texto suelto. */
 	.casilla {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
-		gap: var(--sp-2);
+		gap: var(--sp-3);
+		width: fit-content;
+		padding: var(--sp-2) var(--sp-3);
+		border-radius: var(--radius);
+		background: var(--surface-sunken);
 		font-size: var(--font-sm);
+		color: var(--text-primary);
+		cursor: pointer;
+	}
+
+	.casilla:has(input:disabled) {
+		cursor: default;
+		opacity: 0.6;
+	}
+
+	.casilla input[type='checkbox'] {
+		width: 20px;
+		height: 20px;
+		accent-color: var(--accent);
+		cursor: pointer;
+		flex-shrink: 0;
 	}
 
 	/* Tres columnas fijas y no `auto-fit`: con ocho campos, el reparto
