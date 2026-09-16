@@ -1038,3 +1038,48 @@ export function generateIncidentsReportPDF(incidents, action = 'save', companyIn
 
   return createPdfResult(doc, 'Incidencias.pdf', action);
 }
+
+/**
+ * El reporte de Eventos: el punto de color del tipo no se puede pintar en una
+ * tabla de texto, asi que aqui el Tipo va en su propia columna -en pantalla
+ * va como chip junto al nombre-. Apaisado, como Incidencias: son 6 columnas.
+ *
+ * @param {Array<any>} events
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateEventsReportPDF(events, action = 'save', companyInfo = null) {
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('EVENTOS', COL_ETIQUETA, 20);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Fecha: ${formatDate(new Date())}`, COL_ETIQUETA, 26);
+
+  const body = (events || []).map((event) => [
+    event.date || '—',
+    event.name || '—',
+    event.event_type || '—',
+    event.client_name || '—',
+    event.location || '—',
+    event.status || '—'
+  ]);
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Fecha', 'Evento', 'Tipo', 'Cliente', 'Lugar', 'Estado']],
+    body,
+    theme: 'grid',
+    headStyles: { fillColor: [67, 94, 190] },
+    styles: { fontSize: 9 },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X }
+  });
+
+  paginar(doc);
+
+  return createPdfResult(doc, 'Eventos.pdf', action);
+}

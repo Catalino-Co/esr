@@ -76,6 +76,15 @@
   </span>
 </a>
 
+<a class="report-card" href="/reports/events">
+  <span class="report-card-icon" aria-hidden="true">{ICONS.reports}</span>
+  <span class="report-card-text">
+    <strong>Eventos por fecha</strong>
+    <span class="report-card-desc">Calendario y reservas por periodo.</span>
+    <span class="report-link">Abrir eventos →</span>
+  </span>
+</a>
+
 <div class="card">
   <div class="card-title">
     <span>Panel de Reportes Operativos y Comerciales</span>

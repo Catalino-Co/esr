@@ -6,7 +6,7 @@
 		{ href: '/reports/catalog', title: 'Catálogo de productos', description: 'Lista de precios por categoría y subcategoría, para clientes.', ready: true },
 		{ href: '/reports/orders', title: 'Órdenes activas', description: 'Estado, fechas y totales de las órdenes.', ready: true },
 		{ href: '/reports/incidents', title: 'Incidencias abiertas', description: 'Seguimiento de incidencias operativas.', ready: true },
-		{ href: '/reports/events', title: 'Eventos por fecha', description: 'Calendario y reservas por periodo.', ready: false },
+		{ href: '/reports/events', title: 'Eventos por fecha', description: 'Calendario y reservas por periodo.', ready: true },
 		{ href: '/reports/quotes', title: 'Cotizaciones por estado', description: 'Pipeline comercial y conversiones.', ready: false },
 		{ href: '/reports/delivery-notes', title: 'Conduces emitidos', description: 'Entregas y devoluciones registradas.', ready: false },
 		{ href: '/reports/customers', title: 'Clientes registrados', description: 'Directorio y actividad de clientes.', ready: false }

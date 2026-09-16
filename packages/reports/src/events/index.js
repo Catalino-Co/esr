@@ -1,1 +1,1 @@
-export { generateEventPDF } from '../templates/pdf-generator.js';
+export { generateEventPDF, generateEventsReportPDF } from '../templates/pdf-generator.js';
