@@ -141,12 +141,6 @@
 </div>
 
 <div class="card">
-  <p class="panel-hint">
-    Cosas que se venden sin ser un artículo del inventario -una actuación, una asesoría-. Se
-    cotizan, se agregan a una orden y se facturan igual que un artículo, pero no se entregan ni se
-    devuelven: no son tangibles.
-  </p>
-
   <div class="table-wrapper">
     <table class="table table--acento">
       <thead>
