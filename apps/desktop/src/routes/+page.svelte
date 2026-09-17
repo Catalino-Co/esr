@@ -134,11 +134,14 @@
 
       // Los tres paneles son «los proximos/ultimos cinco», no cifras: no se
       // acotan al periodo elegido.
+      // «Próximos» es lo que aún puede pasar: tentativo o confirmado. Uno
+      // cancelado o completado ya cumplió su ciclo y no es una cita por
+      // venir, aunque su fecha caiga en el futuro.
       upcomingEvents = await window.api.db.get(
         `SELECT e.id, e.name, e.date, e.event_type, c.name AS client_name
            FROM events e
            LEFT JOIN clients c ON c.id = e.client_id
-          WHERE e.is_active = 1 AND e.date >= ?
+          WHERE e.is_active = 1 AND e.date >= ? AND e.status IN ('tentativo', 'confirmado')
           ORDER BY e.date ASC
           LIMIT 5`,
         [today]

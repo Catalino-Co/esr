@@ -68,7 +68,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// pasa a hacerse desde la ficha, a la que el alta redirige.
 	return {
 		events: eventsTabla.slice(0, 100).map(conNombre),
-		eventsCalendario: eventsCalendario.map(conNombre),
+		// El Calendario excluye cancelados SIEMPRE, sin importar el desplegable
+		// de estado: una reserva cancelada ya no ocupa el día. La Tabla (arriba)
+		// sí los muestra cuando se filtran explicitamente, porque sirve para
+		// auditoria/gestion, no para ver disponibilidad.
+		eventsCalendario: eventsCalendario.filter((e) => e.status !== 'cancelado').map(conNombre),
 		customers,
 		eventTypes,
 		search: search ?? '',

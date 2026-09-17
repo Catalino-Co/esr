@@ -53,8 +53,15 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
 	// Los tres paneles son «los proximos/ultimos N», no cifras: una pagina corta
 	// basta y no hace falta acotarlos al periodo.
 	const today = fechaLocal(hoy);
+	// «Próximos» es lo que aún puede pasar: tentativo o confirmado. Uno
+	// cancelado o completado ya cumplió su ciclo y no es una cita por venir,
+	// aunque su fecha caiga en el futuro.
+	const ESTADOS_PROXIMOS = new Set(['tentativo', 'confirmado']);
 	const upcomingEvents = events
-		.filter((event) => event.date && String(event.date) >= today)
+		.filter(
+			(event) =>
+				event.date && String(event.date) >= today && ESTADOS_PROXIMOS.has(String(event.status))
+		)
 		.sort((a, b) => String(a.date).localeCompare(String(b.date)))
 		.slice(0, 5);
 

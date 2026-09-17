@@ -51,7 +51,10 @@ export const load: PageServerLoad = async (event) => {
 
 	return {
 		events: eventsTabla.map(conNombre),
-		eventsCalendario: eventsCalendario.map(conNombre),
+		// El Calendario excluye cancelados SIEMPRE, sin importar el desplegable
+		// de estado: una reserva cancelada ya no ocupa el día. La Tabla (arriba)
+		// sí los muestra cuando se filtran explicitamente.
+		eventsCalendario: eventsCalendario.filter((e) => e.status !== 'cancelado').map(conNombre),
 		eventTypes,
 		search: search ?? '',
 		status: status ?? '',

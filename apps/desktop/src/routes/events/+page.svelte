@@ -127,6 +127,12 @@
     return true;
   });
 
+  /* El Calendario excluye cancelados SIEMPRE, sin importar el desplegable de
+     estado: una reserva cancelada ya no ocupa el día. La Tabla (visiblesTabla)
+     sigue viendo `base` sin este filtro, para poder auditarlos cuando se
+     eligen explicitamente. */
+  $: baseCalendario = base.filter((e) => e.status !== 'cancelado');
+
   /**
    * El color del tipo, resuelto POR NOMBRE.
    *
@@ -377,7 +383,7 @@
   {/if}
 
   {#if calendario}
-    <EventCalendar events={base} colorOf={colorDe} onSelect={abrirFicha} />
+    <EventCalendar events={baseCalendario} colorOf={colorDe} onSelect={abrirFicha} />
   {:else}
     <div class="table-wrapper">
       <table class="table table--acento">

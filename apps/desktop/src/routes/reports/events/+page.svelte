@@ -121,6 +121,11 @@
     return true;
   });
 
+  /* El Calendario excluye cancelados SIEMPRE, sin importar el desplegable de
+     estado: una reserva cancelada ya no ocupa el día. La Tabla/PDF/Excel
+     (visiblesTabla) siguen viendo `base` sin este filtro. */
+  $: baseCalendario = base.filter((e) => e.status !== 'cancelado');
+
   /** El color del tipo, resuelto POR NOMBRE. Mismo criterio que /events. */
   const GRIS = '#94a3b8';
   $: colores = new Map(eventTypes.map((t) => [String(t.name).trim().toLowerCase(), t.color]));
@@ -276,7 +281,7 @@
   {/if}
 
   {#if calendario}
-    <EventCalendar events={base} colorOf={colorDe} />
+    <EventCalendar events={baseCalendario} colorOf={colorDe} />
   {:else}
     <div class="table-wrapper">
       <table class="table table--acento">
