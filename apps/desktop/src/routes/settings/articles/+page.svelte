@@ -327,11 +327,6 @@
         <input type="checkbox" bind:checked={nuevo.tracks_inventory} />
         Tiene existencias propias
       </label>
-      <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
-        Desmárquelo si es un artículo de renta externa: no se le asignará
-        almacén ni se le exigirá existencia al cotizarlo o incluirlo en una
-        orden.
-      </span>
     </div>
 
     <!--
@@ -350,9 +345,6 @@
       <div style="flex: 1;">
         <label for="itm-cost">Precio de compra</label>
         <FormattedNumberField id="itm-cost" min={0} bind:value={nuevo.internal_cost} class="form-control" />
-        <span style="display:block; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
-          Se propone como costo al registrar una entrada.
-        </span>
       </div>
     </div>
 

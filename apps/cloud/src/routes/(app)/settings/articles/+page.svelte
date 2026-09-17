@@ -291,9 +291,6 @@
 					</option>
 				{/each}
 			</select>
-			{#if !categoriaElegida}
-				<span class="form-hint">Elija una categoría primero.</span>
-			{/if}
 		</div>
 		<div class="form-field">
 			<label for="a-supplier_id">Proveedor</label>
@@ -334,7 +331,6 @@
 				min={0}
 				value={values.internal_cost ?? 0}
 			/>
-			<span class="form-hint">Se propone como costo unitario al registrar una entrada.</span>
 		</div>
 
 		<div class="form-field full">
@@ -347,11 +343,6 @@
 				/>
 				Tiene existencias propias
 			</label>
-			<span class="form-hint">
-				Desmárquelo si es un artículo de renta externa: no se le asignará
-				almacén ni se le exigirá existencia al cotizarlo o incluirlo en una
-				orden.
-			</span>
 		</div>
 
 		<div class="form-field full">
@@ -359,15 +350,6 @@
 			<textarea id="a-notes" name="notes" rows="2">{values.notes ?? ''}</textarea>
 		</div>
 	</form>
-
-	<div class="nota">
-		<p class="nota-titulo">💡 Nota</p>
-		<p>
-			Nace sin existencias. Para darle stock, regístrele una entrada en
-			<a href="/inventory">Inventario</a>: así queda constancia de a qué almacén entró, a
-			qué costo y quién la registró.
-		</p>
-	</div>
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={cerrar}><Icon name="x" size={16} />Cancelar</button>
@@ -427,20 +409,4 @@
 		grid-column: span 2;
 	}
 
-	.nota {
-		margin-top: var(--sp-4);
-		padding: var(--sp-3) var(--sp-4);
-		background: var(--success-bg);
-		border: 1px solid var(--success);
-		border-radius: var(--border-radius-sm);
-		color: var(--success-text);
-		font-size: var(--font-sm);
-	}
-	.nota-titulo {
-		margin: 0 0 var(--sp-1);
-		font-weight: 700;
-	}
-	.nota p:last-child {
-		margin-bottom: 0;
-	}
 </style>
