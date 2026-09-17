@@ -31,7 +31,10 @@ export type QuoteListFilters = {
 };
 
 export type AddQuoteItemInput = {
-	item_id: ESRId;
+	/** Excluyente con `service_id`: una linea es de un articulo o de un servicio. */
+	item_id?: ESRId;
+	/** Ver `service.schema.ts`. */
+	service_id?: ESRId;
 	quantity: number;
 	price: number;
 	/**

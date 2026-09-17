@@ -66,16 +66,21 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		const order = result.rows[0];
 
 		for (const item of items) {
-			if (!item.item_id) continue;
+			// Una linea de paquete legacy sin explotar (`package_id` sin `item_id`
+			// ni `service_id`) no tiene nada que reservar: se descarta igual que
+			// siempre. Una linea de Servicio SI sobrevive -no reserva stock, pero
+			// es una linea real de la orden-.
+			if (!item.item_id && !item.service_id) continue;
 			const lineTotal = Number(item.total || Number(item.quantity) * Number(item.price));
 			await db.query(
 				`INSERT INTO work_order_items
-					(company_id, work_order_id, item_id, quantity, price, line_total, start_date, end_date, status)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'reserved')`,
+					(company_id, work_order_id, item_id, service_id, quantity, price, line_total, start_date, end_date, status)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'reserved')`,
 				[
 					companyId,
 					order.id,
-					item.item_id,
+					item.item_id ?? null,
+					item.service_id ?? null,
 					item.quantity,
 					item.price,
 					lineTotal,
@@ -273,7 +278,7 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		const db = this.queryClient(client);
 		const orderNumber = await this.nextOrderNumber(ctx, client);
 
-		const lineas = (data.items || []).filter((item) => item.item_id);
+		const lineas = (data.items || []).filter((item) => item.item_id || item.service_id);
 		const subtotal = lineas.reduce(
 			(suma, item) => suma + Number(item.quantity || 0) * Number(item.price || 0),
 			0
@@ -310,12 +315,13 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 			const precio = Number(item.price || 0);
 			await db.query(
 				`INSERT INTO work_order_items
-					(company_id, work_order_id, item_id, quantity, price, line_total, start_date, end_date, status)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'reserved')`,
+					(company_id, work_order_id, item_id, service_id, quantity, price, line_total, start_date, end_date, status)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'reserved')`,
 				[
 					companyId,
 					order.id,
-					item.item_id,
+					item.item_id ?? null,
+					item.service_id ?? null,
 					cantidad,
 					precio,
 					cantidad * precio,
@@ -397,11 +403,13 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 
 	async listItems(ctx: RepositoryContext, orderId: ESRId): Promise<RentalOrderItem[]> {
 		const result = await this.pool.query<RentalOrderItem>(
-			`SELECT woi.id, woi.company_id, woi.work_order_id, woi.item_id,
-				i.name, i.internal_code, woi.quantity, woi.delivered_quantity, woi.returned_quantity,
+			`SELECT woi.id, woi.company_id, woi.work_order_id, woi.item_id, woi.service_id,
+				COALESCE(i.name, s.name) AS name, i.internal_code,
+				woi.quantity, woi.delivered_quantity, woi.returned_quantity,
 				woi.price, woi.line_total, woi.status, woi.start_date, woi.end_date
 			 FROM work_order_items woi
 			 LEFT JOIN items i ON i.id = woi.item_id AND i.company_id = woi.company_id
+			 LEFT JOIN services s ON s.id = woi.service_id AND s.company_id = woi.company_id
 			 WHERE woi.company_id = $1 AND woi.work_order_id = $2`,
 			[requireCompanyId(ctx), orderId]
 		);

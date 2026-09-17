@@ -102,6 +102,20 @@ export type UnitOfMeasureDraft = {
 	is_active?: number;
 };
 
+/**
+ * Un Servicio: algo vendible que no es un articulo de inventario (una
+ * Maestria de Ceremonias, vestirse de Santa...). Ver `service.schema.ts`
+ * para el detalle de por que no participa de Entrega/Devolucion/Cierre.
+ */
+export type ServiceDraft = {
+	id?: ESRId | null;
+	company_id?: string;
+	name: string;
+	price?: number;
+	notes?: string | null;
+	is_active?: number;
+};
+
 /** Contrato comun de un catalogo simple con alcance de empresa. */
 export interface TenantCatalogRepository<TDraft> {
 	list(ctx: RepositoryContext, options?: CatalogListOptions): Promise<TDraft[]>;
@@ -128,3 +142,4 @@ export type TenantCommercialSectorRepository = TenantCatalogRepository<Commercia
 export type TenantClientAddressTypeRepository = TenantCatalogRepository<ClientAddressTypeDraft>;
 export type TenantWarehouseRepository = TenantCatalogRepository<WarehouseDraft>;
 export type TenantUnitOfMeasureRepository = TenantCatalogRepository<UnitOfMeasureDraft>;
+export type TenantServiceRepository = TenantCatalogRepository<ServiceDraft>;

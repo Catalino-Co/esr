@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('api', {
     listItems: (id) => ipcRenderer.invoke('invoices:listItems', id),
     listConduces: (id) => ipcRenderer.invoke('invoices:listConduces', id),
     listBillable: (workOrderId) => ipcRenderer.invoke('invoices:listBillable', workOrderId),
+    listBillableServices: (workOrderId) =>
+      ipcRenderer.invoke('invoices:listBillableServices', workOrderId),
     listOrdersWithBillable: (options) =>
       ipcRenderer.invoke('invoices:listOrdersWithBillable', options),
     findByConduce: (conduceId) => ipcRenderer.invoke('invoices:findByConduce', conduceId),

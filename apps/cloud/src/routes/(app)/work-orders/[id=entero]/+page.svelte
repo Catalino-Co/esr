@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Icon, PdfPreviewModal } from '@esr/ui';
-	import { formatDate, formatMoney, statusBadgeClass, statusLabel } from '@esr/core';
+	import { formatDate, formatMoney, isServiceLine, statusBadgeClass, statusLabel } from '@esr/core';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
 
@@ -18,7 +18,10 @@
 	 * la URL del nuevo.
 	 */
 	const order = $derived(data.order);
-	const items = $derived(data.items);
+	// Un Servicio no es tangible: no entra en Entrega/Devolución/Cierre, así
+	// que se enseña aparte, de solo lectura -sin columnas que no le aplican-.
+	const items = $derived(data.items.filter((item) => !isServiceLine(item)));
+	const serviceItems = $derived(data.items.filter((item) => isServiceLine(item)));
 	const status = $derived(order.status);
 	const isReadOnly = $derived(status === 'cancelado' || status === 'cerrado');
 
@@ -265,6 +268,32 @@
 				</table>
 			{/if}
 		</section>
+
+		{#if serviceItems.length > 0}
+			<section class="panel">
+				<h2 class="titulo-seccion">Servicios</h2>
+				<!-- Sin columnas de entregado/devuelto ni acciones: un servicio no es
+				     tangible y no pasa por Entrega ni Devolución. -->
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Servicio</th>
+							<th class="num">Cantidad</th>
+							<th class="num">Precio</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each serviceItems as item (item.id)}
+							<tr>
+								<td>{item.name}</td>
+								<td class="num">{item.quantity}</td>
+								<td class="num">{formatMoney(item.price)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</section>
+		{/if}
 
 		<!-- Es lo que el montador lee el día del evento, así que va con los
 		     equipos y no escondido en una columna estrecha. -->

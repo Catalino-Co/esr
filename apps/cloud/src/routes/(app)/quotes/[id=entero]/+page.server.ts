@@ -11,7 +11,8 @@ import {
 	getQuoteConversionService,
 	getQuoteCopyService,
 	getQuoteRepository,
-	getRentalRepository
+	getRentalRepository,
+	getServiceRepository
 } from '$lib/server/repositories';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -43,7 +44,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		packageLines,
 		customers,
 		events,
-		companySettings
+		companySettings,
+		services
 	] = await Promise.all([
 			getQuoteRepository().listItems(ctx, params.id),
 			quote.event_id ? getEventRepository().findById(ctx, quote.event_id) : Promise.resolve(null),
@@ -59,7 +61,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			getEventRepository().list(ctx, { limit: 200, offset: 0 }),
 			// La tasa que se propone en cada linea nueva. Va en el mismo
 			// `Promise.all` y no en una consulta aparte: es una fila por id.
-			getCompanySettingsRepository().get(ctx)
+			getCompanySettingsRepository().get(ctx),
+			// Igual que el inventario: solo Activos, no tiene sentido cotizar un
+			// servicio archivado.
+			getServiceRepository().list(ctx, { state: RECORD_STATE.ACTIVE })
 		]);
 
 	// Las lineas de todos los paquetes, agrupadas por paquete. Se agrupa aqui y
@@ -104,6 +109,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		packageLines: lineasPorPaquete,
 		customers,
 		events,
+		services,
 		// El estado de cuenta ya no vive aqui: el dinero esta en el conduce, que
 		// es el documento que se cobra.
 		// Configuracion › Generales. Se PROPONE en la linea nueva; cambiar el
@@ -160,6 +166,35 @@ export const actions: Actions = {
 			price,
 			...leerTasas(form)
 		});
+		return { success: true };
+	},
+	addService: async ({ request, locals, params }) => {
+		const { companyId } = requirePermission(locals, 'quotes.update');
+		const ctx = toTenantContext(companyId);
+		const quote = await getQuoteRepository().findById(ctx, params.id);
+		if (!quote) error(404, 'Cotización no encontrada');
+		const editCheck = validateQuoteCanEdit(quote);
+		if (!editCheck.ok) return fail(400, { error: editCheck.error });
+
+		const form = await request.formData();
+		const service_id = String(form.get('service_id') ?? '').trim();
+		const quantity = Number(form.get('quantity') ?? 1);
+		const price = Number(form.get('price') ?? 0);
+
+		const validation = validateAddQuoteItemInput({ service_id, quantity, price });
+		if (!validation.valid) return fail(400, { error: 'Servicio, cantidad y precio inválidos.' });
+
+		// El selector ya solo ofrece Activos, pero esto no confía en eso.
+		const service = await getServiceRepository().findById(ctx, service_id);
+		if (!service || service.is_active !== RECORD_STATE.ACTIVE) {
+			return fail(400, { error: 'Este servicio está inactivo o archivado y no puede agregarse.' });
+		}
+
+		// Un servicio SI puede llevar descuento/impuesto de linea, igual que un
+		// articulo -son conceptos fiscales, no de inventario-. Lo que no lleva es
+		// fecha de alquiler: no reserva stock ni comprueba disponibilidad, no es
+		// tangible.
+		await getQuoteRepository().addItem(ctx, params.id, { service_id, quantity, price, ...leerTasas(form) });
 		return { success: true };
 	},
 	addPackage: async (event) => {

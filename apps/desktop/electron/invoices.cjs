@@ -32,6 +32,7 @@ module.exports = {
   listInvoiceItems: envolver((id) => invoices.listItems(id)),
   listInvoiceConduces: envolver((id) => invoices.listConduces(id)),
   listBillableConduces: envolver((workOrderId) => invoices.listBillableConduces(workOrderId)),
+  listBillableServices: envolver((workOrderId) => invoices.listBillableServices(workOrderId)),
   listOrdersWithBillable: envolver((options) => invoices.listOrdersWithBillable(options)),
   findInvoiceByConduce: envolver((conduceId) => invoices.findActiveByConduce(conduceId)),
   previewInvoiceLines: envolver((conduceIds) => invoices.previewLines(conduceIds)),

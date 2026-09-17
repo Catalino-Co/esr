@@ -1,6 +1,6 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getReturnableQuantity } from '@esr/core';
+import { getReturnableQuantity, isServiceLine } from '@esr/core';
 import {
 	getRentalRepository,
 	getSerialRepository,
@@ -24,6 +24,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const items = await getRentalRepository().listItems(ctx, params.id);
 	const returnableItems = items
+		// Un Servicio no es tangible: nunca se devuelve.
+		.filter((item) => !isServiceLine(item))
 		.map((item) => ({
 			...item,
 			returnable: getReturnableQuantity(item)

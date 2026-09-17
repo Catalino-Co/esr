@@ -30,6 +30,8 @@ function mapQuoteItem(row: QuoteItemRow): QuoteItem {
 		company_id: row.company_id,
 		quotation_id: row.quotation_id,
 		item_id: row.item_id,
+		service_id: row.service_id ?? null,
+		is_service: Boolean(row.service_id),
 		name: row.name,
 		code: row.code,
 		quantity: Number(row.quantity || 0),
@@ -277,18 +279,19 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 
 	async listItems(ctx: RepositoryContext, quoteId: ESRId, client?: pg.PoolClient): Promise<QuoteItem[]> {
 		const result = await this.queryClient(client).query<QuoteItemRow>(
-			`SELECT qi.*, i.name AS item_name, i.internal_code AS item_code
+			`SELECT qi.*, i.name AS item_name, i.internal_code AS item_code, s.name AS service_name
 			 FROM quotation_items qi
 			 LEFT JOIN items i ON i.id = qi.item_id AND i.company_id = qi.company_id
+			 LEFT JOIN services s ON s.id = qi.service_id AND s.company_id = qi.company_id
 			 WHERE qi.company_id = $1 AND qi.quotation_id = $2
 			 ORDER BY qi.id`,
 			[requireCompanyId(ctx), quoteId]
 		);
 		return result.rows.map((row) => {
-			const enriched = row as QuoteItemRow & { item_name?: string; item_code?: string };
+			const enriched = row as QuoteItemRow & { item_name?: string; item_code?: string; service_name?: string };
 			return mapQuoteItem({
 				...enriched,
-				name: enriched.name || enriched.item_name,
+				name: enriched.name || enriched.item_name || enriched.service_name,
 				code: enriched.code || enriched.item_code
 			});
 		});
@@ -299,25 +302,41 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 		const quote = await this.findById(ctx, quoteId);
 		if (!quote) throw new Error(`Quote ${quoteId} not found in company.`);
 
-		const itemResult = await this.pool.query<{ id: number; name: string; internal_code: string | null }>(
-			'SELECT id, name, internal_code FROM items WHERE company_id = $1 AND id = $2 AND is_active = 1',
-			[companyId, data.item_id]
-		);
-		if (!itemResult.rows[0]) throw new Error('Inventory item not found in company.');
+		// Una linea es de UN articulo o de UN servicio, nunca las dos cosas:
+		// `validateAddQuoteItemInput` ya lo exige antes de llegar aqui.
+		let name: string;
+		let code: string | null = null;
+		if (data.service_id) {
+			const serviceResult = await this.pool.query<{ id: number; name: string }>(
+				'SELECT id, name FROM services WHERE company_id = $1 AND id = $2 AND is_active = 1',
+				[companyId, data.service_id]
+			);
+			if (!serviceResult.rows[0]) throw new Error('Service not found in company.');
+			name = serviceResult.rows[0].name;
+		} else {
+			const itemResult = await this.pool.query<{ id: number; name: string; internal_code: string | null }>(
+				'SELECT id, name, internal_code FROM items WHERE company_id = $1 AND id = $2 AND is_active = 1',
+				[companyId, data.item_id]
+			);
+			if (!itemResult.rows[0]) throw new Error('Inventory item not found in company.');
+			name = itemResult.rows[0].name;
+			code = itemResult.rows[0].internal_code;
+		}
 
 		const lineTotal = calculateQuoteLineTotal({ quantity: data.quantity, price: data.price });
 		const insert = await this.pool.query<QuoteItemRow>(
 			`INSERT INTO quotation_items
-				(company_id, quotation_id, item_id, name, code, quantity, price, total,
+				(company_id, quotation_id, item_id, service_id, name, code, quantity, price, total,
 				 discount_rate, tax_rate, start_date, end_date)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			 RETURNING *`,
 			[
 				companyId,
 				quoteId,
-				data.item_id,
-				itemResult.rows[0].name,
-				itemResult.rows[0].internal_code,
+				data.item_id ?? null,
+				data.service_id ?? null,
+				name,
+				code,
 				data.quantity,
 				data.price,
 				lineTotal,
@@ -442,15 +461,16 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 			const lineTotal = item.total ?? calculateQuoteLineTotal(item);
 			await db.query(
 				`INSERT INTO quotation_items
-					(company_id, quotation_id, item_id, package_id, name, code,
+					(company_id, quotation_id, item_id, package_id, service_id, name, code,
 					 quantity, price, total, discount_rate, tax_rate, discount_amount,
 					 start_date, end_date)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 				[
 					companyId,
 					quoteId,
 					item.item_id ?? null,
 					item.package_id ?? null,
+					item.service_id ?? null,
 					item.name || null,
 					item.code || null,
 					item.quantity,

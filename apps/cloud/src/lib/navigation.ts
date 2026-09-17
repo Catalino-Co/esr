@@ -76,6 +76,13 @@ export const navItems: NavItemConfig[] = [
 		permission: 'packages.view'
 	},
 	{
+		href: '/services',
+		label: 'Servicios',
+		icon: ICONS.services,
+		matchPrefix: '/services',
+		permission: 'services.view'
+	},
+	{
 		href: '/reports',
 		label: 'Reportes',
 		icon: ICONS.reports,
@@ -120,6 +127,7 @@ const pageMeta: Array<{ prefix: string; title: string; subtitle: string }> = [
 	{ prefix: '/conduces', title: 'Conduces', subtitle: 'Notas de entrega de la operación' },
 	{ prefix: '/incidents', title: 'Incidencias', subtitle: 'Seguimiento operativo' },
 	{ prefix: '/packages', title: 'Paquetes', subtitle: 'Artículos que se alquilan juntos' },
+	{ prefix: '/services', title: 'Servicios', subtitle: 'Lo que se vende sin ser un artículo del inventario' },
 	// Las 4 subrutas de Reportes van ANTES de la genérica: `.find()` para en
 	// la primera que matchea, mismo mecanismo que usan las subrutas de
 	// Configuración de aqui abajo. Mismos textos que sus tarjetas en

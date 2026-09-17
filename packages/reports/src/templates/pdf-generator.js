@@ -335,7 +335,10 @@ export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = n
     head: [['Código', 'Descripción del equipo', 'Cantidad a preparar']],
     body: (items || []).map((linea) => [
       linea.internal_code || '—',
-      linea.name || 'Sin descripción',
+      // `quoteItemLabel`, no `linea.name` a secas: una linea de Servicio no
+      // tiene codigo ni es un "equipo a preparar", y sin la etiqueta
+      // `[Servicio]` se imprimia indistinguible de un articulo.
+      quoteItemLabel(linea),
       // `String(... ?? 0)` y no `.toString()`: una cantidad nula reventaba.
       String(linea.quantity ?? 0)
     ]),

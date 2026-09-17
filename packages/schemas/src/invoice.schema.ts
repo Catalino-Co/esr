@@ -41,6 +41,8 @@ export type InvoiceItem = {
 	company_id?: string;
 	invoice_id?: ESRId;
 	item_id?: Nullable<ESRId>;
+	/** Ver `service.schema.ts`. Excluyente con `item_id`: una linea es de uno o de otro. */
+	service_id?: Nullable<ESRId>;
 	description?: Nullable<string>;
 	quantity: number | string;
 	price: number | string;
@@ -58,4 +60,20 @@ export type InvoiceConduce = {
 	/** Por join, para poder enseñar la entrega sin una consulta mas. */
 	note_number?: Nullable<string>;
 	date?: Nullable<string>;
+};
+
+/**
+ * Fila de `invoice_work_order_items`: que linea de Servicio de una orden
+ * cubre la factura. Un Servicio nunca genera un conduce -no es tangible-,
+ * asi que necesita este enlace propio en vez de `invoice_conduces` para
+ * saber que ya se facturo. Mismo mecanismo: `is_active` en 0 libera la
+ * linea para volver a facturarla si la factura se anula.
+ */
+export type InvoiceWorkOrderItem = {
+	id?: Nullable<ESRId>;
+	invoice_id: ESRId;
+	work_order_item_id: ESRId;
+	is_active?: number;
+	/** Por join, para poder enseñar el servicio sin una consulta mas. */
+	service_name?: Nullable<string>;
 };

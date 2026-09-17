@@ -25,6 +25,12 @@ export const PERMISSIONS = [
 	'packages.update',
 	'packages.archive',
 
+	// Servicios
+	'services.view',
+	'services.create',
+	'services.update',
+	'services.archive',
+
 	// Eventos
 	'events.view',
 	'events.create',
@@ -109,6 +115,11 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	'packages.update': 'Editar paquetes',
 	'packages.archive': 'Archivar paquetes',
 
+	'services.view': 'Ver servicios',
+	'services.create': 'Crear servicios',
+	'services.update': 'Editar servicios',
+	'services.archive': 'Archivar servicios',
+
 	'events.view': 'Ver eventos',
 	'events.create': 'Crear eventos',
 	'events.update': 'Editar eventos',
@@ -174,7 +185,11 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 			'packages.view',
 			'packages.create',
 			'packages.update',
-			'packages.archive'
+			'packages.archive',
+			'services.view',
+			'services.create',
+			'services.update',
+			'services.archive'
 		]
 	},
 	{
@@ -276,6 +291,7 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	'customers.view',
 	'inventory.view',
 	'packages.view',
+	'services.view',
 	'events.view',
 	'quotes.view',
 	'work_orders.view',
@@ -294,6 +310,8 @@ const STAFF_PERMISSIONS: Permission[] = [
 	// Los seriales son una propiedad del articulo: se gobiernan con inventory.*
 	'packages.create',
 	'packages.update',
+	'services.create',
+	'services.update',
 	'events.create',
 	'events.update',
 	'quotes.create',
@@ -317,6 +335,7 @@ const MANAGER_PERMISSIONS: Permission[] = [
 	'customers.archive',
 	'inventory.archive',
 	'packages.archive',
+	'services.archive',
 	'events.cancel',
 	'events.archive',
 	'quotes.archive',

@@ -4,6 +4,7 @@ export * from './event.schema';
 export * from './inventory.schema';
 export * from './rental.schema';
 export * from './quote.schema';
+export * from './service.schema';
 export * from './conduce.schema';
 export * from './checklist.schema';
 export * from './incident.schema';

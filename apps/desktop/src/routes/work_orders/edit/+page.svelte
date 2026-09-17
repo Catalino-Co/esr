@@ -69,10 +69,11 @@
       }
 
       const qItems = await window.api.db.get(
-        'SELECT item_id, package_id, quantity FROM quotation_items WHERE quotation_id = ?',
+        'SELECT item_id, package_id, service_id, quantity, price FROM quotation_items WHERE quotation_id = ?',
         [currentWO.quotation_id]
       );
       woItems = [];
+      woServicios = [];
       for (const qi of qItems) {
         if (qi.package_id) {
           const pkgItems = await window.api.db.get(`
@@ -80,6 +81,16 @@
             FROM package_items pi JOIN items i ON pi.item_id = i.id
             WHERE pi.package_id = ?`, [qi.package_id]);
           for (const pi of pkgItems) mergeItem(pi.item_id, pi.name, pi.internal_code, pi.quantity * qi.quantity);
+        } else if (qi.service_id) {
+          // Un Servicio SI puede repetirse: cada linea de la cotizacion se
+          // importa como su propia linea de la orden, sin fusionar.
+          const sDef = await window.api.db.getOne('SELECT name FROM services WHERE id = ?', [qi.service_id]);
+          if (sDef) {
+            woServicios = [
+              ...woServicios,
+              { service_id: qi.service_id, name: sDef.name, quantity: qi.quantity, price: qi.price || 0 }
+            ];
+          }
         } else if (qi.item_id) {
           const iDef = await window.api.db.getOne('SELECT name, internal_code FROM items WHERE id = ?', [qi.item_id]);
           if (iDef) mergeItem(qi.item_id, iDef.name, iDef.internal_code, qi.quantity);
@@ -133,6 +144,35 @@
   let allItems   = [];
   let itemSearch = '';
   let addQty     = {};
+
+  // ── Catálogo de servicios ─────────────────────────────────────────────────
+  // Un Servicio no tiene disponibilidad ni almacén, y a diferencia de un
+  // artículo SÍ puede repetirse -dos actuaciones del mismo servicio no
+  // compiten por ningún stock-, así que su lista de elegidos va aparte de
+  // `woItems` y no pasa por `mergeRentalOrderItem`.
+  let allServices   = [];
+  let serviceSearch = '';
+  let addServiceQty = {};
+  let woServicios   = [];
+
+  $: filteredServices = allServices.filter(s =>
+    !serviceSearch.trim() || s.name.toLowerCase().includes(serviceSearch.toLowerCase())
+  );
+
+  function addServiceToWO(service) {
+    const qty = parseInt(addServiceQty[service.id]) || 1;
+    woServicios = [
+      ...woServicios,
+      { service_id: service.id, name: service.name, quantity: qty, price: service.price || 0 }
+    ];
+    addServiceQty[service.id] = 1;
+    addServiceQty = { ...addServiceQty };
+  }
+
+  function removeServicio(i) {
+    woServicios.splice(i, 1);
+    woServicios = [...woServicios];
+  }
 
   $: filteredItems = allItems.filter(item => {
     if (!itemSearch.trim()) return true;
@@ -224,7 +264,13 @@
   let pdfPreviewTitle = '';
 
   async function openPDF(type) {
-    const items   = woItems.map(w => ({ ...w, price: 0 }));
+    // Un Servicio no es un "equipo a preparar", pero SI es una linea real de
+    // la orden: se agrega a la hoja igual, marcada `[Servicio]` por
+    // `quoteItemLabel` -sin ella, imprimir la orden la hacia desaparecer.
+    const items = [
+      ...woItems.map(w => ({ ...w, price: 0 })),
+      ...woServicios.map(s => ({ service_id: s.service_id, name: s.name, quantity: s.quantity }))
+    ];
     const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
     const woData  = { ...currentWO, client_name: selectedClient?.name || clientSearch };
     const { url, filename } = generateWorkOrderPDF(woData, items, 'preview', company);
@@ -257,7 +303,7 @@
 
     if (!window.api?.db) return;
 
-    [clients, allItems, quotations] = await Promise.all([
+    [clients, allItems, quotations, allServices] = await Promise.all([
       window.api.db.get('SELECT id, name, phone FROM clients WHERE is_active = 1 ORDER BY name ASC'),
       window.api.db.get(`
         SELECT i.id, i.name, i.internal_code, i.item_type, i.uses_serial, i.available_quantity, i.tracks_inventory,
@@ -271,7 +317,8 @@
         SELECT q.id, q.total, c.name as client_name
         FROM quotations q LEFT JOIN clients c ON q.client_id = c.id
         WHERE q.status = 'aprobada' AND q.is_active = 1
-        ORDER BY q.id DESC`)
+        ORDER BY q.id DESC`),
+      window.api.db.get('SELECT id, name, price FROM services WHERE is_active = 1 ORDER BY name ASC')
     ]);
 
     allItems.forEach(item => { addQty[item.id] = 1; });
@@ -310,6 +357,21 @@
       for (const row of woItems.filter(isSerialized)) {
         await loadSerialOptions(row.item_id);
       }
+
+      // Un Servicio no tiene precio guardado en `work_order_items` -esa tabla
+      // es solo lista de preparacion, sin columna de precio siquiera para los
+      // articulos-, asi que se enseña el precio VIGENTE del catalogo, igual
+      // que un articulo se re-cotiza al precio de hoy al pasar por el conduce.
+      const serviceRows = await window.api.db.get(`
+        SELECT wi.id, wi.service_id, wi.quantity, s.name, s.price
+        FROM work_order_items wi JOIN services s ON wi.service_id = s.id
+        WHERE wi.work_order_id = ?`, [woId]);
+      woServicios = serviceRows.map(r => ({
+        service_id: r.service_id,
+        name: r.name,
+        quantity: r.quantity,
+        price: r.price || 0
+      }));
     }
   });
 
@@ -380,6 +442,14 @@
             );
           }
         }
+      }
+
+      // Un Servicio no tiene serial ni columna de precio en esta tabla -es
+      // solo lista de preparacion-, asi que la insercion es minima.
+      for (const servicio of woServicios) {
+        await window.api.db.run(
+          'INSERT INTO work_order_items (work_order_id, service_id, quantity) VALUES (?, ?, ?)',
+          [id, servicio.service_id, servicio.quantity]);
       }
 
       if (shouldReserve) {
@@ -707,6 +777,79 @@
       {/if}
     </div>
 
+    <!-- Servicios -->
+    <!-- Un Servicio no tiene código, stock ni serial: su catálogo es una lista
+         simple de nombre + precio, no la tabla de Inventario Disponible. -->
+    <div class="card" style="margin:0;">
+      <div class="section-title">
+        <span>🛎️ Servicios</span>
+        <span class="badge-count">{woServicios.length} servicio(s)</span>
+      </div>
+
+      <div class="search-bar" style="margin-bottom:8px;">
+        <span>🔍</span>
+        <input type="text" class="search-input"
+               placeholder="Buscar servicio…"
+               bind:value={serviceSearch}>
+        {#if serviceSearch}
+          <button class="clear-btn" on:click={() => serviceSearch = ''}>✕</button>
+        {/if}
+      </div>
+
+      {#if filteredServices.length > 0}
+        <div class="service-catalog-list">
+          {#each filteredServices as service (service.id)}
+            <div class="service-catalog-row">
+              <div>
+                <span class="item-name">{service.name}</span>
+                <br><small class="item-meta">RD$ {fmt(service.price)}</small>
+              </div>
+              <div class="add-ctrl">
+                <input type="number" min="1" class="qty-mini"
+                       bind:value={addServiceQty[service.id]} aria-label="Cantidad">
+                <button class="btn-add" on:click={() => addServiceToWO(service)}>+ Add</button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-state" style="margin:4px 0 10px;">
+          {serviceSearch ? `Sin resultados para "${serviceSearch}"` : 'Sin servicios disponibles.'}
+        </p>
+      {/if}
+
+      {#if woServicios.length > 0}
+        <div class="wo-lines">
+          <table class="table" style="margin:0;">
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th style="width:72px;text-align:center;">Cant.</th>
+                <th style="width:28px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each woServicios as servicio, i}
+                <tr>
+                  <td><span class="item-name" style="font-size:.87rem;">{servicio.name}</span></td>
+                  <td>
+                    <input type="number" min="1" class="qty-mini"
+                           style="width:56px;text-align:center;"
+                           bind:value={servicio.quantity}
+                           on:input={() => woServicios = [...woServicios]}
+                           aria-label="Cantidad">
+                  </td>
+                  <td>
+                    <button class="btn-remove" on:click={() => removeServicio(i)} title="Quitar">🗑️</button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
+
     <!-- Notas / Instrucciones -->
     <div class="card" style="margin:0;">
       <div class="section-title">📝 Instrucciones de Montaje / Observaciones</div>
@@ -836,6 +979,14 @@
     border-top:1px solid var(--border-color);
   }
   .empty-row { text-align:center; color:var(--text-muted); padding:24px !important; }
+
+  /* ── Catálogo de servicios ────────────────────────────────────────────── */
+  .service-catalog-list { max-height:220px; overflow-y:auto; }
+  .service-catalog-row {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:7px 2px; border-bottom:1px solid var(--border-color);
+  }
+  .service-catalog-row:last-child { border-bottom:none; }
 
   /* ── Add control ─────────────────────────────────────────────────────── */
   .add-ctrl { display:flex; align-items:center; gap:4px; justify-content:center; }

@@ -54,11 +54,13 @@ export const POST: RequestHandler = async (event) => {
 		},
 		// Proyeccion explicita: la hoja solo necesita codigo, nombre y cantidad.
 		// Mandar la fila entera sacaria el precio a un documento que justamente
-		// no debe llevarlo.
+		// no debe llevarlo. `service_id` es la excepcion: no es precio, es lo
+		// que permite a `quoteItemLabel` marcar la linea como `[Servicio]`.
 		items: items.map((linea) => ({
 			internal_code: linea.internal_code ?? null,
 			name: linea.name,
-			quantity: linea.quantity
+			quantity: linea.quantity,
+			service_id: linea.service_id ?? null
 		}))
 	});
 };

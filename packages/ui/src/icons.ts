@@ -15,6 +15,7 @@ export const ICONS = {
 	events: '📅',
 	inventory: '📦',
 	packages: '🎁',
+	services: '🛎️',
 	quotes: '📄',
 	workOrders: '📋',
 	conduces: '🚚',

@@ -22,8 +22,14 @@ const NUMBER_RETRIES = 5;
 
 export type CreateInvoiceInput = {
 	work_order_id: ESRId;
-	/** Entregas a cubrir. Al menos una. */
+	/** Entregas a cubrir. */
 	conduce_ids: ESRId[];
+	/**
+	 * Lineas de Servicio a cobrar (`work_order_items.id`). Un Servicio no
+	 * genera conduce -no es tangible-, asi que viaja aparte. Al menos uno de
+	 * los dos arrays -`conduce_ids` o `service_line_ids`- tiene que traer algo.
+	 */
+	service_line_ids?: ESRId[];
 	date?: string | null;
 	discount?: number;
 	notes?: string | null;
@@ -31,6 +37,7 @@ export type CreateInvoiceInput = {
 
 type Aggregated = {
 	item_id: ESRId | null;
+	service_id?: ESRId | null;
 	description: string | null;
 	quantity: number;
 	price: number;
@@ -51,8 +58,9 @@ export class InvoiceService {
 	 * escribirlo fuera dejaria una ventana para el doble clic.
 	 */
 	async create(ctx: RepositoryContext, input: CreateInvoiceInput): Promise<Invoice> {
-		if (!input.conduce_ids.length) {
-			throw new Error('Hay que elegir al menos una entrega para facturar.');
+		const serviceLineIds = input.service_line_ids ?? [];
+		if (!input.conduce_ids.length && !serviceLineIds.length) {
+			throw new Error('Hay que elegir al menos una entrega o un servicio para facturar.');
 		}
 
 		return withTransaction(async (client) => {
@@ -73,9 +81,39 @@ export class InvoiceService {
 				);
 			}
 
-			const lineas = await this.aggregateLines(ctx, elegidas, client);
+			// Mismo relectura-y-comprobacion que las entregas, para las lineas de
+			// Servicio: entre que se pinto la pantalla y se envio, otra factura
+			// pudo tomarlas.
+			const serviciosDisponibles = await this.invoices.listBillableServices(
+				ctx,
+				input.work_order_id,
+				client
+			);
+			const servicioPorId = new Map(serviciosDisponibles.map((row) => [String(row.id), row]));
+			const serviciosElegidos = serviceLineIds.map(String);
+			const serviciosTomados = serviciosElegidos.filter((id) => !servicioPorId.has(id));
+			if (serviciosTomados.length) {
+				throw new Error(
+					'Alguno de los servicios elegidos ya se facturó o dejó de estar disponible. Vuelva a cargar la página.'
+				);
+			}
+
+			const lineasConduce = await this.aggregateLines(ctx, elegidas, client);
+			// Un Servicio NO se fusiona con otro aunque coincidan nombre y precio:
+			// cada linea de la orden se factura por separado, una por una.
+			const lineasServicio: Aggregated[] = serviciosElegidos.map((id) => {
+				const fila = servicioPorId.get(id)!;
+				return {
+					item_id: null,
+					service_id: fila.service_id,
+					description: fila.name,
+					quantity: round(Number(fila.quantity ?? 0)),
+					price: round(Number(fila.price ?? 0))
+				};
+			});
+			const lineas = [...lineasConduce, ...lineasServicio];
 			if (!lineas.length) {
-				throw new Error('Las entregas elegidas no tienen ninguna línea que facturar.');
+				throw new Error('Lo elegido no tiene ninguna línea que facturar.');
 			}
 
 			const subtotal = round(
@@ -107,6 +145,9 @@ export class InvoiceService {
 			}
 			for (const conduceId of elegidas) {
 				await this.invoices.linkConduce(ctx, factura.id!, conduceId, client);
+			}
+			for (const workOrderItemId of serviciosElegidos) {
+				await this.invoices.linkWorkOrderItem(ctx, factura.id!, workOrderItemId, client);
 			}
 
 			return factura;

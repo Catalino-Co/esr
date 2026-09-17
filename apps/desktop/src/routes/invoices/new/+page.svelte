@@ -22,7 +22,13 @@
   let conduces = [];
   let seleccion = new Set();
   let lineas = [];
-  let subtotal = 0;
+  let subtotalConduces = 0;
+
+  // Un Servicio no genera conduce -no es tangible-, asi que se factura
+  // directo desde la orden, aparte de las entregas. Se pre-marcan todos: lo
+  // habitual es facturar todo lo pendiente.
+  let servicios = [];
+  let seleccionServicios = new Set();
 
   let fecha = new Date().toISOString().slice(0, 10);
   let vencimiento = '';
@@ -79,6 +85,7 @@
         );
       } else {
         conduces = unwrap(await window.api.invoices.listBillable(workOrderId));
+        servicios = unwrap(await window.api.invoices.listBillableServices(workOrderId));
         // Si se llego desde un conduce concreto, solo ese viene marcado; si se
         // llego desde la orden, todo lo pendiente.
         seleccion = new Set(
@@ -86,6 +93,7 @@
             ? conduces.filter((c) => c.id === preseleccion).map((c) => c.id)
             : conduces.map((c) => c.id)
         );
+        seleccionServicios = new Set(servicios.map((s) => s.id));
         // El conduce lleva su propio descuento y la factura recalcula el
         // subtotal desde las lineas, ignorandolo. Sin precargarlo, el usuario ve
         // un total en el conduce y otro mayor en la factura, y piensa que el
@@ -112,7 +120,7 @@
     const ids = [...seleccion];
     if (!ids.length) {
       lineas = [];
-      subtotal = 0;
+      subtotalConduces = 0;
       return;
     }
     // La agregacion la hace el MISMO codigo que despues escribe las lineas. Si
@@ -120,7 +128,7 @@
     // el usuario veria un total y firmaria otro.
     const prev = unwrapOr(await window.api.invoices.previewLines(ids), { lineas: [], subtotal: 0 });
     lineas = prev.lineas;
-    subtotal = prev.subtotal;
+    subtotalConduces = prev.subtotal;
   }
 
   async function alternar(id) {
@@ -131,6 +139,17 @@
     await recalcular();
   }
 
+  function alternarServicio(id) {
+    const copia = new Set(seleccionServicios);
+    if (copia.has(id)) copia.delete(id);
+    else copia.add(id);
+    seleccionServicios = copia;
+  }
+
+  $: subtotalServicios = servicios
+    .filter((s) => seleccionServicios.has(s.id))
+    .reduce((suma, s) => suma + Number(s.quantity || 0) * Number(s.price || 0), 0);
+  $: subtotal = redondear(subtotalConduces + subtotalServicios);
   $: rebaja = Math.max(0, Number(descuento) || 0);
   $: impuestoNum = Math.max(0, Number(impuesto) || 0);
   $: total = redondear(Math.max(0, subtotal - rebaja + impuestoNum));
@@ -144,6 +163,7 @@
         await window.api.invoices.create({
           work_order_id: workOrderId,
           conduce_ids: [...seleccion],
+          service_line_ids: [...seleccionServicios],
           date: fecha || null,
           due_date: vencimiento || null,
           discount: rebaja,
@@ -218,71 +238,107 @@
       </table>
     </div>
 
-  {:else if conduces.length === 0}
+  {:else if conduces.length === 0 && servicios.length === 0}
     <p style="text-align:center;padding:30px;color:var(--text-muted);">
-      Esta orden no tiene entregas pendientes de facturar.
+      Esta orden no tiene entregas ni servicios pendientes de facturar.
     </p>
 
   {:else}
-    <h4 style="margin:0 0 10px;">Entregas a incluir</h4>
-    <div class="table-wrapper">
-      <table class="table">
-        <thead>
-          <tr>
-            <th class="check" style="width:40px;"></th>
-            <th>Conduce</th>
-            <th>Fecha</th>
-            <th style="text-align:right;">Líneas</th>
-            <th style="text-align:right;">Importe</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each conduces as c}
+    {#if conduces.length > 0}
+      <h4 style="margin:0 0 10px;">Entregas a incluir</h4>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
             <tr>
-              <td class="check">
-                <input type="checkbox" checked={seleccion.has(c.id)}
-                       on:change={() => alternar(c.id)}
-                       aria-label={`Incluir COND-${String(c.id).padStart(5, '0')}`} />
-              </td>
-              <td style="font-weight:600;color:var(--accent-active);">COND-{String(c.id).padStart(5, '0')}</td>
-              <td>{c.date || '—'}</td>
-              <td style="text-align:right;">{c.lineas}</td>
-              <td style="text-align:right;">${fmt(c.total)}</td>
+              <th class="check" style="width:40px;"></th>
+              <th>Conduce</th>
+              <th>Fecha</th>
+              <th style="text-align:right;">Líneas</th>
+              <th style="text-align:right;">Importe</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {#each conduces as c}
+              <tr>
+                <td class="check">
+                  <input type="checkbox" checked={seleccion.has(c.id)}
+                         on:change={() => alternar(c.id)}
+                         aria-label={`Incluir COND-${String(c.id).padStart(5, '0')}`} />
+                </td>
+                <td style="font-weight:600;color:var(--accent-active);">COND-{String(c.id).padStart(5, '0')}</td>
+                <td>{c.date || '—'}</td>
+                <td style="text-align:right;">{c.lineas}</td>
+                <td style="text-align:right;">${fmt(c.total)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
 
-    <h4 style="margin:20px 0 10px;">Líneas de la factura</h4>
-    <div class="table-wrapper">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Artículo</th>
-            <th style="text-align:right;">Cantidad</th>
-            <th style="text-align:right;">Precio</th>
-            <th style="text-align:right;">Importe</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each lineas as l}
+      <h4 style="margin:20px 0 10px;">Líneas de la factura</h4>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
             <tr>
-              <td>{l.description || '—'}</td>
-              <td style="text-align:right;">{l.quantity}</td>
-              <td style="text-align:right;">${fmt(l.price)}</td>
-              <td style="text-align:right;font-weight:600;">${fmt(l.total)}</td>
+              <th>Artículo</th>
+              <th style="text-align:right;">Cantidad</th>
+              <th style="text-align:right;">Precio</th>
+              <th style="text-align:right;">Importe</th>
             </tr>
-          {:else}
+          </thead>
+          <tbody>
+            {#each lineas as l}
+              <tr>
+                <td>{l.description || '—'}</td>
+                <td style="text-align:right;">{l.quantity}</td>
+                <td style="text-align:right;">${fmt(l.price)}</td>
+                <td style="text-align:right;font-weight:600;">${fmt(l.total)}</td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">
+                  Marque al menos una entrega.
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+
+    {#if servicios.length > 0}
+      <h4 style="margin:20px 0 10px;">Servicios pendientes de facturar</h4>
+      <!-- Sin conduce que las traiga: un Servicio no es tangible y nunca se
+           entrega, asi que se factura directo desde la orden. -->
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
             <tr>
-              <td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">
-                Marque al menos una entrega.
-              </td>
+              <th class="check" style="width:40px;"></th>
+              <th>Servicio</th>
+              <th style="text-align:right;">Cantidad</th>
+              <th style="text-align:right;">Precio</th>
+              <th style="text-align:right;">Importe</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {#each servicios as s}
+              <tr>
+                <td class="check">
+                  <input type="checkbox" checked={seleccionServicios.has(s.id)}
+                         on:change={() => alternarServicio(s.id)}
+                         aria-label={`Incluir ${s.name}`} />
+                </td>
+                <td style="font-weight:600;color:var(--accent-active);">{s.name}</td>
+                <td style="text-align:right;">{s.quantity}</td>
+                <td style="text-align:right;">${fmt(s.price)}</td>
+                <td style="text-align:right;font-weight:600;">${fmt(Number(s.quantity) * Number(s.price))}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
 
     <div class="info-row" style="margin-top:20px;">
       <div class="field">
@@ -324,7 +380,7 @@
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
       <button class="btn btn-secondary" on:click={() => goto('/invoices')}><Icon name="x" size={16} />Cancelar</button>
       <button class="btn btn-primary"
-              disabled={guardando || excede || seleccion.size === 0 || lineas.length === 0}
+              disabled={guardando || excede || (seleccion.size === 0 && seleccionServicios.size === 0)}
               on:click={emitir}>
         <Icon name="check" size={16} />{guardando ? 'Emitiendo…' : 'Emitir factura'}
       </button>

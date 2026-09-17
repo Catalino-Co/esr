@@ -1,6 +1,6 @@
 import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getDeliverableQuantity, isSerializedInventoryItem } from '@esr/core';
+import { getDeliverableQuantity, isSerializedInventoryItem, isServiceLine } from '@esr/core';
 import {
 	getCustomerRepository,
 	getEventRepository,
@@ -30,6 +30,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	]);
 
 	const deliverableItems = items
+		// Un Servicio no es tangible: nunca se entrega, y no tiene `item_id` real
+		// que buscar en Inventario.
+		.filter((item) => !isServiceLine(item))
 		.map((item) => ({
 			...item,
 			deliverable: getDeliverableQuantity(item)

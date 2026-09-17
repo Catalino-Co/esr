@@ -8,6 +8,7 @@ import {
 	getCustomerRepository,
 	getEventRepository,
 	getInventoryRepository,
+	getServiceRepository,
 	getWorkOrderCreationService
 } from '$lib/server/repositories';
 import { toTenantContext } from '$lib/server/tenant';
@@ -30,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { companyId } = requirePermission(locals, 'work_orders.create');
 	const ctx = toTenantContext(companyId);
 
-	const [customers, events, inventory, categories] = await Promise.all([
+	const [customers, events, inventory, categories, services] = await Promise.all([
 		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 200, offset: 0 }),
 		getEventRepository().list(ctx, { limit: 200, offset: 0 }),
 		// Solo Activos: un inactivo/archivado no se puede usar en una orden
@@ -38,7 +39,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Inactivo — `SELECTABLE_STATES` es de ellos).
 		getInventoryRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: 300, offset: 0 }),
 		// Los catalogos no paginan: `CatalogListOptions` solo acepta el estado.
-		getCategoryRepository().list(ctx, { state: SELECTABLE_STATES })
+		getCategoryRepository().list(ctx, { state: SELECTABLE_STATES }),
+		getServiceRepository().list(ctx, { state: RECORD_STATE.ACTIVE })
 	]);
 
 	// El catalogo del editor solo necesita esto. Proyectar en vez de mandar la
@@ -60,6 +62,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		customers,
 		events,
 		catalogo,
+		services,
 		clientId: url.searchParams.get('client')?.trim() || '',
 		hoy: todayISO()
 	};
@@ -85,6 +88,19 @@ export const actions: Actions = {
 			}))
 			.filter((linea) => linea.item_id);
 
+		// Mismo patron de tres arrays paralelos, para las lineas de Servicio.
+		const serviceIds = form.getAll('line_service_id').map((v) => String(v).trim());
+		const cantidadesServicio = form.getAll('line_service_quantity').map((v) => String(v).trim());
+		const preciosServicio = form.getAll('line_service_price').map((v) => String(v).trim());
+
+		const serviceLines = serviceIds
+			.map((service_id, indice) => ({
+				service_id,
+				quantity: cantidadesServicio[indice],
+				price: preciosServicio[indice]
+			}))
+			.filter((linea) => linea.service_id);
+
 		/*
 		 * `values` lleva TAMBIEN las lineas.
 		 *
@@ -102,11 +118,15 @@ export const actions: Actions = {
 			responsible_person: String(form.get('responsible_person') ?? '').trim(),
 			vehicle: String(form.get('vehicle') ?? '').trim(),
 			notes: String(form.get('notes') ?? '').trim(),
-			lines
+			lines,
+			serviceLines
 		};
 
 		if (itemIds.length !== cantidades.length || itemIds.length !== precios.length) {
 			return fail(400, { error: 'Las líneas llegaron incompletas.', values });
+		}
+		if (serviceIds.length !== cantidadesServicio.length || serviceIds.length !== preciosServicio.length) {
+			return fail(400, { error: 'Las líneas de servicio llegaron incompletas.', values });
 		}
 
 		let order;
@@ -120,7 +140,7 @@ export const actions: Actions = {
 				responsible_person: values.responsible_person || null,
 				vehicle: values.vehicle || null,
 				notes: values.notes || null,
-				lines
+				lines: [...lines, ...serviceLines]
 			});
 		} catch (err) {
 			// Aqui llegan tanto las reglas de `validateDirectOrderDraft` como la
@@ -133,7 +153,7 @@ export const actions: Actions = {
 			entity_type: 'order',
 			entity_id: String(order.id),
 			description: `Orden ${order.order_number} creada sin cotización`,
-			metadata: { lineas: lines.length, total: order.total }
+			metadata: { lineas: lines.length, servicios: serviceLines.length, total: order.total }
 		});
 
 		redirect(303, `/work-orders/${order.id}`);

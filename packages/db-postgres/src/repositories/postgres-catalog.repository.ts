@@ -5,11 +5,13 @@ import type {
 	CommercialSectorDraft,
 	EventTypeDraft,
 	RepositoryContext,
+	ServiceDraft,
 	SupplierDraft,
 	TenantClientAddressTypeRepository,
 	TenantCollaboratorRepository,
 	TenantCommercialSectorRepository,
 	TenantEventTypeRepository,
+	TenantServiceRepository,
 	TenantSupplierRepository,
 	TenantUnitOfMeasureRepository,
 	TenantWarehouseRepository,
@@ -296,5 +298,32 @@ export class PostgresUnitOfMeasureRepository
 
 	protected values(data: Omit<UnitOfMeasureDraft, 'id' | 'company_id'>): unknown[] {
 		return [data.name.trim(), data.abbr ?? null, data.is_active ?? 1];
+	}
+}
+
+/**
+ * Servicio: algo vendible que no es un articulo de inventario. Ver
+ * `service.schema.ts` para el porque no participa de Entrega/Devolucion.
+ */
+export class PostgresServiceRepository
+	extends PostgresCatalogRepository<ServiceDraft>
+	implements TenantServiceRepository
+{
+	protected readonly table = 'services';
+	protected readonly columns = 'id, company_id, name, price, notes, is_active';
+	protected readonly fields = ['name', 'price', 'notes', 'is_active'];
+
+	// Cuenta en las tres tablas de lineas a la vez: un Servicio puede estar
+	// citado en una cotizacion, una orden o una factura sin haber pasado por
+	// las otras dos.
+	protected readonly usageQuery = `
+		SELECT (
+			(SELECT COUNT(*) FROM quotation_items WHERE company_id = $1 AND service_id = $2) +
+			(SELECT COUNT(*) FROM work_order_items WHERE company_id = $1 AND service_id = $2) +
+			(SELECT COUNT(*) FROM invoice_items WHERE company_id = $1 AND service_id = $2)
+		)::text AS total`;
+
+	protected values(data: Omit<ServiceDraft, 'id' | 'company_id'>): unknown[] {
+		return [data.name.trim(), Number(data.price) || 0, data.notes ?? null, data.is_active ?? 1];
 	}
 }

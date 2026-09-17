@@ -104,13 +104,14 @@
   let clientes = [];
   let articulos = [];
   let paquetes = [];
+  let servicios = [];
   let lineasDePaquete = {}; // { [package_id]: [{ item_id, name, code, quantity, price, is_active }] }
   let eventosDelCliente = [];
 
   async function cargar(id) {
     if (!window.api?.db) return;
 
-    const [clientesRows, articulosRows, paquetesRows, lineasPaqueteRows, empresaRows] =
+    const [clientesRows, articulosRows, paquetesRows, lineasPaqueteRows, empresaRows, serviciosRows] =
       await Promise.all([
       window.api.db.get(
         'SELECT id, name, phone, document_id FROM clients WHERE is_active = 1 ORDER BY name ASC'
@@ -137,7 +138,8 @@
       ),
       // Configuracion › Generales. En el mismo `Promise.all` y no en una
       // consulta aparte: es una fila por id.
-      window.api.db.get('SELECT default_tax_rate FROM company_info WHERE id = 1')
+      window.api.db.get('SELECT default_tax_rate FROM company_info WHERE id = 1'),
+      window.api.db.get('SELECT id, name, price FROM services WHERE is_active = 1 ORDER BY name ASC')
     ]);
 
     impuestoPorDefecto = Number(empresaRows?.[0]?.default_tax_rate) || 0;
@@ -145,6 +147,7 @@
     clientes = clientesRows;
     articulos = articulosRows;
     paquetes = paquetesRows;
+    servicios = serviciosRows;
 
     const agrupadas = {};
     for (const fila of lineasPaqueteRows) {
@@ -180,6 +183,7 @@
     lineas = res.data.items.map((fila) => ({
       item_id: fila.item_id,
       package_id: fila.package_id,
+      service_id: fila.service_id,
       name: fila.name || 'Sin descripción',
       code: fila.code,
       quantity: Number(fila.quantity) || 0,
@@ -351,6 +355,63 @@
     agregados += 1;
     seleccion = null;
     alta = { quantity: 1, price: 0, discount_rate: alta.discount_rate, tax_rate: alta.tax_rate };
+  }
+
+  // ── Dialogo: agregar servicio ────────────────────────────────────────────
+  //
+  // Un Servicio no tiene disponibilidad ni almacen: el dialogo es el mismo
+  // que el de articulo, sin esos conceptos. A diferencia de un articulo, SI
+  // puede repetirse -dos actuaciones del mismo servicio no compiten por
+  // ningun stock-, asi que cada alta agrega una linea nueva sin fusionar.
+  let agregandoServicio = false;
+  let busquedaServicio = '';
+  let servicioSeleccion = null;
+  let altaServicio = { quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 };
+  let serviciosAgregados = 0;
+
+  $: resultadosServicio = (() => {
+    const t = busquedaServicio.trim().toLowerCase();
+    return t ? servicios.filter((s) => s.name.toLowerCase().includes(t)) : servicios;
+  })();
+
+  function abrirServicio() {
+    busquedaServicio = '';
+    servicioSeleccion = null;
+    altaServicio = { quantity: 1, price: 0, ...tasasSugeridas };
+    serviciosAgregados = 0;
+    agregandoServicio = true;
+  }
+
+  function elegirServicio(servicio) {
+    servicioSeleccion = servicio;
+    altaServicio = { ...altaServicio, quantity: 1, price: Number(servicio.price) || 0 };
+  }
+
+  function confirmarServicio() {
+    if (!servicioSeleccion) return;
+    lineas = [
+      ...lineas,
+      {
+        item_id: null,
+        package_id: null,
+        service_id: servicioSeleccion.id,
+        name: servicioSeleccion.name,
+        code: null,
+        quantity: Number(altaServicio.quantity) || 1,
+        price: Number(altaServicio.price) || 0,
+        discount_rate: Number(altaServicio.discount_rate) || 0,
+        tax_rate: Number(altaServicio.tax_rate) || 0,
+        is_legacy_package: false
+      }
+    ];
+    serviciosAgregados += 1;
+    servicioSeleccion = null;
+    altaServicio = {
+      quantity: 1,
+      price: 0,
+      discount_rate: altaServicio.discount_rate,
+      tax_rate: altaServicio.tax_rate
+    };
   }
 
   // ── Dialogo: agregar paquete ─────────────────────────────────────────────
@@ -655,6 +716,7 @@
         <div class="card-acciones">
           <button class="btn btn-secondary btn-sm" on:click={abrirArticulo}>Agregar artículo</button>
           <button class="btn btn-secondary btn-sm" on:click={abrirPaquete}>Agregar paquete</button>
+          <button class="btn btn-secondary btn-sm" on:click={abrirServicio}>Agregar servicio</button>
         </div>
       </div>
 
@@ -908,6 +970,85 @@
     </span>
     <button class="btn btn-secondary" on:click={() => (agregandoArticulo = false)}><Icon name="x" size={16} />Cerrar</button>
     <button class="btn btn-primary" on:click={confirmarArticulo} disabled={!seleccion}>
+      Agregar
+    </button>
+  </svelte:fragment>
+</Modal>
+
+<!-- ── Dialogo: agregar servicio ───────────────────────────────────────── -->
+<Modal bind:show={agregandoServicio} title="Agregar servicio" maxWidth="560px">
+  <div class="form-grid">
+    <div class="form-field">
+      <label for="alta-servicio-buscar">Buscar</label>
+      <input
+        id="alta-servicio-buscar"
+        type="text"
+        placeholder="Nombre del servicio"
+        bind:value={busquedaServicio}
+      />
+    </div>
+  </div>
+
+  <div class="catalog-list">
+    {#each resultadosServicio as servicio (servicio.id)}
+      <button
+        class="catalog-item"
+        class:catalog-item--added={servicioSeleccion?.id === servicio.id}
+        on:click={() => elegirServicio(servicio)}
+      >
+        <span>{servicio.name}</span>
+        <span class="catalog-item-meta">
+          <span>{formatMoney(servicio.price)}</span>
+        </span>
+      </button>
+    {:else}
+      <p class="empty-state">Sin resultados.</p>
+    {/each}
+  </div>
+
+  <div class="form-grid alta-campos">
+    <div class="form-field">
+      <label for="alta-servicio-cantidad">Cantidad</label>
+      <input id="alta-servicio-cantidad" type="number" min="1" bind:value={altaServicio.quantity} />
+    </div>
+    <div class="form-field">
+      <label for="alta-servicio-precio">Precio</label>
+      <FormattedNumberField id="alta-servicio-precio" min={0} bind:value={altaServicio.price} />
+    </div>
+    <div class="form-field">
+      <label for="alta-servicio-descuento">Descuento %</label>
+      <input
+        id="alta-servicio-descuento"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={altaServicio.discount_rate}
+      />
+    </div>
+    <div class="form-field">
+      <label for="alta-servicio-impuesto">Impuesto %</label>
+      <input
+        id="alta-servicio-impuesto"
+        type="number"
+        min="0"
+        max="100"
+        step="any"
+        bind:value={altaServicio.tax_rate}
+      />
+    </div>
+  </div>
+
+  <p class="panel-hint ayuda">
+    Importe: {formatMoney(calculateQuoteLineAmounts(altaServicio).total)}
+  </p>
+
+  <svelte:fragment slot="footer">
+    <span class="contador">
+      {serviciosAgregados === 0 ? 'Sin líneas agregadas' : `${serviciosAgregados} línea(s) agregada(s)`}
+    </span>
+    <button class="btn btn-secondary" on:click={() => (agregandoServicio = false)}><Icon name="x" size={16} />Cerrar</button>
+    <button class="btn btn-primary" on:click={confirmarServicio} disabled={!servicioSeleccion}>
       Agregar
     </button>
   </svelte:fragment>

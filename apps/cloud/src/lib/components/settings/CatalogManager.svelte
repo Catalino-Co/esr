@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { Icon } from '@esr/ui';
 	import {
+		formatMoney,
 		RECORD_STATE,
 		RECORD_STATE_FILTER_LABELS,
 		RECORD_STATES,
@@ -30,6 +31,10 @@
 		fields,
 		entries,
 		form = null,
+		/** A donde vuelve la flecha de la barra. Los catalogos de Configuracion
+		 *  vuelven ahi; los que son su propia entrada del menu (Servicios)
+		 *  vuelven al dashboard, igual que Paquetes. */
+		backHref = '/settings',
 		/** Columnas de la tabla: { field, label, kind? } */
 		columns,
 		/**
@@ -163,7 +168,7 @@
 
 <div class="herramientas">
 	<div class="grupo">
-		<a class="grupo-btn" href="/settings" aria-label="Volver a Configuración" title="Volver a Configuración">
+		<a class="grupo-btn" href={backHref} aria-label="Volver" title="Volver">
 			<Icon name="back" size={18} />
 		</a>
 		<button
@@ -230,6 +235,8 @@
 									<span class="color-chip" style={`background:${entry[column.field] || '#6366f1'}`}
 									></span>
 									<span class="color-value">{entry[column.field] || '—'}</span>
+								{:else if column.kind === 'money'}
+									{formatMoney(entry[column.field] || 0)}
 								{:else}
 									{entry[column.field] || '—'}
 								{/if}

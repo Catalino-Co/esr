@@ -20,6 +20,7 @@ export const navItems = [
 	{ path: '/items', label: 'Inventario', icon: ICONS.inventory, subtitle: 'Existencias por almacén', permission: 'inventory.view' },
 	// Paquetes no existe en Cloud; va junto a Inventario, que es lo que agrupa.
 	{ path: '/packages', label: 'Paquetes', icon: ICONS.packages, subtitle: 'Artículos que se alquilan juntos', permission: 'packages.view' },
+	{ path: '/services', label: 'Servicios', icon: ICONS.services, subtitle: 'Lo que se vende sin ser un artículo del inventario', permission: 'services.view' },
 	{ path: '/reports', label: 'Reportes', icon: ICONS.reports, subtitle: 'Consultas operativas básicas', permission: 'reports.view' },
 	{ path: '/incidents', label: 'Incidencias', icon: ICONS.incidents, subtitle: 'Seguimiento operativo', permission: 'incidents.view' },
 	{ path: '/settings', label: 'Ajustes', icon: ICONS.settings, subtitle: 'Configuración del sistema', permission: 'settings.view' },

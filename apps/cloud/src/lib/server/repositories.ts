@@ -23,6 +23,7 @@ import {
 	PostgresQuoteRepository,
 	PostgresRentalRepository,
 	PostgresSerialRepository,
+	PostgresServiceRepository,
 	PostgresStockMovementRepository,
 	PostgresSupplierRepository,
 	PostgresSubcategoryRepository,
@@ -66,6 +67,7 @@ let invoiceRepository: PostgresInvoiceRepository | null = null;
 let invoiceService: InvoiceService | null = null;
 let paymentRepository: PostgresPaymentRepository | null = null;
 let packageRepository: PostgresPackageRepository | null = null;
+let serviceRepository: PostgresServiceRepository | null = null;
 let serialRepository: PostgresSerialRepository | null = null;
 let factoryResetService: FactoryResetService | null = null;
 
@@ -222,6 +224,11 @@ export function getPaymentRepository(): PostgresPaymentRepository {
 export function getPackageRepository(): PostgresPackageRepository {
 	if (!packageRepository) packageRepository = new PostgresPackageRepository();
 	return packageRepository;
+}
+
+export function getServiceRepository(): PostgresServiceRepository {
+	if (!serviceRepository) serviceRepository = new PostgresServiceRepository();
+	return serviceRepository;
 }
 
 export function getSerialRepository(): PostgresSerialRepository {

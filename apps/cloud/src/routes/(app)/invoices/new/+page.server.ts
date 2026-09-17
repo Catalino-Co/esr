@@ -27,6 +27,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			orders: await getInvoiceRepository().listOrdersWithBillable(ctx),
 			order: null,
 			conduces: [],
+			services: [],
 			hoy: todayISO()
 		};
 	}
@@ -37,15 +38,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			orders: await getInvoiceRepository().listOrdersWithBillable(ctx),
 			order: null,
 			conduces: [],
+			services: [],
 			hoy: todayISO(),
 			aviso: 'Esa orden no existe en esta empresa.'
 		};
 	}
 
+	const [conduces, services] = await Promise.all([
+		getInvoiceRepository().listBillableConduces(ctx, orderId),
+		// Un Servicio nunca genera un conduce -no es tangible-, asi que se
+		// factura por su propio camino, aparte de las entregas.
+		getInvoiceRepository().listBillableServices(ctx, orderId)
+	]);
+
 	return {
 		orders: [],
 		order,
-		conduces: await getInvoiceRepository().listBillableConduces(ctx, orderId),
+		conduces,
+		services,
 		hoy: todayISO()
 	};
 };
@@ -58,6 +68,10 @@ export const actions: Actions = {
 
 		const workOrderId = String(form.get('work_order_id') ?? '').trim();
 		const conduceIds = form.getAll('conduce_ids').map((value) => String(value).trim()).filter(Boolean);
+		const serviceLineIds = form
+			.getAll('service_line_ids')
+			.map((value) => String(value).trim())
+			.filter(Boolean);
 		const values = {
 			date: String(form.get('date') ?? '').trim(),
 			discount: String(form.get('discount') ?? '').trim(),
@@ -65,8 +79,8 @@ export const actions: Actions = {
 		};
 
 		if (!workOrderId) return fail(400, { error: 'Falta la orden.', values });
-		if (!conduceIds.length) {
-			return fail(400, { error: 'Elija al menos una entrega para facturar.', values });
+		if (!conduceIds.length && !serviceLineIds.length) {
+			return fail(400, { error: 'Elija al menos una entrega o un servicio para facturar.', values });
 		}
 
 		const discount = values.discount ? Number(values.discount) : 0;
@@ -79,6 +93,7 @@ export const actions: Actions = {
 			invoice = await getInvoiceService().create(ctx, {
 				work_order_id: workOrderId,
 				conduce_ids: conduceIds,
+				service_line_ids: serviceLineIds,
 				date: values.date || null,
 				discount,
 				notes: values.notes || null
@@ -95,7 +110,7 @@ export const actions: Actions = {
 			entity_type: 'invoice',
 			entity_id: String(invoice.id),
 			description: `Factura ${invoice.invoice_number} emitida por ${invoice.total}`,
-			metadata: { workOrderId, conduceIds, discount }
+			metadata: { workOrderId, conduceIds, serviceLineIds, discount }
 		});
 
 		redirect(303, `/invoices/${invoice.id}`);

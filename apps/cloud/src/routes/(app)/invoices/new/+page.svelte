@@ -11,6 +11,8 @@
 
 	/** Marcadas de inicio: lo habitual es facturar todo lo entregado. */
 	let elegidas = $state(new Set(data.conduces.map((c) => String(c.id))));
+	// Igual para los servicios pendientes: se pre-marcan todos.
+	let elegidasServicios = $state(new Set(data.services.map((s) => String(s.id))));
 	let descuento = $state(form?.values?.discount ?? '');
 
 	function alternar(id) {
@@ -21,10 +23,21 @@
 		elegidas = copia;
 	}
 
+	function alternarServicio(id) {
+		const clave = String(id);
+		const copia = new Set(elegidasServicios);
+		if (copia.has(clave)) copia.delete(clave);
+		else copia.add(clave);
+		elegidasServicios = copia;
+	}
+
 	const subtotal = $derived(
 		data.conduces
 			.filter((c) => elegidas.has(String(c.id)))
-			.reduce((suma, c) => suma + Number(c.total ?? 0), 0)
+			.reduce((suma, c) => suma + Number(c.total ?? 0), 0) +
+			data.services
+				.filter((s) => elegidasServicios.has(String(s.id)))
+				.reduce((suma, s) => suma + Number(s.quantity ?? 0) * Number(s.price ?? 0), 0)
 	);
 
 	const rebaja = $derived(Math.max(0, Number(descuento) || 0));
@@ -46,15 +59,16 @@
 	{#if !data.order}
 		<!-- Sin orden elegida: se enseñan las que tienen entregas sin facturar. -->
 		<p class="panel-hint">
-			Solo se factura lo que ya se entregó. Elija la orden cuyas entregas quiere cobrar.
+			Se factura lo que ya se entregó, y los servicios de la orden -que no se entregan-. Elija la
+			orden que quiere cobrar.
 		</p>
 
 		{#if data.orders.length === 0}
-			<p class="empty-state">No hay entregas pendientes de facturar.</p>
+			<p class="empty-state">No hay entregas ni servicios pendientes de facturar.</p>
 		{:else}
 			<table class="data-table">
 				<thead>
-					<tr><th>Orden</th><th>Cliente</th><th>Entregas sin facturar</th><th>Acciones</th></tr>
+					<tr><th>Orden</th><th>Cliente</th><th>Pendientes de facturar</th><th>Acciones</th></tr>
 				</thead>
 				<tbody>
 					{#each data.orders as order (order.id)}
@@ -70,9 +84,9 @@
 				</tbody>
 			</table>
 		{/if}
-	{:else if data.conduces.length === 0}
+	{:else if data.conduces.length === 0 && data.services.length === 0}
 		<p class="empty-state">
-			La orden {data.order.order_number || `#${data.order.id}`} no tiene entregas pendientes de facturar.
+			La orden {data.order.order_number || `#${data.order.id}`} no tiene nada pendiente de facturar.
 		</p>
 	{:else}
 		<!-- El `order` va en la action a proposito: `?/create` a secas reescribe
@@ -81,35 +95,69 @@
 		<form method="POST" action="?order={data.order.id}&/create">
 			<input type="hidden" name="work_order_id" value={data.order.id} />
 
-			<h2 class="sec-title">
-				Entregas de {data.order.order_number || `#${data.order.id}`}
-			</h2>
-			<table class="data-table">
-				<thead>
-					<tr><th class="check"></th><th>Entrega</th><th>Fecha</th><th>Líneas</th><th class="num">Importe</th></tr>
-				</thead>
-				<tbody>
-					{#each data.conduces as conduce (conduce.id)}
-						{@const marcada = elegidas.has(String(conduce.id))}
-						<tr>
-							<td class="check">
-								<input
-									type="checkbox"
-									name="conduce_ids"
-									value={conduce.id}
-									checked={marcada}
-									onchange={() => alternar(conduce.id)}
-									aria-label="Incluir {conduce.note_number}"
-								/>
-							</td>
-							<td><a href="/conduces/{conduce.id}">{conduce.note_number}</a></td>
-							<td>{formatDate(conduce.date)}</td>
-							<td>{conduce.lineas}</td>
-							<td class="num">{formatMoney(conduce.total)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+			{#if data.conduces.length > 0}
+				<h2 class="sec-title">
+					Entregas de {data.order.order_number || `#${data.order.id}`}
+				</h2>
+				<table class="data-table">
+					<thead>
+						<tr><th class="check"></th><th>Entrega</th><th>Fecha</th><th>Líneas</th><th class="num">Importe</th></tr>
+					</thead>
+					<tbody>
+						{#each data.conduces as conduce (conduce.id)}
+							{@const marcada = elegidas.has(String(conduce.id))}
+							<tr>
+								<td class="check">
+									<input
+										type="checkbox"
+										name="conduce_ids"
+										value={conduce.id}
+										checked={marcada}
+										onchange={() => alternar(conduce.id)}
+										aria-label="Incluir {conduce.note_number}"
+									/>
+								</td>
+								<td><a href="/conduces/{conduce.id}">{conduce.note_number}</a></td>
+								<td>{formatDate(conduce.date)}</td>
+								<td>{conduce.lineas}</td>
+								<td class="num">{formatMoney(conduce.total)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+
+			{#if data.services.length > 0}
+				<h2 class="sec-title">Servicios pendientes de facturar</h2>
+				<!-- Sin conduce que las traiga: un Servicio no es tangible y nunca se
+				     entrega, así que se factura directo desde la orden. -->
+				<table class="data-table">
+					<thead>
+						<tr><th class="check"></th><th>Servicio</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">Importe</th></tr>
+					</thead>
+					<tbody>
+						{#each data.services as servicio (servicio.id)}
+							{@const marcada = elegidasServicios.has(String(servicio.id))}
+							<tr>
+								<td class="check">
+									<input
+										type="checkbox"
+										name="service_line_ids"
+										value={servicio.id}
+										checked={marcada}
+										onchange={() => alternarServicio(servicio.id)}
+										aria-label="Incluir {servicio.name}"
+									/>
+								</td>
+								<td>{servicio.name}</td>
+								<td class="num">{servicio.quantity}</td>
+								<td class="num">{formatMoney(servicio.price)}</td>
+								<td class="num">{formatMoney(Number(servicio.quantity) * Number(servicio.price))}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
 
 			<div class="form-grid" style="margin-top: 16px">
 				<div class="form-field">
@@ -143,7 +191,11 @@
 
 			<div class="form-actions">
 				<a class="btn-secondary" href="/invoices">Cancelar</a>
-				<button type="submit" class="btn-primary" disabled={elegidas.size === 0 || excede}>
+				<button
+					type="submit"
+					class="btn-primary"
+					disabled={(elegidas.size === 0 && elegidasServicios.size === 0) || excede}
+				>
 					Emitir factura
 				</button>
 			</div>

@@ -40,7 +40,10 @@ export type RentalOrderItem = {
 	company_id?: string;
 	rental_order_id?: ESRId;
 	work_order_id?: ESRId;
-	item_id: ESRId;
+	/** Nullable: una linea de servicio no tiene articulo real. Ver `service_id`. */
+	item_id?: Nullable<ESRId>;
+	/** Ver `service.schema.ts`. Excluyente con `item_id`: una linea es de uno o de otro. */
+	service_id?: Nullable<ESRId>;
 	name?: string;
 	internal_code?: string;
 	quantity: number;

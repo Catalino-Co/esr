@@ -51,6 +51,20 @@ const NOT_BILLED = `NOT EXISTS (
 	WHERE ic.conduce_id = co.id AND ic.is_active = 1
 )`;
 
+/**
+ * Lineas de Servicio que todavia no cubre ninguna factura viva.
+ *
+ * Un Servicio no es tangible: nunca genera un conduce, asi que no puede
+ * facturarse por el camino de arriba. Este es su espejo, sobre
+ * `invoice_work_order_items` en vez de `invoice_conduces` -mismo mecanismo
+ * de "un enlace activo a la vez", para que anular la factura libere la
+ * linea y se pueda volver a facturar-.
+ */
+const SERVICE_NOT_BILLED = `NOT EXISTS (
+	SELECT 1 FROM invoice_work_order_items iwi
+	WHERE iwi.work_order_item_id = woi.id AND iwi.is_active = 1
+)`;
+
 export class PostgresInvoiceRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
 
@@ -155,7 +169,7 @@ export class PostgresInvoiceRepository {
 
 	async listItems(ctx: RepositoryContext, invoiceId: ESRId, client?: pg.PoolClient): Promise<InvoiceItem[]> {
 		const result = await this.db(client).query<InvoiceItem>(
-			`SELECT ii.id, ii.company_id, ii.invoice_id, ii.item_id, ii.description,
+			`SELECT ii.id, ii.company_id, ii.invoice_id, ii.item_id, ii.service_id, ii.description,
 				ii.quantity::text AS quantity, ii.price::text AS price, ii.total::text AS total,
 				i.internal_code
 			 FROM invoice_items ii
@@ -213,21 +227,45 @@ export class PostgresInvoiceRepository {
 		return result.rows;
 	}
 
-	/** Ordenes con alguna entrega sin facturar. Alimenta el selector de /invoices/new. */
+	/**
+	 * Lineas de Servicio de una orden que todavia no cubre ninguna factura
+	 * viva. Un Servicio se factura una sola vez -no hay entrega parcial que
+	 * valga-, asi que basta con listar la linea entera.
+	 */
+	async listBillableServices(
+		ctx: RepositoryContext,
+		workOrderId: ESRId,
+		client?: pg.PoolClient
+	): Promise<Array<{ id: ESRId; service_id: ESRId; name: string; quantity: string; price: string }>> {
+		const result = await this.db(client).query(
+			`SELECT woi.id, woi.service_id, s.name,
+				woi.quantity::text AS quantity, woi.price::text AS price
+			 FROM work_order_items woi
+			 JOIN services s ON s.id = woi.service_id AND s.company_id = woi.company_id
+			 WHERE woi.company_id = $1 AND woi.work_order_id = $2 AND ${SERVICE_NOT_BILLED}
+			 ORDER BY woi.id`,
+			[requireCompanyId(ctx), workOrderId]
+		);
+		return result.rows;
+	}
+
+	/** Ordenes con alguna entrega o servicio sin facturar. Alimenta el selector de /invoices/new. */
 	async listOrdersWithBillable(
 		ctx: RepositoryContext
 	): Promise<Array<{ id: ESRId; order_number: string; client_name: string | null; pendientes: number }>> {
+		const conducesPendientes = `(SELECT COUNT(*) FROM conduces co
+			WHERE co.work_order_id = wo.id AND co.company_id = wo.company_id
+			  AND ${DELIVERY_ONLY} AND co.status <> 'anulado' AND ${NOT_BILLED})`;
+		const serviciosPendientes = `(SELECT COUNT(*) FROM work_order_items woi
+			WHERE woi.work_order_id = wo.id AND woi.company_id = wo.company_id
+			  AND woi.service_id IS NOT NULL AND ${SERVICE_NOT_BILLED})`;
 		const result = await this.db().query(
 			`SELECT wo.id, wo.order_number, c.name AS client_name,
-				COUNT(co.id)::int AS pendientes
+				(${conducesPendientes} + ${serviciosPendientes})::int AS pendientes
 			 FROM work_orders wo
-			 JOIN conduces co ON co.work_order_id = wo.id AND co.company_id = wo.company_id
 			 LEFT JOIN clients c ON c.id = wo.client_id AND c.company_id = wo.company_id
 			 WHERE wo.company_id = $1
-			   AND ${DELIVERY_ONLY}
-			   AND co.status <> 'anulado'
-			   AND ${NOT_BILLED}
-			 GROUP BY wo.id, wo.order_number, c.name
+			   AND (${conducesPendientes} > 0 OR ${serviciosPendientes} > 0)
 			 ORDER BY wo.id DESC
 			 LIMIT 200`,
 			[requireCompanyId(ctx)]
@@ -285,19 +323,26 @@ export class PostgresInvoiceRepository {
 	async insertItem(
 		ctx: RepositoryContext,
 		invoiceId: ESRId,
-		line: { item_id?: ESRId | null; description?: string | null; quantity: number; price: number },
+		line: {
+			item_id?: ESRId | null;
+			service_id?: ESRId | null;
+			description?: string | null;
+			quantity: number;
+			price: number;
+		},
 		client?: pg.PoolClient
 	): Promise<void> {
 		await this.db(client).query(
 			// Los ::numeric no son decorativos: sin ellos PostgreSQL no sabe de que
-			// tipo es `$5 * $6` —dos parametros sin tipo— y responde
+			// tipo es `$6 * $7` —dos parametros sin tipo— y responde
 			// «operator is not unique: unknown * unknown».
-			`INSERT INTO invoice_items (company_id, invoice_id, item_id, description, quantity, price, total)
-			 VALUES ($1, $2, $3, $4, $5::numeric, $6::numeric, $5::numeric * $6::numeric)`,
+			`INSERT INTO invoice_items (company_id, invoice_id, item_id, service_id, description, quantity, price, total)
+			 VALUES ($1, $2, $3, $4, $5, $6::numeric, $7::numeric, $6::numeric * $7::numeric)`,
 			[
 				requireCompanyId(ctx),
 				invoiceId,
 				line.item_id ?? null,
+				line.service_id ?? null,
 				line.description ?? null,
 				line.quantity,
 				line.price
@@ -315,6 +360,20 @@ export class PostgresInvoiceRepository {
 			`INSERT INTO invoice_conduces (company_id, invoice_id, conduce_id, is_active)
 			 VALUES ($1, $2, $3, 1)`,
 			[requireCompanyId(ctx), invoiceId, conduceId]
+		);
+	}
+
+	/** Vincula una linea de Servicio facturada. Espejo de `linkConduce`. */
+	async linkWorkOrderItem(
+		ctx: RepositoryContext,
+		invoiceId: ESRId,
+		workOrderItemId: ESRId,
+		client?: pg.PoolClient
+	): Promise<void> {
+		await this.db(client).query(
+			`INSERT INTO invoice_work_order_items (company_id, invoice_id, work_order_item_id, is_active)
+			 VALUES ($1, $2, $3, 1)`,
+			[requireCompanyId(ctx), invoiceId, workOrderItemId]
 		);
 	}
 
@@ -342,6 +401,11 @@ export class PostgresInvoiceRepository {
 
 		await this.db(client).query(
 			`UPDATE invoice_conduces SET is_active = 0
+			 WHERE company_id = $1 AND invoice_id = $2`,
+			[companyId, id]
+		);
+		await this.db(client).query(
+			`UPDATE invoice_work_order_items SET is_active = 0
 			 WHERE company_id = $1 AND invoice_id = $2`,
 			[companyId, id]
 		);

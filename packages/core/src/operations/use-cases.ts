@@ -31,6 +31,16 @@ export function validateOrderTransition(
 	return ok(true);
 }
 
+/**
+ * Una linea de Servicio: no es tangible, asi que no participa de Entrega,
+ * Devolucion ni Cierre de orden, ni genera movimiento de inventario. Un solo
+ * lugar para esta regla, reutilizado en las tres pantallas y en el servicio
+ * de operaciones -en vez de repetir `!item.item_id` suelto en cada sitio-.
+ */
+export function isServiceLine(item: Pick<RentalOrderItem, 'service_id'>): boolean {
+	return item.service_id != null;
+}
+
 export function getDeliverableQuantity(item: Pick<RentalOrderItem, 'quantity' | 'delivered_quantity'>): number {
 	return Math.max(0, Number(item.quantity || 0) - Number(item.delivered_quantity || 0));
 }
@@ -42,10 +52,15 @@ export function getReturnableQuantity(
 }
 
 export function canCloseOrder(
-	items: Array<Pick<RentalOrderItem, 'quantity' | 'delivered_quantity' | 'returned_quantity' | 'status'>>,
+	items: Array<
+		Pick<RentalOrderItem, 'quantity' | 'delivered_quantity' | 'returned_quantity' | 'status' | 'service_id'>
+	>,
 	openIncidents: number
 ): UseCaseResult<true> {
 	for (const item of items) {
+		// Un Servicio nunca bloquea el cierre: no es tangible, no hay nada que
+		// entregar ni que devolver.
+		if (isServiceLine(item)) continue;
 		const delivered = Number(item.delivered_quantity || 0);
 		const returned = Number(item.returned_quantity || 0);
 		const reserved = Number(item.quantity || 0);

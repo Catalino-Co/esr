@@ -31,6 +31,8 @@ export type QuoteItem = {
 	quotation_id?: ESRId;
 	item_id?: Nullable<ESRId>;
 	package_id?: Nullable<ESRId>;
+	/** Ver `service.schema.ts`. Excluyente con `item_id`: una linea es de uno o de otro. */
+	service_id?: Nullable<ESRId>;
 	name?: string;
 	code?: string | null;
 	quantity: number;
@@ -54,6 +56,8 @@ export type QuoteItem = {
 	 */
 	discount_amount?: number;
 	is_package?: boolean;
+	/** Derivado de `service_id`, igual que `is_package` de `package_id`. */
+	is_service?: boolean;
 	/**
 	 * Ventana de alquiler de esta linea, cuando difiere de la del evento.
 	 * Columnas `start_date`/`end_date` de `quotation_items` (migracion 004).
@@ -79,10 +83,15 @@ export function validateCreateQuoteInput(input: {
 
 export function validateAddQuoteItemInput(input: {
 	item_id?: unknown;
+	service_id?: unknown;
 	quantity?: unknown;
 	price?: unknown;
 }): ValidationResult {
-	if (!isPresent(input.item_id)) return invalid('quote_item.item_id.required');
+	// Una linea es de UN articulo o de UN servicio, nunca las dos cosas ni
+	// ninguna: mezclar las dos borraria cual de los dos manda al guardar.
+	const tieneArticulo = isPresent(input.item_id);
+	const tieneServicio = isPresent(input.service_id);
+	if (tieneArticulo === tieneServicio) return invalid('quote_item.item_id.required');
 	const quantity = Number(input.quantity);
 	if (!Number.isFinite(quantity) || quantity <= 0) return invalid('quote_item.quantity.invalid');
 	const price = Number(input.price);

@@ -59,7 +59,9 @@ export function validateRentalOrderDraft(input: { client_id: ESRId | '' }): UseC
  */
 
 export type DirectOrderLine = {
-	item_id: ESRId | '';
+	item_id?: ESRId | '';
+	/** Excluyente con `item_id`: una linea es de un articulo o de un servicio. */
+	service_id?: ESRId | '';
 	quantity: number | string;
 	price: number | string;
 };
@@ -80,9 +82,13 @@ export function validateDirectOrderDraft(draft: DirectOrderDraft): UseCaseResult
 	if (!draft.client_id) return fail('order.client.required');
 
 	const utiles = draft.lines.filter((linea) => linea.item_id);
-	if (!utiles.length) return fail('order.lines.required');
+	// Un Servicio no es tangible: no reserva stock ni se entrega, pero sigue
+	// siendo una linea real de la orden -cuenta para "al menos una linea" y
+	// para la cantidad/precio, igual que un articulo-.
+	const servicios = draft.lines.filter((linea) => linea.service_id);
+	if (!utiles.length && !servicios.length) return fail('order.lines.required');
 
-	for (const linea of utiles) {
+	for (const linea of [...utiles, ...servicios]) {
 		const cantidad = Number(linea.quantity);
 		if (!Number.isFinite(cantidad) || cantidad <= 0) return fail('order.line.quantity_invalid');
 		const precio = Number(linea.price);
@@ -90,7 +96,9 @@ export function validateDirectOrderDraft(draft: DirectOrderDraft): UseCaseResult
 	}
 
 	// Un mismo articulo dos veces reservaria dos veces contra el mismo stock y
-	// dejaria la orden con dos lineas que la entrega trata por separado.
+	// dejaria la orden con dos lineas que la entrega trata por separado. Un
+	// Servicio SI puede repetirse: dos actuaciones del mismo servicio en la
+	// misma orden no compiten por ningun stock.
 	const vistos = new Set<string>();
 	for (const linea of utiles) {
 		const clave = String(linea.item_id);

@@ -110,8 +110,56 @@
 		lineas = lineas.filter((_, i) => i !== indice);
 	}
 
+	/* ── Servicios ──────────────────────────────────────────────────────────
+	 * Un Servicio no reserva stock ni tiene disponibilidad: es un catálogo
+	 * corto y una tabla de líneas simple, sin la comparación de "Libre" que
+	 * necesitan los artículos. A diferencia de un artículo, SÍ puede repetirse
+	 * -dos actuaciones del mismo servicio no compiten por ningún stock-, así
+	 * que aquí no hay `mergeRentalOrderItem`, cada alta agrega una fila nueva.
+	 */
+	const serviciosPorId = new Map(data.services.map((s) => [String(s.id), s]));
+
+	let servicioLineas = $state(
+		(form?.values?.serviceLines ?? []).map(
+			(/** @type {{ service_id: string, quantity: string, price: string }} */ linea) => {
+				const service = serviciosPorId.get(String(linea.service_id));
+				return {
+					service_id: String(linea.service_id),
+					name: service?.name ?? 'Servicio',
+					quantity: Number(linea.quantity) || 1,
+					price: linea.price
+				};
+			}
+		)
+	);
+
+	let servicioElegido = $state('');
+	let cantidadServicio = $state(1);
+
+	function añadirServicio() {
+		const service = serviciosPorId.get(servicioElegido);
+		if (!service) return;
+		servicioLineas = [
+			...servicioLineas,
+			{
+				service_id: String(service.id),
+				name: service.name,
+				quantity: Number(cantidadServicio) || 1,
+				price: String(service.price ?? '')
+			}
+		];
+		servicioElegido = '';
+		cantidadServicio = 1;
+	}
+
+	/** @param {number} indice */
+	function quitarServicio(indice) {
+		servicioLineas = servicioLineas.filter((_, i) => i !== indice);
+	}
+
 	const total = $derived(
-		lineas.reduce((suma, linea) => suma + Number(linea.quantity || 0) * Number(linea.price || 0), 0)
+		lineas.reduce((suma, linea) => suma + Number(linea.quantity || 0) * Number(linea.price || 0), 0) +
+			servicioLineas.reduce((suma, linea) => suma + Number(linea.quantity || 0) * Number(linea.price || 0), 0)
 	);
 
 	/* Lo que el servidor va a rechazar, dicho antes de enviarlo. La comprobación
@@ -123,7 +171,9 @@
 		)
 	);
 
-	const puedeCrear = $derived(Boolean(cabecera.client_id) && lineas.length > 0);
+	const puedeCrear = $derived(
+		Boolean(cabecera.client_id) && (lineas.length > 0 || servicioLineas.length > 0)
+	);
 </script>
 
 <!-- La misma cabecera que la ficha: título y total a la izquierda, la acción
@@ -371,6 +421,105 @@
 		</section>
 
 		<section class="panel">
+			<div class="cabecera-tarjeta">
+				<h2 class="titulo-seccion">🛎️ Servicios de la orden</h2>
+				<span class="cuenta">{servicioLineas.length}</span>
+			</div>
+
+			<div class="agregar-servicio">
+				<select bind:value={servicioElegido} aria-label="Elegir servicio">
+					<option value="">Elija un servicio</option>
+					{#each data.services as service (service.id)}
+						<option value={service.id}>{service.name} — {formatMoney(service.price)}</option>
+					{/each}
+				</select>
+				<input
+					type="number"
+					min="1"
+					step="1"
+					class="cantidad-mini"
+					bind:value={cantidadServicio}
+					aria-label="Cantidad del servicio"
+				/>
+				<button
+					type="button"
+					class="btn-secondary btn-sm"
+					onclick={añadirServicio}
+					disabled={!servicioElegido}
+				>
+					Agregar
+				</button>
+			</div>
+
+			{#if servicioLineas.length === 0}
+				<p class="empty-state">Sin servicios agregados.</p>
+			{:else}
+				<div class="tabla-scroll">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Servicio</th>
+							<th class="num">Cantidad</th>
+							<th class="num">Precio</th>
+							<th class="num">Importe</th>
+							<th class="col-accion"></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each servicioLineas as linea, indice (indice)}
+							<tr>
+								<td>
+									<input
+										type="hidden"
+										name="line_service_id"
+										form="orden-nueva"
+										value={linea.service_id}
+									/>
+									{linea.name}
+								</td>
+								<td class="num">
+									<input
+										name="line_service_quantity"
+										form="orden-nueva"
+										type="number"
+										min="1"
+										step="1"
+										bind:value={linea.quantity}
+										aria-label="Cantidad de {linea.name}"
+									/>
+								</td>
+								<td class="num">
+									<FormattedNumberField
+										name="line_service_price"
+										form="orden-nueva"
+										min={0}
+										bind:value={linea.price}
+										aria-label="Precio de {linea.name}"
+									/>
+								</td>
+								<td class="num importe">
+									{formatMoney(Number(linea.quantity || 0) * Number(linea.price || 0))}
+								</td>
+								<td class="col-accion">
+									<button
+										type="button"
+										class="btn-icono"
+										onclick={() => quitarServicio(indice)}
+										aria-label="Quitar {linea.name} de la orden"
+										title="Quitar de la orden"
+									>
+										<Icon name="trash" size={16} />
+									</button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				</div>
+			{/if}
+		</section>
+
+		<section class="panel">
 			<h2 class="titulo-seccion">📝 Instrucciones de montaje / observaciones</h2>
 			<textarea
 				class="notas"
@@ -534,6 +683,18 @@
 		align-items: center;
 		justify-content: flex-end;
 		gap: var(--sp-1);
+	}
+
+	.agregar-servicio {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-3);
+	}
+
+	.agregar-servicio select {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.col-agregar {

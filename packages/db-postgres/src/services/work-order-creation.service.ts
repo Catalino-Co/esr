@@ -6,6 +6,7 @@ import { PostgresCustomerRepository } from '../repositories/postgres-customer.re
 import { PostgresEventRepository } from '../repositories/postgres-event.repository';
 import { PostgresInventoryRepository } from '../repositories/postgres-inventory.repository';
 import { PostgresRentalRepository } from '../repositories/postgres-rental.repository';
+import { PostgresServiceRepository } from '../repositories/postgres-catalog.repository';
 
 /**
  * Crear una orden SIN cotizacion detras.
@@ -28,7 +29,13 @@ export type DirectOrderInput = {
 	responsible_person?: string | null;
 	vehicle?: string | null;
 	notes?: string | null;
-	lines: Array<{ item_id: ESRId | ''; quantity: number | string; price: number | string }>;
+	lines: Array<{
+		item_id?: ESRId | '';
+		/** Excluyente con `item_id`: una linea es de un articulo o de un servicio. */
+		service_id?: ESRId | '';
+		quantity: number | string;
+		price: number | string;
+	}>;
 };
 
 export class WorkOrderCreationService {
@@ -36,7 +43,8 @@ export class WorkOrderCreationService {
 		private readonly orders = new PostgresRentalRepository(),
 		private readonly inventory = new PostgresInventoryRepository(),
 		private readonly customers = new PostgresCustomerRepository(),
-		private readonly events = new PostgresEventRepository()
+		private readonly events = new PostgresEventRepository(),
+		private readonly services = new PostgresServiceRepository()
 	) {}
 
 	async createDirect(ctx: RepositoryContext, input: DirectOrderInput): Promise<RentalOrder> {
@@ -49,6 +57,9 @@ export class WorkOrderCreationService {
 		if (!check.ok) throw new Error(directOrderErrorMessage(check.error));
 
 		const lineas = input.lines.filter((linea) => linea.item_id);
+		// Un Servicio no reserva stock ni comprueba disponibilidad -no es
+		// tangible-, asi que sigue un camino aparte del de los articulos.
+		const lineasServicio = input.lines.filter((linea) => linea.service_id);
 
 		// ── Todo lo que llega por el formulario tiene que ser de ESTA empresa ──
 		//
@@ -72,6 +83,14 @@ export class WorkOrderCreationService {
 				throw new Error(`El artículo "${item.name}" está inactivo o archivado y no puede usarse en una orden.`);
 			}
 			articulos.set(String(linea.item_id), item.name ?? `#${linea.item_id}`);
+		}
+
+		for (const linea of lineasServicio) {
+			const service = await this.services.findById(ctx, linea.service_id as ESRId);
+			if (!service) throw new Error('Uno de los servicios no pertenece a su empresa.');
+			if (service.is_active !== RECORD_STATE.ACTIVE) {
+				throw new Error(`El servicio "${service.name}" está inactivo o archivado y no puede usarse en una orden.`);
+			}
 		}
 
 		return withTransaction(async (client) => {
@@ -104,13 +123,22 @@ export class WorkOrderCreationService {
 					responsible_person: input.responsible_person || null,
 					vehicle: input.vehicle || null,
 					notes: input.notes || null,
-					items: lineas.map((linea) => ({
-						item_id: linea.item_id as ESRId,
-						quantity: Number(linea.quantity),
-						price: Number(linea.price),
-						start_date: input.start_date || null,
-						end_date: input.end_date || null
-					}))
+					items: [
+						...lineas.map((linea) => ({
+							item_id: linea.item_id as ESRId,
+							quantity: Number(linea.quantity),
+							price: Number(linea.price),
+							start_date: input.start_date || null,
+							end_date: input.end_date || null
+						})),
+						// Un Servicio no lleva ventana de alquiler: no reserva nada que
+						// pueda entrar en conflicto de fechas.
+						...lineasServicio.map((linea) => ({
+							service_id: linea.service_id as ESRId,
+							quantity: Number(linea.quantity),
+							price: Number(linea.price)
+						}))
+					]
 				} as Parameters<PostgresRentalRepository['create']>[1],
 				client
 			);

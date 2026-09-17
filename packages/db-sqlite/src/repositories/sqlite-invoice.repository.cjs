@@ -46,6 +46,22 @@ const BILLABLE_CONDUCE_SQL = `
   )
 `;
 
+/**
+ * Lineas de Servicio que todavia no cubre ninguna factura viva.
+ *
+ * Un Servicio no es tangible: nunca genera un conduce, asi que no puede
+ * facturarse por el camino de arriba. Este es su espejo, sobre
+ * `invoice_work_order_items` en vez de `invoice_conduces` -mismo mecanismo de
+ * "un enlace activo a la vez", para que anular la factura libere la linea y se
+ * pueda volver a facturar-.
+ */
+const SERVICE_NOT_BILLED = `
+  NOT EXISTS (
+    SELECT 1 FROM invoice_work_order_items iwi
+    WHERE iwi.work_order_item_id = woi.id AND iwi.is_active = 1
+  )
+`;
+
 const INVOICE_COLUMNS = `
   inv.*,
   c.name AS client_name,
@@ -187,30 +203,62 @@ class SqliteInvoiceRepository {
   }
 
   /**
-   * Ordenes con alguna entrega sin facturar.
+   * Lineas de Servicio de una orden que todavia no cubre ninguna factura
+   * viva. Un Servicio se factura una sola vez -no hay entrega parcial que
+   * valga-, asi que basta con listar la linea entera.
+   *
+   * El precio sale de `services.price`, NO de `work_order_items`: esa tabla
+   * es solo lista de preparacion en SQLite y no tiene columna de precio, ni
+   * siquiera para los articulos.
+   */
+  async listBillableServices(workOrderId) {
+    return await getQuery(
+      `SELECT woi.id, woi.service_id, s.name, woi.quantity, s.price
+       FROM work_order_items woi
+       JOIN services s ON s.id = woi.service_id
+       WHERE woi.work_order_id = ? AND woi.service_id IS NOT NULL AND ${SERVICE_NOT_BILLED}
+       ORDER BY woi.id`,
+      [workOrderId]
+    );
+  }
+
+  /**
+   * Ordenes con alguna entrega o servicio sin facturar.
    *
    * `since` acota por fecha porque el dia que se instala el modulo TODAS las
    * entregas historicas —incluidas las ya cobradas en efectivo fuera del
    * sistema— aparecerian como pendientes. La pantalla lo usa con los ultimos
    * meses por defecto y ofrece ver el resto.
+   *
+   * Subconsultas y no `JOIN conduces` + `GROUP BY`: un `JOIN` deja fuera toda
+   * orden sin ningun conduce, y una orden puede tener solo servicios
+   * pendientes -un Servicio nunca genera conduce-.
    */
   async listOrdersWithBillable({ since } = {}) {
     const params = [];
     let filtroFecha = '';
     if (since) {
-      filtroFecha = 'AND COALESCE(co.date, wo.date) >= ?';
+      filtroFecha = 'AND wo.date >= ?';
       params.push(since);
     }
 
+    const conducesPendientes = `(SELECT COUNT(*) FROM conduces co
+      WHERE co.work_order_id = wo.id AND ${BILLABLE_CONDUCE_SQL})`;
+    const totalConducesPendiente = `(SELECT COALESCE(SUM(co.total), 0) FROM conduces co
+      WHERE co.work_order_id = wo.id AND ${BILLABLE_CONDUCE_SQL})`;
+    const serviciosPendientes = `(SELECT COUNT(*) FROM work_order_items woi
+      WHERE woi.work_order_id = wo.id AND woi.service_id IS NOT NULL AND ${SERVICE_NOT_BILLED})`;
+    const totalServiciosPendiente = `(SELECT COALESCE(SUM(woi.quantity * s.price), 0)
+      FROM work_order_items woi JOIN services s ON s.id = woi.service_id
+      WHERE woi.work_order_id = wo.id AND woi.service_id IS NOT NULL AND ${SERVICE_NOT_BILLED})`;
+
     return await getQuery(
       `SELECT wo.id, wo.date, c.name AS client_name,
-              COUNT(co.id) AS pendientes,
-              SUM(co.total) AS total_pendiente
+              (${conducesPendientes} + ${serviciosPendientes}) AS pendientes,
+              (${totalConducesPendiente} + ${totalServiciosPendiente}) AS total_pendiente
        FROM work_orders wo
-       JOIN conduces co ON co.work_order_id = wo.id
        LEFT JOIN clients c ON c.id = wo.client_id
-       WHERE ${BILLABLE_CONDUCE_SQL} ${filtroFecha}
-       GROUP BY wo.id, wo.date, c.name
+       WHERE (${conducesPendientes} > 0 OR ${serviciosPendientes} > 0) ${filtroFecha}
        ORDER BY wo.id DESC
        LIMIT 200`,
       params
@@ -291,6 +339,7 @@ class SqliteInvoiceRepository {
   async create({
     work_order_id,
     conduce_ids = [],
+    service_line_ids = [],
     date,
     due_date,
     discount = 0,
@@ -299,25 +348,49 @@ class SqliteInvoiceRepository {
   } = {}) {
     if (!work_order_id) throw new Error('Falta la orden de trabajo.');
     const elegidos = (conduce_ids || []).map(Number).filter(Boolean);
-    if (!elegidos.length) throw new Error('Elija al menos una entrega para facturar.');
+    const serviciosElegidos = (service_line_ids || []).map(Number).filter(Boolean);
+    if (!elegidos.length && !serviciosElegidos.length) {
+      throw new Error('Elija al menos una entrega o un servicio para facturar.');
+    }
 
     return await withTransaction(async () => {
       // Se releen DENTRO de la transaccion. Entre que se pinto la pantalla y se
-      // pulso el boton, otra emision pudo llevarse una entrega.
-      const disponibles = await this.listBillableConduces(work_order_id);
-      const porId = new Set(disponibles.map((c) => Number(c.id)));
-      if (elegidos.some((id) => !porId.has(id))) {
-        throw new Error(
-          'Alguna de las entregas elegidas ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
-        );
+      // pulso el boton, otra emision pudo llevarse una entrega o un servicio.
+      const lineas = [];
+      if (elegidos.length) {
+        const disponibles = await this.listBillableConduces(work_order_id);
+        const porId = new Set(disponibles.map((c) => Number(c.id)));
+        if (elegidos.some((id) => !porId.has(id))) {
+          throw new Error(
+            'Alguna de las entregas elegidas ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
+          );
+        }
+        lineas.push(...(await this.txAggregateLines(elegidos)));
       }
 
-      const lineas = await this.txAggregateLines(elegidos);
-      if (!lineas.length) {
-        throw new Error('Las entregas elegidas no tienen ninguna línea que facturar.');
+      let serviciosAFacturar = [];
+      if (serviciosElegidos.length) {
+        const disponibles = await this.listBillableServices(work_order_id);
+        const porId = new Map(disponibles.map((s) => [Number(s.id), s]));
+        if (serviciosElegidos.some((id) => !porId.has(id))) {
+          throw new Error(
+            'Alguno de los servicios elegidos ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
+          );
+        }
+        serviciosAFacturar = serviciosElegidos.map((id) => porId.get(id));
       }
 
-      const subtotal = round2(lineas.reduce((suma, l) => suma + l.total, 0));
+      if (!lineas.length && !serviciosAFacturar.length) {
+        throw new Error('Lo elegido no tiene ninguna línea que facturar.');
+      }
+
+      const subtotal = round2(
+        lineas.reduce((suma, l) => suma + l.total, 0) +
+          serviciosAFacturar.reduce(
+            (suma, s) => suma + round2(Number(s.quantity) * Number(s.price)),
+            0
+          )
+      );
       const rebaja = round2(Math.max(0, Number(discount) || 0));
       const impuesto = round2(Math.max(0, Number(tax_amount) || 0));
       if (rebaja > subtotal) throw new Error('El descuento no puede superar el subtotal.');
@@ -349,6 +422,20 @@ class SqliteInvoiceRepository {
         );
       }
 
+      // Una linea de Servicio no viene de un conduce -no es tangible-, asi que
+      // se inserta directo y se enlaza por `invoice_work_order_items`, el
+      // mismo mecanismo de "un enlace activo a la vez" que usan las entregas.
+      for (const servicio of serviciosAFacturar) {
+        const cantidad = round2(servicio.quantity);
+        const precio = round2(servicio.price);
+        await runQuery(
+          `INSERT INTO invoice_items (invoice_id, service_id, description, quantity, price, total)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [factura.id, servicio.service_id, servicio.name, cantidad, precio, round2(cantidad * precio)]
+        );
+        await this.linkWorkOrderItem(factura.id, servicio.id);
+      }
+
       // Los enlaces van DENTRO de la transaccion: son la invariante que impide
       // facturar dos veces la misma entrega. Escribirlos fuera abriria la
       // ventana del doble clic.
@@ -361,6 +448,14 @@ class SqliteInvoiceRepository {
 
       return factura;
     });
+  }
+
+  /** Vincula una linea de Servicio facturada. Espejo de la insercion en `invoice_conduces`. */
+  async linkWorkOrderItem(invoiceId, workOrderItemId) {
+    await runQuery(
+      'INSERT INTO invoice_work_order_items (invoice_id, work_order_item_id, is_active) VALUES (?, ?, 1)',
+      [invoiceId, workOrderItemId]
+    );
   }
 
   /**
@@ -430,6 +525,7 @@ class SqliteInvoiceRepository {
       if (!res.changes) throw new Error('La factura no existe o ya estaba anulada.');
 
       await runQuery('UPDATE invoice_conduces SET is_active = 0 WHERE invoice_id = ?', [id]);
+      await runQuery('UPDATE invoice_work_order_items SET is_active = 0 WHERE invoice_id = ?', [id]);
 
       const voidedPayments = await paymentRepository.txVoidByInvoice(id, motivo);
       return { id, voidedPayments };
@@ -447,4 +543,4 @@ class SqliteInvoiceRepository {
   }
 }
 
-module.exports = { SqliteInvoiceRepository, BILLABLE_CONDUCE_SQL, round2 };
+module.exports = { SqliteInvoiceRepository, BILLABLE_CONDUCE_SQL, SERVICE_NOT_BILLED, round2 };

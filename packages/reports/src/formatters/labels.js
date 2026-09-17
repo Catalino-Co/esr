@@ -19,6 +19,8 @@
  */
 export function quoteItemLabel(line) {
   const nombre = String(line?.name ?? '').trim() || 'Sin descripción';
+  const esServicio = line?.is_service === true || line?.service_id != null;
+  if (esServicio) return `[Servicio] ${nombre}`;
   const esPaquete =
     line?.is_package === true || (line?.package_id != null && line?.item_id == null);
   return esPaquete ? `[Paquete] ${nombre}` : nombre;

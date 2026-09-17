@@ -284,6 +284,50 @@
 		agregandoArticulo = false;
 	};
 
+	/* ── Diálogo: agregar servicio ─────────────────────────────────────────── */
+
+	let agregandoServicio = $state(false);
+	let errorServicio = $state(null);
+	let busquedaServicio = $state('');
+	let seleccionServicio = $state(null);
+	let altaServicio = $state({ quantity: 1, price: 0, discount_rate: 0, tax_rate: 0 });
+
+	const resultadosServicio = $derived.by(() => {
+		const t = busquedaServicio.trim().toLowerCase();
+		return t ? data.services.filter((s) => s.name.toLowerCase().includes(t)) : data.services;
+	});
+
+	function abrirServicio() {
+		busquedaServicio = '';
+		seleccionServicio = null;
+		altaServicio = { quantity: 1, price: 0, ...tasasSugeridas };
+		errorServicio = null;
+		agregandoServicio = true;
+	}
+
+	function elegirServicio(servicio) {
+		seleccionServicio = servicio;
+		altaServicio = { ...altaServicio, quantity: 1, price: servicio.price };
+	}
+
+	const importeAltaServicio = $derived(
+		calculateQuoteLineAmounts({
+			quantity: altaServicio.quantity,
+			price: altaServicio.price,
+			discount_rate: altaServicio.discount_rate,
+			tax_rate: altaServicio.tax_rate
+		})
+	);
+
+	const alAgregarServicio = () => async ({ update, result }) => {
+		await update({ reset: false });
+		if (result.type === 'failure') {
+			errorServicio = result.data?.error ?? 'No se pudo agregar el servicio.';
+			return;
+		}
+		agregandoServicio = false;
+	};
+
 	/* ── Diálogo: agregar paquete ──────────────────────────────────────────── */
 
 	let agregandoPaquete = $state(false);
@@ -584,6 +628,9 @@
 						<button type="button" class="btn-secondary btn-sm btn-new" onclick={abrirPaquete}>
 							Agregar paquete
 						</button>
+						<button type="button" class="btn-secondary btn-sm btn-new" onclick={abrirServicio}>
+							Agregar servicio
+						</button>
 					</div>
 				{/if}
 			</div>
@@ -605,7 +652,10 @@
 					<tbody>
 						{#each lineas as item (item.id)}
 							<tr>
-								<td>{item.name}</td>
+								<td>
+									{item.name}
+									{#if item.is_service}<span class="codigo">Servicio</span>{/if}
+								</td>
 								<td>{item.code || '—'}</td>
 								<td class="num">{item.quantity}</td>
 								<td class="num">{formatMoney(item.price)}</td>
@@ -935,6 +985,109 @@
 			<Icon name="x" size={16} />Cancelar
 		</button>
 		<button type="submit" form="alta-articulo" class="btn-primary" disabled={!seleccion}>
+			Agregar
+		</button>
+	{/snippet}
+</Modal>
+
+<!-- ── Agregar servicio ────────────────────────────────────────────────── -->
+<Modal bind:open={agregandoServicio} size="md" title="Agregar servicio">
+	{#if errorServicio}<div class="alert-error" role="alert">{errorServicio}</div>{/if}
+
+	<div class="buscador">
+		<input
+			type="search"
+			bind:value={busquedaServicio}
+			placeholder="Buscar por nombre"
+			aria-label="Buscar en los servicios"
+		/>
+	</div>
+
+	<ul class="catalog-list">
+		{#each resultadosServicio as servicio (servicio.id)}
+			<li>
+				<button
+					type="button"
+					class="catalog-item"
+					class:catalog-item--added={seleccionServicio?.id === servicio.id}
+					onclick={() => elegirServicio(servicio)}
+				>
+					<span class="catalog-item-nombre">{servicio.name}</span>
+					<span class="catalog-item-meta">
+						<span>{formatMoney(servicio.price)}</span>
+					</span>
+				</button>
+			</li>
+		{:else}
+			<li><p class="empty-state">Sin resultados para «{busquedaServicio}».</p></li>
+		{/each}
+	</ul>
+
+	<form
+		id="alta-servicio"
+		method="POST"
+		action={accion('addService')}
+		class="form-grid"
+		use:enhance={alAgregarServicio}
+	>
+		<input type="hidden" name="service_id" value={seleccionServicio?.id ?? ''} />
+		<div class="form-field">
+			<label for="alta_servicio_qty">Cantidad</label>
+			<input
+				id="alta_servicio_qty"
+				name="quantity"
+				type="number"
+				min="1"
+				step="1"
+				required
+				bind:value={altaServicio.quantity}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="alta_servicio_price">Precio</label>
+			<FormattedNumberField
+				id="alta_servicio_price"
+				name="price"
+				min={0}
+				required
+				bind:value={altaServicio.price}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="alta_servicio_desc">Descuento %</label>
+			<input
+				id="alta_servicio_desc"
+				name="discount_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={altaServicio.discount_rate}
+			/>
+		</div>
+		<div class="form-field">
+			<label for="alta_servicio_imp">Impuesto %</label>
+			<input
+				id="alta_servicio_imp"
+				name="tax_rate"
+				type="number"
+				min="0"
+				max="100"
+				step="any"
+				bind:value={altaServicio.tax_rate}
+			/>
+		</div>
+		<div class="form-field">
+			<span class="form-field-label">Importe</span>
+			<output class="alta-importe">{formatMoney(importeAltaServicio.total)}</output>
+		</div>
+	</form>
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={() => (agregandoServicio = false)}>
+			<Icon name="x" size={16} />Cancelar
+		</button>
+		<button type="submit" form="alta-servicio" class="btn-primary" disabled={!seleccionServicio}>
 			Agregar
 		</button>
 	{/snippet}

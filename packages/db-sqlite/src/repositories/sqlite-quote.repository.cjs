@@ -35,15 +35,17 @@ class SqliteQuoteRepository {
 	 */
 	async listItems(quoteId) {
 		return await getQuery(
-			`SELECT qi.id, qi.item_id, qi.package_id, qi.quantity, qi.price,
+			`SELECT qi.id, qi.item_id, qi.package_id, qi.service_id, qi.quantity, qi.price,
 			        qi.discount_rate, qi.tax_rate,
-			        COALESCE(i.name, p.name) AS name,
+			        COALESCE(i.name, p.name, s.name) AS name,
 			        i.internal_code AS code,
 			        CASE WHEN qi.package_id IS NOT NULL AND qi.item_id IS NULL THEN 1 ELSE 0 END
-			          AS is_legacy_package
+			          AS is_legacy_package,
+			        CASE WHEN qi.service_id IS NOT NULL THEN 1 ELSE 0 END AS is_service
 			   FROM quotation_items qi
 			   LEFT JOIN items    i ON qi.item_id    = i.id
 			   LEFT JOIN packages p ON qi.package_id = p.id
+			   LEFT JOIN services s ON qi.service_id = s.id
 			  WHERE qi.quotation_id = ?
 			  ORDER BY qi.id`,
 			[quoteId]
@@ -72,6 +74,7 @@ class SqliteQuoteRepository {
 		const lineas = (input.items || []).map((linea) => ({
 			item_id: linea.item_id ?? null,
 			package_id: linea.package_id ?? null,
+			service_id: linea.service_id ?? null,
 			quantity: Number(linea.quantity) || 0,
 			price: Number(linea.price) || 0,
 			// Tasas en PORCENTAJE. `Number(...) || 0` y no `?? 0`: del renderer
@@ -179,12 +182,13 @@ class SqliteQuoteRepository {
 		for (const linea of lineas) {
 			await runQuery(
 				`INSERT INTO quotation_items
-					(quotation_id, item_id, package_id, quantity, price, discount_rate, tax_rate)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					(quotation_id, item_id, package_id, service_id, quantity, price, discount_rate, tax_rate)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					quoteId,
 					linea.item_id,
 					linea.package_id,
+					linea.service_id,
 					linea.quantity,
 					linea.price,
 					linea.discount_rate,

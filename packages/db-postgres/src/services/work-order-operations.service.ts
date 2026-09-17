@@ -3,6 +3,7 @@ import {
 	canRevertDeliveredQuantity,
 	getDeliverableQuantity,
 	getReturnableQuantity,
+	isServiceLine,
 	mapReturnConditionToItemStatus,
 	ORDER_STATUSES_FROZEN,
 	recalcItemStatusAfterCancel,
@@ -95,6 +96,10 @@ export class WorkOrderOperationsService {
 			for (const line of input.lines) {
 				const woItem = itemMap.get(String(line.work_order_item_id));
 				if (!woItem?.id) throw new Error(`Work order item ${line.work_order_item_id} not found.`);
+				// Un Servicio no es tangible: nunca se entrega. Si llega aqui es que
+				// la pantalla lo dejo pasar por error -las de entrega ya lo excluyen
+				// de la lista de lineas entregables-.
+				if (!woItem.item_id) throw new Error(`No se puede entregar la línea de servicio "${woItem.name}".`);
 				const deliverable = getDeliverableQuantity(woItem);
 
 				const serialIds = line.serial_ids ?? [];
@@ -252,6 +257,9 @@ export class WorkOrderOperationsService {
 			for (const line of input.lines) {
 				const woItem = itemMap.get(String(line.work_order_item_id));
 				if (!woItem?.id) throw new Error(`Work order item ${line.work_order_item_id} not found.`);
+				// Un Servicio no es tangible: nunca se devuelve. Defensa en
+				// profundidad, igual que en completeDelivery.
+				if (!woItem.item_id) throw new Error(`No se puede devolver la línea de servicio "${woItem.name}".`);
 				const returnable = getReturnableQuantity(woItem);
 				if (line.quantity <= 0 || line.quantity > returnable) {
 					throw new Error(`Invalid return quantity for ${woItem.name}. Max: ${returnable}.`);
@@ -307,7 +315,9 @@ export class WorkOrderOperationsService {
 						{
 							conduce_id: conduce.id!,
 							conduce_item_id: conduce.line_ids.get(String(line.work_order_item_id)),
-							item_id: woItem.item_id,
+							// `!`: ya se descarto que sea una linea de servicio en el
+							// primer bucle de este metodo, antes de llegar aqui.
+							item_id: woItem.item_id!,
 							serial_id: serialId
 						},
 						client
@@ -334,7 +344,9 @@ export class WorkOrderOperationsService {
 				await this.stock.create(
 					ctx,
 					{
-						item_id: woItem.item_id,
+						// `!`: ya se descarto que sea una linea de servicio en el primer
+						// bucle de este metodo.
+						item_id: woItem.item_id!,
 						work_order_id: orderId,
 						work_order_item_id: line.work_order_item_id,
 						movement_type: movementType,

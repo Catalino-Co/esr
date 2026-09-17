@@ -104,6 +104,9 @@ function setupIpcHandlers() {
   ipcMain.handle('invoices:listItems', (event, id) => facturacion.listInvoiceItems(id));
   ipcMain.handle('invoices:listConduces', (event, id) => facturacion.listInvoiceConduces(id));
   ipcMain.handle('invoices:listBillable', (event, woId) => facturacion.listBillableConduces(woId));
+  ipcMain.handle('invoices:listBillableServices', (event, woId) =>
+    facturacion.listBillableServices(woId)
+  );
   ipcMain.handle('invoices:listOrdersWithBillable', (event, options) =>
     facturacion.listOrdersWithBillable(options)
   );

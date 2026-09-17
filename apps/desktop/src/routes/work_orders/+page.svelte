@@ -155,11 +155,18 @@
 
   async function imprimir(wo) {
     const items = await window.api.db.get(`
-      SELECT wi.quantity, i.name, i.internal_code
+      SELECT wi.quantity, i.name, i.internal_code, NULL AS service_id
       FROM work_order_items wi JOIN items i ON wi.item_id = i.id
       WHERE wi.work_order_id = ?`, [wo.id]);
+    // Aparte y no en el mismo JOIN: una linea de Servicio no tiene `item_id`,
+    // asi que el JOIN de arriba la descarta sola -es el mismo criterio que ya
+    // usa el conduce-. `quoteItemLabel` la marca `[Servicio]` al imprimir.
+    const servicios = await window.api.db.get(`
+      SELECT wi.quantity, s.name, NULL AS internal_code, wi.service_id
+      FROM work_order_items wi JOIN services s ON wi.service_id = s.id
+      WHERE wi.work_order_id = ?`, [wo.id]);
     const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
-    const { url, filename } = generateWorkOrderPDF(wo, items, 'preview', company);
+    const { url, filename } = generateWorkOrderPDF(wo, [...items, ...servicios], 'preview', company);
     pdfPreviewUrl = url;
     pdfPreviewFilename = filename;
     pdfPreviewTitle = `Orden ${numero(wo)}`;
