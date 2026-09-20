@@ -273,11 +273,19 @@ export const actions: Actions = {
 		const price = Number(form.get('price') ?? 0);
 		if (!itemId || quantity <= 0 || price < 0) return fail(400, { error: 'Datos de línea inválidos.' });
 
-		await getQuoteRepository().updateItem(ctx, params.id, itemId, {
-			quantity,
-			price,
-			...leerTasas(form)
-		});
+		try {
+			await getQuoteRepository().updateItem(ctx, params.id, itemId, {
+				quantity,
+				price,
+				...leerTasas(form)
+			});
+		} catch (updateError) {
+			// La linea puede rechazarse por estar ya facturada DIRECTO -ver
+			// `assertItemNotBilled`-, y ese es un error de negocio esperable, no
+			// una excepcion que deba tumbar la pantalla con un 500.
+			const message = updateError instanceof Error ? updateError.message : 'No se pudo actualizar la línea.';
+			return fail(400, { error: message });
+		}
 		return { success: true };
 	},
 	removeItem: async ({ request, locals, params }) => {
@@ -291,7 +299,14 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const itemId = String(form.get('itemId') ?? '').trim();
 		if (!itemId) return fail(400, { error: 'Línea no especificada.' });
-		await getQuoteRepository().removeItem(ctx, params.id, itemId);
+		try {
+			await getQuoteRepository().removeItem(ctx, params.id, itemId);
+		} catch (removeError) {
+			// Mismo motivo que en `updateItem`: quitar una linea ya facturada
+			// DIRECTO es un error de negocio esperable.
+			const message = removeError instanceof Error ? removeError.message : 'No se pudo quitar la línea.';
+			return fail(400, { error: message });
+		}
 		return { success: true };
 	},
 	updateQuote: async ({ request, locals, params }) => {

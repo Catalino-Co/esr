@@ -2045,6 +2045,245 @@
 		color: var(--text-secondary);
 	}
 
+	/* ─── Lista seleccionable (facturacion independiente) ──────────
+	   Una fila con casilla, titulo, una linea de meta y un importe. Sustituye
+	   a la tabla en toda pantalla donde se ELIGE que facturar -entregas,
+	   servicios, lineas de cotizacion-: una tabla ancha fuerza scroll
+	   horizontal en un telefono, y esto se lee bien en cualquier ancho sin
+	   tener que mantener dos maquetas (tabla de escritorio + tarjetas de
+	   movil). Mismo truco visual que `.catalog-list`: `gap: 1px` sobre fondo
+	   `--border` dibuja los separadores sin un borde por fila. */
+	.pick-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		background: var(--border);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+		overflow: hidden;
+	}
+
+	.pick-list-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-2);
+	}
+
+	.pick-list-acciones {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+	}
+
+	.pick-item {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: var(--sp-3);
+		min-height: 56px;
+		padding: var(--sp-3);
+		background: var(--bg-surface);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+
+	.pick-item:hover {
+		background: var(--bg-hover);
+	}
+
+	.pick-item:focus-within {
+		box-shadow: var(--focus-ring);
+	}
+
+	.pick-item--on {
+		background: var(--accent-subtle);
+	}
+
+	.pick-item input[type='checkbox'] {
+		width: 20px;
+		height: 20px;
+		accent-color: var(--accent);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.pick-item-titulo {
+		display: block;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.pick-item-meta {
+		display: block;
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+	}
+
+	.pick-item-importe {
+		font-weight: 600;
+		white-space: nowrap;
+		color: var(--text-primary);
+	}
+
+	.pick-item-control {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
+	@media (max-width: 560px) {
+		.pick-item {
+			grid-template-columns: auto minmax(0, 1fr);
+			min-height: 60px;
+		}
+		.pick-item-importe,
+		.pick-item-control {
+			grid-column: 2;
+			justify-self: start;
+		}
+	}
+
+	/* ─── Selector de origen de "Nueva factura" ─────────────────────
+	   Tres tarjetas grandes y tactiles, respaldadas por radios NATIVOS
+	   ocultos -no un `role="radiogroup"` hecho a mano-: eso conserva el
+	   teclado y el lector de pantalla, mismo espiritu que ya justifica
+	   `.status-select` mas abajo. */
+	.origen {
+		margin: 0;
+		padding: 0;
+		border: none;
+	}
+
+	.origen-legend {
+		padding: 0;
+		margin-bottom: var(--sp-3);
+		font-size: var(--font-md);
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.origen-opciones {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--sp-3);
+	}
+
+	.origen-card {
+		position: relative;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: start;
+		gap: var(--sp-3);
+		padding: var(--sp-4);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius);
+		background: var(--bg-surface);
+		cursor: pointer;
+		transition: border-color var(--transition-fast), background var(--transition-fast);
+	}
+
+	.origen-card:hover {
+		border-color: var(--border-strong);
+	}
+
+	.origen-card:focus-within {
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.origen-card--on {
+		border-color: var(--accent-border);
+		background: var(--accent-subtle);
+	}
+
+	/* Oculto pero enfocable: `display: none` mataria el foco y `:focus-within`. */
+	.origen-radio {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.origen-texto {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.origen-nombre {
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.origen-desc {
+		font-size: var(--font-xs);
+		color: var(--text-secondary);
+	}
+
+	.origen-check {
+		opacity: 0;
+		color: var(--accent-active);
+	}
+
+	.origen-card--on .origen-check {
+		opacity: 1;
+	}
+
+	@media (max-width: 900px) {
+		.origen-opciones {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.origen-card {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			align-items: center;
+			min-height: 64px;
+		}
+	}
+
+	@media (max-width: 560px) {
+		.origen-card {
+			padding: var(--sp-3);
+		}
+		.origen-desc {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	/* Una vez elegido el origen, las tarjetas se comprimen a una fila de
+	   pildoras compactas: recupera el espacio vertical que las descripciones
+	   ya no necesitan ocupar. */
+	.origen--compacta .origen-opciones {
+		grid-auto-flow: column;
+		grid-template-columns: none;
+	}
+
+	.origen--compacta .origen-card {
+		grid-template-columns: auto auto;
+		min-height: 44px;
+		padding: var(--sp-2) var(--sp-3);
+	}
+
+	.origen--compacta .origen-desc {
+		display: none;
+	}
+
+	@media (max-width: 900px) {
+		.origen--compacta .origen-opciones {
+			grid-auto-flow: row;
+		}
+	}
+
 	/* ─── Cabecera de la aplicacion ───────────────────────────────
 	   La barra superior con el titulo de la pantalla. Vive aqui, y no
 	   en cada app, por el mismo motivo que la barra lateral: las dos

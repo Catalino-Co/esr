@@ -23,6 +23,7 @@ const itemSuppliers = require('./versioned/0021_item_suppliers.cjs');
 const itemsInternalCodeUnique = require('./versioned/0022_items_internal_code_unique.cjs');
 const itemsTracksInventory = require('./versioned/0023_items_tracks_inventory.cjs');
 const services = require('./versioned/0024_services.cjs');
+const invoiceSources = require('./versioned/0025_invoice_sources.cjs');
 
 const MIGRATIONS = [
   baseline,
@@ -48,7 +49,8 @@ const MIGRATIONS = [
   itemSuppliers,
   itemsInternalCodeUnique,
   itemsTracksInventory,
-  services
+  services,
+  invoiceSources
 ];
 
 /**

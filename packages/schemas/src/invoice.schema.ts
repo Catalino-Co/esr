@@ -3,8 +3,11 @@ import type { ESRId, Nullable } from './shared';
 /**
  * La factura: el documento de dinero de ESR.
  *
- * Cubre una o varias ENTREGAS de la misma orden y nunca una devolucion. El
- * conduce sigue siendo la nota de entrega; la factura es lo que se cobra.
+ * Nace de UNO de tres origenes, nunca mas de uno: una o varias ENTREGAS
+ * (`work_order_id`) de una orden, un grupo de lineas de una COTIZACION
+ * aprobada (`quotation_id`, facturable por partes y mas de una vez), o
+ * ninguno de los dos -factura libre, solo cliente y lineas escritas a mano-.
+ * El conduce sigue siendo la nota de entrega; la factura es lo que se cobra.
  *
  * Solo dos estados. «Cobrada» no se guarda: se deriva de los pagos, y guardarlo
  * lo condenaria a desincronizarse del saldo real.
@@ -16,12 +19,16 @@ export type Invoice = {
 	company_id?: string;
 	invoice_number?: string;
 	work_order_id?: Nullable<ESRId>;
+	/** Cotizacion facturada directamente. Excluyente con `work_order_id`. */
+	quotation_id?: Nullable<ESRId>;
 	client_id?: Nullable<ESRId>;
 	date?: Nullable<string>;
 	status?: InvoiceStatus;
 	/** Llegan como texto desde PostgreSQL: NUMERIC no cabe en un number sin perder centavos. */
 	subtotal?: number | string;
 	discount?: number | string;
+	/** Suma de `invoice_items.tax_rate` aplicado, mas cualquier ajuste manual de cabecera. */
+	tax_amount?: number | string;
 	total?: number | string;
 	notes?: Nullable<string>;
 	cancelled_at?: Nullable<string>;
@@ -29,9 +36,10 @@ export type Invoice = {
 	is_active?: number;
 	created_at?: string;
 	updated_at?: Nullable<string>;
-	/** Solo en los listados: nombre del cliente y numero de orden, por join. */
+	/** Solo en los listados: nombre del cliente y numero de orden/cotizacion, por join. */
 	client_name?: Nullable<string>;
 	order_number?: Nullable<string>;
+	quote_number?: Nullable<string>;
 	/** Solo en los listados: suma de los pagos confirmados, calculada en SQL. */
 	paid?: number | string;
 };
@@ -43,12 +51,40 @@ export type InvoiceItem = {
 	item_id?: Nullable<ESRId>;
 	/** Ver `service.schema.ts`. Excluyente con `item_id`: una linea es de uno o de otro. */
 	service_id?: Nullable<ESRId>;
+	/**
+	 * Texto de la linea. En una linea de articulo/servicio es el nombre del
+	 * catalogo copiado al vuelo; en un CARGO MANUAL (ni `item_id` ni
+	 * `service_id`) es el unico dato que la identifica.
+	 */
 	description?: Nullable<string>;
 	quantity: number | string;
 	price: number | string;
+	/** El BRUTO de la linea (cantidad x precio). El descuento y el impuesto
+	 *  se derivan de `discount_rate`/`tax_rate` con `calculateQuoteLineAmounts`,
+	 *  igual que en una cotizacion -no se guardan ya restados-. */
 	total: number | string;
+	/** Porcentaje, igual que `quotation_items`. Solo una linea copiada de una
+	 *  cotizacion trae esto distinto de 0 hoy. */
+	discount_rate?: number | string;
+	tax_rate?: number | string;
 	/** Solo en las lecturas: codigo interno del articulo, por join. */
 	internal_code?: Nullable<string>;
+};
+
+/**
+ * Fila de `invoice_quotation_items`: que linea de una COTIZACION cubre la
+ * factura, y CUANTO -a diferencia de `InvoiceWorkOrderItem`, una cotizacion
+ * se factura por partes, no todo o nada-. `is_active = 0` (al anular la
+ * factura) devuelve esa cantidad a lo facturable.
+ */
+export type InvoiceQuotationItem = {
+	id?: Nullable<ESRId>;
+	invoice_id: ESRId;
+	quotation_item_id: ESRId;
+	quantity: number | string;
+	is_active?: number;
+	/** Por join, para poder enseñar la linea sin una consulta mas. */
+	name?: Nullable<string>;
 };
 
 /** Fila de `invoice_conduces`: que entrega cubre la factura. */

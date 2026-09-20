@@ -86,11 +86,34 @@ class SqliteQuoteRepository {
 		// se ignoran a proposito. Ahora son RESULTADO de las tasas de las lineas.
 		const totales = calculateQuoteTotals(lineas);
 
+		if (input.id) await this.assertNoLinesBilled(input.id);
+
 		return await withTransaction(async () => {
 			const id = input.id ? await this.txUpdate(input, totales) : await this.txInsert(input, totales);
 			await this.txReplaceItems(id, lineas);
 			return { quote: await this.findById(id), items: await this.listItems(id) };
 		});
+	}
+
+	/**
+	 * Una cotizacion con alguna linea ya facturada DIRECTO no se puede volver a
+	 * guardar entera: `txReplaceItems` borra y REINSERTA todas las lineas, lo
+	 * que les asigna ids nuevos y desengancharia en silencio el enlace de
+	 * `invoice_quotation_items` -quedaria huerfano, o peor, apuntando a una
+	 * linea distinta que herede el mismo id-. A diferencia de Postgres -que
+	 * guarda linea por linea y puede rechazar solo la afectada-, aqui el
+	 * guardado es de la cotizacion entera, asi que el rechazo tambien lo es.
+	 */
+	async assertNoLinesBilled(quoteId) {
+		const facturada = await getSingleQuery(
+			`SELECT 1 FROM invoice_quotation_items iqi
+			 JOIN quotation_items qi ON qi.id = iqi.quotation_item_id
+			 WHERE qi.quotation_id = ? AND iqi.is_active = 1 LIMIT 1`,
+			[quoteId]
+		);
+		if (facturada) {
+			throw new Error('Esta cotización ya tiene líneas facturadas: anule la factura para poder editarla.');
+		}
 	}
 
 	/**

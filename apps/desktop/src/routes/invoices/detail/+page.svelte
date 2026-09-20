@@ -2,8 +2,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { summarizePayments, validatePaymentAmount, canVoidPayment } from '@esr/core';
-  import { fmt } from '@esr/reports';
-  import { FormattedNumberField, Icon } from '@esr/ui';
+  import { fmt, generateInvoicePDF, invoiceItemLabel } from '@esr/reports';
+  import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
   import { unwrap, unwrapOr } from '$lib/ipc';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { toasts } from '$lib/stores/toasts.js';
@@ -103,6 +103,20 @@
     }
   }
 
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  let showPdfPreview  = false;
+  let pdfPreviewUrl   = '';
+  let pdfPreviewFile  = '';
+
+  async function imprimir() {
+    const datos = unwrap(await window.api.invoices.findForDocument(invoiceId));
+    const company = (await window.api.db.get('SELECT * FROM company_info WHERE id = 1'))?.[0] ?? null;
+    const { url, filename } = generateInvoicePDF(datos.invoice, datos.items, 'preview', company);
+    pdfPreviewUrl  = url;
+    pdfPreviewFile = filename;
+    showPdfPreview = true;
+  }
+
   async function anularFactura() {
     // Se dice en voz alta lo que se va a deshacer: anular una factura cobrada
     // deshace dinero ya registrado.
@@ -138,6 +152,9 @@
               style="margin-left:10px;">{invoice.status.toUpperCase()}</span>
       </span>
       <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" on:click={imprimir}>
+          <Icon name="printer" size={16} />Imprimir
+        </button>
         {#if cobrable}
           <button class="btn btn-danger" on:click={anularFactura}>Anular factura</button>
         {/if}
@@ -157,6 +174,11 @@
       <div><small style="color:var(--text-muted);">Orden</small><br />
         <strong>{invoice.work_order_id ? `WO-${String(invoice.work_order_id).padStart(5, '0')}` : '—'}</strong>
       </div>
+      {#if invoice.quotation_id}
+        <div><small style="color:var(--text-muted);">Cotización</small><br />
+          <strong>{invoice.quote_number || `#${invoice.quotation_id}`}</strong>
+        </div>
+      {/if}
       <div><small style="color:var(--text-muted);">Fecha</small><br /><strong>{invoice.date || '—'}</strong></div>
       <div><small style="color:var(--text-muted);">Vencimiento</small><br /><strong>{invoice.due_date || '—'}</strong></div>
     </div>
@@ -175,7 +197,7 @@
         <tbody>
           {#each items as it}
             <tr>
-              <td>{it.description || '—'}</td>
+              <td>{invoiceItemLabel(it)}</td>
               <td style="color:var(--text-muted);">{it.internal_code || '—'}</td>
               <td style="text-align:right;">{it.quantity}</td>
               <td style="text-align:right;">${fmt(it.price)}</td>
@@ -317,6 +339,9 @@
     </div>
   </div>
 {/if}
+
+<PdfPreviewModal bind:show={showPdfPreview} pdfUrl={pdfPreviewUrl}
+  filename={pdfPreviewFile} title="Vista previa de la factura" />
 
 <style>
   /* `--accent-active`, no `--primary`: en oscuro el acento como LETRA da 3.08:1

@@ -30,7 +30,14 @@ function pct(valor) {
   if (n === 0) return '';
   return `${Number(n.toFixed(3))}%`;
 }
-import { quoteDocumentFilename, quoteDocumentNumber, quoteItemLabel } from '../formatters/labels.js';
+import {
+  invoiceDocumentFilename,
+  invoiceDocumentNumber,
+  invoiceItemLabel,
+  quoteDocumentFilename,
+  quoteDocumentNumber,
+  quoteItemLabel
+} from '../formatters/labels.js';
 import { formatDate } from '../formatters/date.js';
 
 /**
@@ -376,6 +383,171 @@ export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = n
   paginar(doc);
 
   return createPdfResult(doc, `Orden_${orderDocumentNumber(wo).replace(/[^\w-]/g, '')}.pdf`, action);
+}
+
+/**
+ * La factura: el unico documento de dinero que nace de TRES origenes
+ * distintos -orden, cotizacion facturada directo, o ninguno de los dos, una
+ * factura libre-, y por eso `order_number`/`quote_number` son AMBOS
+ * opcionales y se omiten -no se imprime «Orden: —»- cuando no aplican.
+ *
+ * Sigue el molde de la COTIZACION: cursor acumulado y `hueco()`/`paginar()`,
+ * porque una factura de muchas lineas o con notas largas tiene que poder
+ * saltar de pagina igual que aquella.
+ *
+ * `invoiceItemLabel` distingue articulo/servicio/cargo manual POR LINEA; el
+ * origen del DOCUMENTO se dice una sola vez, arriba, no por cada fila -en un
+ * documento de cara al cliente eso seria ruido, no informacion-.
+ *
+ * @param {any} invoice      La fila de `invoices`, con `client_name` y las
+ *                           referencias opcionales (`order_number`,
+ *                           `quote_number`, `client_document`,
+ *                           `client_phone`, `client_address`, `paid`,
+ *                           `balance`) ya resueltas por quien llama.
+ * @param {any[]} items      Las lineas, con `discount_rate`/`tax_rate`.
+ * @param {'save'|'preview'} action
+ * @param {any} companyInfo
+ */
+export function generateInvoicePDF(invoice, items, action = 'save', companyInfo = null) {
+  const doc = new jsPDF();
+
+  renderCompanyHeader(doc, companyInfo);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0);
+  doc.text('FACTURA', COL_ETIQUETA, 20);
+
+  doc.setFontSize(10);
+  let yRef = 26;
+  doc.text(`Nº: ${invoiceDocumentNumber(invoice)}`, COL_ETIQUETA, yRef); yRef += 5;
+  doc.text(`Fecha: ${formatDate(invoice.date) || '—'}`, COL_ETIQUETA, yRef); yRef += 5;
+  if (invoice.due_date) { doc.text(`Vence: ${formatDate(invoice.due_date)}`, COL_ETIQUETA, yRef); yRef += 5; }
+  // Ambas referencias son opcionales y EXCLUYENTES en la practica -una
+  // factura nace de una orden, de una cotizacion, o de ninguna de las dos-,
+  // pero se imprimen cada una condicionada a su propio dato, sin asumirlo.
+  if (invoice.order_number) { doc.text(`Orden: ${invoice.order_number}`, COL_ETIQUETA, yRef); yRef += 5; }
+  if (invoice.quote_number) { doc.text(`Cotización: ${invoice.quote_number}`, COL_ETIQUETA, yRef); yRef += 5; }
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cliente:', MARGEN_X, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  let yCliente = 61;
+  doc.text(invoice.client_name || 'N/A', MARGEN_X, yCliente); yCliente += 5;
+  if (invoice.client_document) { doc.text(`RNC/Cédula: ${invoice.client_document}`, MARGEN_X, yCliente); yCliente += 5; }
+  if (invoice.client_phone) { doc.text(`Tel: ${invoice.client_phone}`, MARGEN_X, yCliente); yCliente += 5; }
+  if (invoice.client_address) {
+    const lineasDireccion = doc.splitTextToSize(invoice.client_address, 100);
+    doc.text(lineasDireccion, MARGEN_X, yCliente);
+    yCliente += lineasDireccion.length * 5;
+  }
+
+  // El sello va ANTES de la tabla: `autoTable` fija su propio color por
+  // celda, asi que no hereda -ni ensucia- el rojo del sello.
+  if (invoice.status === 'anulada') {
+    doc.setFontSize(32);
+    doc.setTextColor(200, 40, 40);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANULADA', anchoPagina(doc) / 2, 150, { angle: 35, align: 'center' });
+  }
+
+  autoTable(doc, {
+    startY: 84,
+    head: [['#', 'Descripción', 'Cant.', 'Precio unit. (RD$)', 'Importe (RD$)']],
+    body: (items || []).map((linea, indice) => [
+      String(indice + 1),
+      invoiceItemLabel(linea),
+      String(linea.quantity ?? 0),
+      fmt(linea.price),
+      fmt(linea.total ?? Number(linea.quantity || 0) * Number(linea.price || 0))
+    ]),
+    theme: 'striped',
+    headStyles: { fillColor: [67, 94, 190] },
+    // `overflow: 'linebreak'` y no el recorte por defecto: un cargo manual es
+    // texto libre y puede ser mas largo que cualquier nombre de catalogo.
+    styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+    margin: { top: MARGEN_SUPERIOR, bottom: MARGEN_INFERIOR, left: MARGEN_X, right: MARGEN_X },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 8 },
+      1: { cellWidth: 'auto' },
+      2: { halign: 'center', cellWidth: 16 },
+      3: { halign: 'right', cellWidth: 32 },
+      4: { halign: 'right', cellWidth: 32 }
+    }
+  });
+
+  // ── Totales ─────────────────────────────────────────────────────────────
+  //
+  // El descuento y el impuesto de una factura viven en la CABECERA -son la
+  // suma de lo que aporto cada linea mas cualquier ajuste manual-, no por
+  // linea: por eso la tabla de arriba no lleva columnas de «Desc.»/«Imp.»
+  // como la de una cotizacion.
+  let y = hueco(doc, tablaFinalY(doc, 84) + 10, 30);
+  const filas = [['Subtotal:', fmtMoney(invoice.subtotal)]];
+  if (Number(invoice.discount) > 0) filas.push(['Descuento:', `-${fmtMoney(invoice.discount)}`]);
+  if (Number(invoice.tax_amount) > 0) filas.push(['ITBIS:', fmtMoney(invoice.tax_amount)]);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0);
+  for (const [etiqueta, valor] of filas) {
+    doc.text(etiqueta, COL_ETIQUETA, y);
+    doc.text(valor, COL_VALOR, y, { align: 'right' });
+    y += 6;
+  }
+
+  y += 2;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL:', COL_ETIQUETA, y);
+  doc.text(fmtMoney(invoice.total), COL_VALOR, y, { align: 'right' });
+
+  // Estado de cuenta: solo si algo se cobro. Una factura recien emitida se
+  // imprime limpia, sin un «Cobrado: RD$0.00» que no dice nada.
+  if (Number(invoice.paid) > 0) {
+    y = hueco(doc, y + 8, 14);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Cobrado:', COL_ETIQUETA, y);
+    doc.text(fmtMoney(invoice.paid), COL_VALOR, y, { align: 'right' });
+    y += 6;
+    const saldo = invoice.balance != null
+      ? Number(invoice.balance)
+      : Number(invoice.total || 0) - Number(invoice.paid || 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(saldo > 0 ? 'Saldo pendiente:' : 'Saldo:', COL_ETIQUETA, y);
+    doc.text(fmtMoney(saldo), COL_VALOR, y, { align: 'right' });
+  }
+
+  // ── Notas ───────────────────────────────────────────────────────────────
+  const notas = String(invoice.notes || '').trim();
+  if (notas) {
+    const anchoTexto = anchoPagina(doc) - MARGEN_X * 2;
+    const lineasNota = doc.splitTextToSize(notas, anchoTexto);
+    y = hueco(doc, y + 10, 6 + lineasNota.length * 4);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100);
+    doc.text('Notas:', MARGEN_X, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lineasNota, MARGEN_X, y + 5);
+    y += 5 + lineasNota.length * 4;
+  }
+
+  // Firma de RECIBO, no de aceptacion como la cotizacion: aqui ya no se esta
+  // aceptando una propuesta, se esta cobrando un documento emitido.
+  y = hueco(doc, y + 16, 12);
+  doc.setDrawColor(150);
+  doc.setLineWidth(0.5);
+  doc.line(MARGEN_X, y, MARGEN_X + 66, y);
+  doc.setTextColor(80);
+  doc.setFontSize(9);
+  doc.text('Recibido por', MARGEN_X, y + 5);
+
+  paginar(doc);
+
+  return createPdfResult(doc, invoiceDocumentFilename(invoice), action);
 }
 
 export function generateChecklistPDF(workOrder, items, type = 'salida', action = 'save', companyInfo = null) {

@@ -1,6 +1,7 @@
 <script>
 	import { formatDate, formatMoney } from '@esr/core';
-	import { FormattedNumberField } from '@esr/ui';
+	import { FormattedNumberField, Icon, SearchPicker } from '@esr/ui';
+	import Modal from '$lib/components/Modal.svelte';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
@@ -9,11 +10,64 @@
 		if (form?.error) dangerModal.show(form.error);
 	});
 
-	/** Marcadas de inicio: lo habitual es facturar todo lo entregado. */
-	let elegidas = $state(new Set(data.conduces.map((c) => String(c.id))));
-	// Igual para los servicios pendientes: se pre-marcan todos.
-	let elegidasServicios = $state(new Set(data.services.map((s) => String(s.id))));
-	let descuento = $state(form?.values?.discount ?? '');
+	/**
+	 * Facturar dejo de exigir una orden: hay tres origenes -orden, cotización
+	 * facturada directo, o ninguno de los dos-. `origenInicial` llega del
+	 * servidor cuando la URL ya trae `?order=`/`?quote=`; sin eso, la pantalla
+	 * arranca sin nada elegido y el selector queda expandido.
+	 */
+	let origen = $state(data.origenInicial || '');
+
+	/**
+	 * Navegacion COMPLETA, no `goto()`.
+	 *
+	 * Esta pantalla inicializa `elegidas`/`lineasQuote`/etc. como `$state(data.…)`
+	 * -UNA vez, al montar-. Un `goto()` de SvelteKit reutiliza el MISMO
+	 * componente y solo actualiza `data`, asi que esos estados se quedarian con
+	 * los valores viejos aunque la cotizacion/orden elegida cambie -es la
+	 * cotizacion recien creada la que lo destapo: `data.lineasCotizacion`
+	 * llegaba bien, pero la pantalla seguia enseñando la lista vacia con la que
+	 * habia montado-. Una navegacion de verdad tira el componente entero y
+	 * cada estado nace ya con el `data` correcto.
+	 */
+	function irA(url) {
+		window.location.href = url;
+	}
+
+	function hayAlgoQuePerder() {
+		return (
+			elegidas.size > 0 ||
+			elegidasServicios.size > 0 ||
+			lineasQuote.some((l) => l.on) ||
+			lineas.length > 0 ||
+			!!clienteDirecta
+		);
+	}
+
+	function elegirOrigenCard(nuevo) {
+		if (origen === nuevo) return;
+		// Si ya hay una orden/cotización cargada del servidor, o lineas escritas
+		// a mano, cambiar de origen es empezar de cero: se navega a la pantalla
+		// limpia en vez de dejar `data.order`/`data.quote` desincronizados del
+		// `origen` local.
+		if (data.order || data.quote || hayAlgoQuePerder()) {
+			if (!confirm('Se perderán las líneas elegidas. ¿Cambiar el origen de la factura?')) return;
+			irA('/invoices/new');
+			return;
+		}
+		origen = nuevo;
+	}
+
+	function cambiarOrigen() {
+		if (hayAlgoQuePerder() && !confirm('Se perderán las líneas elegidas. ¿Cambiar el origen de la factura?')) {
+			return;
+		}
+		irA('/invoices/new');
+	}
+
+	// ── Origen: Orden ─────────────────────────────────────────────────────────
+	let elegidas = $state(new Set((data.conduces ?? []).map((c) => String(c.id))));
+	let elegidasServicios = $state(new Set((data.serviciosOrden ?? []).map((s) => String(s.id))));
 
 	function alternar(id) {
 		const clave = String(id);
@@ -31,22 +85,176 @@
 		elegidasServicios = copia;
 	}
 
-	const subtotal = $derived(
-		data.conduces
-			.filter((c) => elegidas.has(String(c.id)))
-			.reduce((suma, c) => suma + Number(c.total ?? 0), 0) +
-			data.services
-				.filter((s) => elegidasServicios.has(String(s.id)))
-				.reduce((suma, s) => suma + Number(s.quantity ?? 0) * Number(s.price ?? 0), 0)
+	// ── Origen: Cotización ────────────────────────────────────────────────────
+	let clienteFiltro = $state(null);
+	let lineasQuote = $state(
+		(data.lineasCotizacion ?? []).map((l) => ({ ...l, on: true, cantidad: Number(l.remaining) }))
 	);
 
+	const cotizacionesFiltradas = $derived(
+		clienteFiltro ? data.quotes.filter((q) => String(q.client_id) === String(clienteFiltro.id)) : data.quotes
+	);
+
+	function alElegirCotizacion(q) {
+		irA(`/invoices/new?quote=${q.id}`);
+	}
+
+	function alternarLineaQuote(linea) {
+		linea.on = !linea.on;
+		lineasQuote = [...lineasQuote];
+	}
+
+	function limitarCantidad(linea) {
+		const max = Number(linea.remaining);
+		let n = Number(linea.cantidad) || 0;
+		if (n > max) n = max;
+		if (n < 0) n = 0;
+		linea.cantidad = n;
+		lineasQuote = [...lineasQuote];
+	}
+
+	// ── Origen: Directa ───────────────────────────────────────────────────────
+	let clienteDirecta = $state(null);
+	let siguienteUid = 1;
+	/** `{ uid, kind: 'item'|'service'|'manual', ref_id, description, code, quantity, price }` */
+	let lineas = $state([]);
+
+	let modalAbierto = $state(false);
+	let modalTipo = $state(null);
+	let modalBusqueda = $state('');
+	let modalElegido = $state(null);
+	let modalCantidad = $state(1);
+	let modalPrecio = $state(0);
+	let modalDescripcion = $state('');
+
+	const TITULOS_MODAL = { item: 'Agregar artículo', service: 'Agregar servicio', manual: 'Línea manual' };
+
+	function abrirModal(tipo) {
+		modalTipo = tipo;
+		modalBusqueda = '';
+		modalElegido = null;
+		modalCantidad = 1;
+		modalPrecio = 0;
+		modalDescripcion = '';
+		modalAbierto = true;
+	}
+
+	function cerrarModal() {
+		modalAbierto = false;
+	}
+
+	function elegirEnModal(catalogo) {
+		modalElegido = catalogo;
+		modalPrecio = Number(catalogo.rental_price ?? catalogo.price ?? 0);
+	}
+
+	function agregarLinea() {
+		if (modalTipo === 'manual') {
+			if (!modalDescripcion.trim()) return;
+			lineas = [
+				...lineas,
+				{
+					uid: siguienteUid++,
+					kind: 'manual',
+					ref_id: null,
+					description: modalDescripcion.trim(),
+					code: null,
+					quantity: Number(modalCantidad) || 1,
+					price: Number(modalPrecio) || 0
+				}
+			];
+			cerrarModal();
+			return;
+		}
+
+		if (!modalElegido) return;
+
+		// Un Artículo repetido se fusiona por id -mismo criterio que la
+		// cotización, via `mergeRentalOrderItem`-; un Servicio o una línea
+		// manual NO: dos actuaciones del mismo servicio no son la misma línea.
+		if (modalTipo === 'item') {
+			const existente = lineas.find((l) => l.kind === 'item' && l.ref_id === modalElegido.id);
+			if (existente) {
+				const cantidadNueva = Number(modalCantidad) || 1;
+				lineas = lineas.map((l) =>
+					l === existente ? { ...l, quantity: Number(l.quantity) + cantidadNueva } : l
+				);
+				cerrarModal();
+				return;
+			}
+		}
+
+		lineas = [
+			...lineas,
+			{
+				uid: siguienteUid++,
+				kind: modalTipo,
+				ref_id: modalElegido.id,
+				description: modalElegido.name,
+				code: modalElegido.internal_code ?? null,
+				quantity: Number(modalCantidad) || 1,
+				price: Number(modalPrecio) || 0
+			}
+		];
+		cerrarModal();
+	}
+
+	function quitarLinea(uid) {
+		lineas = lineas.filter((l) => l.uid !== uid);
+	}
+
+	const catalogoModal = $derived(modalTipo === 'item' ? data.items : modalTipo === 'service' ? data.services : []);
+
+	// ── Pie común ─────────────────────────────────────────────────────────────
+	let fecha = $state(form?.values?.date || data.hoy);
+	let descuento = $state(form?.values?.discount ?? '');
+	let impuesto = $state(form?.values?.tax_amount ?? '');
+	let notas = $state(form?.values?.notes ?? '');
+
+	const accionForm = $derived(
+		origen === 'orden'
+			? data.order
+				? `?order=${data.order.id}&/createFromOrder`
+				: '?/createFromOrder'
+			: origen === 'cotizacion'
+				? data.quote
+					? `?quote=${data.quote.id}&/createFromQuote`
+					: '?/createFromQuote'
+				: '?/createDirect'
+	);
+
+	const subtotal = $derived(
+		origen === 'orden'
+			? (data.conduces ?? []).filter((c) => elegidas.has(String(c.id))).reduce((s, c) => s + Number(c.total ?? 0), 0) +
+					(data.serviciosOrden ?? [])
+						.filter((s) => elegidasServicios.has(String(s.id)))
+						.reduce((s, x) => s + Number(x.quantity || 0) * Number(x.price || 0), 0)
+			: origen === 'cotizacion'
+				? lineasQuote.filter((l) => l.on).reduce((s, l) => s + Number(l.cantidad || 0) * Number(l.price || 0), 0)
+				: lineas.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.price || 0), 0)
+	);
 	const rebaja = $derived(Math.max(0, Number(descuento) || 0));
-	const total = $derived(Math.max(0, subtotal - rebaja));
+	const impuestoNum = $derived(Math.max(0, Number(impuesto) || 0));
+	const total = $derived(Math.max(0, subtotal - rebaja + impuestoNum));
 	const excede = $derived(rebaja > subtotal);
+	const nElegidas = $derived(
+		origen === 'orden'
+			? elegidas.size + elegidasServicios.size
+			: origen === 'cotizacion'
+				? lineasQuote.filter((l) => l.on && Number(l.cantidad) > 0).length
+				: lineas.length
+	);
+	const puedeEmitir = $derived(
+		!excede &&
+			((origen === 'orden' && !!data.order && nElegidas > 0) ||
+				(origen === 'cotizacion' && !!data.quote && nElegidas > 0) ||
+				(origen === 'directa' && !!clienteDirecta && nElegidas > 0))
+	);
 </script>
 
 <section class="panel">
 	<div class="page-header">
+		<h1>Nueva factura</h1>
 		<div class="page-header-actions">
 			<a class="btn-secondary" href="/invoices">Volver</a>
 		</div>
@@ -56,165 +264,611 @@
 		<div class="alert-error" role="alert">{data.aviso}</div>
 	{/if}
 
-	{#if !data.order}
-		<!-- Sin orden elegida: se enseñan las que tienen entregas sin facturar. -->
-		<p class="panel-hint">
-			Se factura lo que ya se entregó, y los servicios de la orden -que no se entregan-. Elija la
-			orden que quiere cobrar.
-		</p>
-
-		{#if data.orders.length === 0}
-			<p class="empty-state">No hay entregas ni servicios pendientes de facturar.</p>
-		{:else}
-			<table class="data-table">
-				<thead>
-					<tr><th>Orden</th><th>Cliente</th><th>Pendientes de facturar</th><th>Acciones</th></tr>
-				</thead>
-				<tbody>
-					{#each data.orders as order (order.id)}
-						<tr>
-							<td>{order.order_number || `#${order.id}`}</td>
-							<td>{order.client_name || '—'}</td>
-							<td>{order.pendientes}</td>
-							<td class="row-actions">
-								<a class="btn-edit" href="/invoices/new?order={order.id}">Facturar</a>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<fieldset class="origen" class:origen--compacta={!!origen}>
+		<legend class="origen-legend">¿De dónde sale esta factura?</legend>
+		<div class="origen-opciones">
+			<label class="origen-card" class:origen-card--on={origen === 'orden'}>
+				<input
+					class="origen-radio"
+					type="radio"
+					name="origen_ui"
+					value="orden"
+					checked={origen === 'orden'}
+					onchange={() => elegirOrigenCard('orden')}
+				/>
+				<span class="origen-icono"><Icon name="clipboard" size={22} /></span>
+				<span class="origen-texto">
+					<span class="origen-nombre">Desde una orden</span>
+					<span class="origen-desc">Cobrar entregas y servicios ya realizados.</span>
+				</span>
+				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+			</label>
+			<label class="origen-card" class:origen-card--on={origen === 'cotizacion'}>
+				<input
+					class="origen-radio"
+					type="radio"
+					name="origen_ui"
+					value="cotizacion"
+					checked={origen === 'cotizacion'}
+					onchange={() => elegirOrigenCard('cotizacion')}
+				/>
+				<span class="origen-icono"><Icon name="fileText" size={22} /></span>
+				<span class="origen-texto">
+					<span class="origen-nombre">Desde una cotización</span>
+					<span class="origen-desc">Facturar las líneas aprobadas, todas o una parte.</span>
+				</span>
+				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+			</label>
+			<label class="origen-card" class:origen-card--on={origen === 'directa'}>
+				<input
+					class="origen-radio"
+					type="radio"
+					name="origen_ui"
+					value="directa"
+					checked={origen === 'directa'}
+					onchange={() => elegirOrigenCard('directa')}
+				/>
+				<span class="origen-icono"><Icon name="penLine" size={22} /></span>
+				<span class="origen-texto">
+					<span class="origen-nombre">Factura directa</span>
+					<span class="origen-desc">Elija el cliente y escriba las líneas.</span>
+				</span>
+				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+			</label>
+		</div>
+		{#if origen}
+			<button type="button" class="btn-link origen-cambiar" onclick={cambiarOrigen}>Cambiar origen</button>
 		{/if}
-	{:else if data.conduces.length === 0 && data.services.length === 0}
-		<p class="empty-state">
-			La orden {data.order.order_number || `#${data.order.id}`} no tiene nada pendiente de facturar.
-		</p>
-	{:else}
-		<!-- El `order` va en la action a proposito: `?/create` a secas reescribe
-		     la query entera y, al fallar, la pantalla volvia al selector de
-		     ordenes con la seleccion perdida. -->
-		<form method="POST" action="?order={data.order.id}&/create">
-			<input type="hidden" name="work_order_id" value={data.order.id} />
-
-			{#if data.conduces.length > 0}
-				<h2 class="sec-title">
-					Entregas de {data.order.order_number || `#${data.order.id}`}
-				</h2>
-				<table class="data-table">
-					<thead>
-						<tr><th class="check"></th><th>Entrega</th><th>Fecha</th><th>Líneas</th><th class="num">Importe</th></tr>
-					</thead>
-					<tbody>
-						{#each data.conduces as conduce (conduce.id)}
-							{@const marcada = elegidas.has(String(conduce.id))}
-							<tr>
-								<td class="check">
-									<input
-										type="checkbox"
-										name="conduce_ids"
-										value={conduce.id}
-										checked={marcada}
-										onchange={() => alternar(conduce.id)}
-										aria-label="Incluir {conduce.note_number}"
-									/>
-								</td>
-								<td><a href="/conduces/{conduce.id}">{conduce.note_number}</a></td>
-								<td>{formatDate(conduce.date)}</td>
-								<td>{conduce.lineas}</td>
-								<td class="num">{formatMoney(conduce.total)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
-
-			{#if data.services.length > 0}
-				<h2 class="sec-title">Servicios pendientes de facturar</h2>
-				<!-- Sin conduce que las traiga: un Servicio no es tangible y nunca se
-				     entrega, así que se factura directo desde la orden. -->
-				<table class="data-table">
-					<thead>
-						<tr><th class="check"></th><th>Servicio</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">Importe</th></tr>
-					</thead>
-					<tbody>
-						{#each data.services as servicio (servicio.id)}
-							{@const marcada = elegidasServicios.has(String(servicio.id))}
-							<tr>
-								<td class="check">
-									<input
-										type="checkbox"
-										name="service_line_ids"
-										value={servicio.id}
-										checked={marcada}
-										onchange={() => alternarServicio(servicio.id)}
-										aria-label="Incluir {servicio.name}"
-									/>
-								</td>
-								<td>{servicio.name}</td>
-								<td class="num">{servicio.quantity}</td>
-								<td class="num">{formatMoney(servicio.price)}</td>
-								<td class="num">{formatMoney(Number(servicio.quantity) * Number(servicio.price))}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
-
-			<div class="form-grid" style="margin-top: 16px">
-				<div class="form-field">
-					<label for="date">Fecha</label>
-					<input id="date" name="date" type="date" value={form?.values?.date || data.hoy} />
-				</div>
-				<div class="form-field">
-					<label for="discount">Descuento</label>
-					<FormattedNumberField
-						id="discount"
-						name="discount"
-						min={0}
-						bind:value={descuento}
-					/>
-				</div>
-				<div class="form-field full">
-					<label for="notes">Notas</label>
-					<input id="notes" name="notes" value={form?.values?.notes ?? ''} />
-				</div>
-			</div>
-
-			<div class="grid" style="margin: 16px 0">
-				<div class="metric"><strong>{formatMoney(subtotal)}</strong><span>Subtotal</span></div>
-				<div class="metric"><strong>{formatMoney(rebaja)}</strong><span>Descuento</span></div>
-				<div class="metric"><strong>{formatMoney(total)}</strong><span>Total</span></div>
-			</div>
-
-			{#if excede}
-				<div class="alert-error" role="alert">El descuento no puede superar el subtotal.</div>
-			{/if}
-
-			<div class="form-actions">
-				<a class="btn-secondary" href="/invoices">Cancelar</a>
-				<button
-					type="submit"
-					class="btn-primary"
-					disabled={(elegidas.size === 0 && elegidasServicios.size === 0) || excede}
-				>
-					Emitir factura
-				</button>
-			</div>
-		</form>
-	{/if}
+	</fieldset>
 </section>
 
+{#if origen}
+	<form method="POST" action={accionForm}>
+		<div class="detail-layout">
+			<div class="detail-main">
+				{#if origen === 'orden'}
+					{#if !data.order}
+						<section class="panel">
+							<p class="panel-hint">Elija la orden cuyas entregas o servicios quiere cobrar.</p>
+							{#if data.orders.length === 0}
+								<p class="empty-state">No hay órdenes con algo pendiente de facturar.</p>
+							{:else}
+								<ul class="pick-list">
+									{#each data.orders as orden (orden.id)}
+										<li>
+											<button
+												type="button"
+												class="pick-item pick-item--boton"
+												onclick={() => irA(`/invoices/new?order=${orden.id}`)}
+											>
+												<span></span>
+												<span class="pick-item-cuerpo">
+													<span class="pick-item-titulo">{orden.order_number || `#${orden.id}`}</span>
+													<span class="pick-item-meta">{orden.client_name || '—'} · {orden.pendientes} pendiente(s)</span>
+												</span>
+												<span class="pick-item-importe">{formatMoney(orden.total_pendiente)}</span>
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</section>
+					{:else if data.conduces.length === 0 && data.serviciosOrden.length === 0}
+						<section class="panel">
+							<p class="empty-state">
+								La orden {data.order.order_number || `#${data.order.id}`} no tiene nada pendiente de facturar.
+							</p>
+						</section>
+					{:else}
+						<input type="hidden" name="work_order_id" value={data.order.id} />
+						{#if data.conduces.length > 0}
+							<section class="panel">
+								<h2 class="titulo-seccion">Entregas de {data.order.order_number || `#${data.order.id}`}</h2>
+								<ul class="pick-list">
+									{#each data.conduces as conduce (conduce.id)}
+										{@const marcada = elegidas.has(String(conduce.id))}
+										<li>
+											<label class="pick-item" class:pick-item--on={marcada}>
+												<input
+													type="checkbox"
+													name="conduce_ids"
+													value={conduce.id}
+													checked={marcada}
+													onchange={() => alternar(conduce.id)}
+													aria-label="Incluir {conduce.note_number}"
+												/>
+												<span class="pick-item-cuerpo">
+													<span class="pick-item-titulo">{conduce.note_number}</span>
+													<span class="pick-item-meta">{formatDate(conduce.date)} · {conduce.lineas} línea(s)</span>
+												</span>
+												<span class="pick-item-importe">{formatMoney(conduce.total)}</span>
+											</label>
+										</li>
+									{/each}
+								</ul>
+							</section>
+						{/if}
+						{#if data.serviciosOrden.length > 0}
+							<section class="panel">
+								<h2 class="titulo-seccion">Servicios pendientes de facturar</h2>
+								<!-- Sin conduce que las traiga: un Servicio no es tangible y nunca
+								     se entrega, así que se factura directo desde la orden. -->
+								<ul class="pick-list">
+									{#each data.serviciosOrden as servicio (servicio.id)}
+										{@const marcada = elegidasServicios.has(String(servicio.id))}
+										<li>
+											<label class="pick-item" class:pick-item--on={marcada}>
+												<input
+													type="checkbox"
+													name="service_line_ids"
+													value={servicio.id}
+													checked={marcada}
+													onchange={() => alternarServicio(servicio.id)}
+													aria-label="Incluir {servicio.name}"
+												/>
+												<span class="pick-item-cuerpo">
+													<span class="pick-item-titulo">{servicio.name}</span>
+													<span class="pick-item-meta">Cantidad {servicio.quantity} · {formatMoney(servicio.price)} c/u</span>
+												</span>
+												<span class="pick-item-importe">
+													{formatMoney(Number(servicio.quantity) * Number(servicio.price))}
+												</span>
+											</label>
+										</li>
+									{/each}
+								</ul>
+							</section>
+						{/if}
+					{/if}
+				{:else if origen === 'cotizacion'}
+					{#if !data.quote}
+						<section class="panel">
+							<p class="panel-hint">
+								Se puede facturar una parte ahora y el resto más adelante; la cotización sigue
+								convertible a orden por lo que quede.
+							</p>
+							<div class="form-grid">
+								<div class="form-field">
+									<SearchPicker
+										label="Cliente"
+										icon="user"
+										placeholder="Filtrar por cliente…"
+										items={data.clients}
+										bind:value={clienteFiltro}
+										getMain={(c) => c.name}
+										getSub={(c) => c.phone || ''}
+									/>
+								</div>
+								<div class="form-field">
+									<SearchPicker
+										label="Cotización"
+										icon="fileText"
+										placeholder="Buscar por número…"
+										items={cotizacionesFiltradas}
+										getKey={(q) => q.id}
+										getMain={(q) => q.quote_number || `#${q.id}`}
+										getSub={(q) => q.client_name || ''}
+										getAside={(q) => formatMoney(q.total_pendiente)}
+										onselect={alElegirCotizacion}
+									/>
+								</div>
+							</div>
+							{#if data.quotes.length === 0}
+								<p class="empty-state" style="margin-top:12px;">No hay cotizaciones con algo pendiente de facturar.</p>
+							{/if}
+						</section>
+					{:else}
+						<input type="hidden" name="quotation_id" value={data.quote.id} />
+						<section class="panel">
+							<h2 class="titulo-seccion">
+								Líneas pendientes de {data.quote.quote_number || `#${data.quote.id}`}
+							</h2>
+							<p class="panel-hint">
+								Se puede facturar una parte ahora y el resto más adelante; la cotización sigue
+								convertible a orden por lo que quede.
+							</p>
+							{#if lineasQuote.length === 0}
+								<p class="empty-state">Esta cotización no tiene nada pendiente de facturar.</p>
+							{:else}
+								<ul class="pick-list">
+									{#each lineasQuote as linea (linea.id)}
+										<li>
+											<label class="pick-item" class:pick-item--on={linea.on}>
+												<input
+													type="checkbox"
+													checked={linea.on}
+													onchange={() => alternarLineaQuote(linea)}
+													aria-label="Incluir {linea.name}"
+												/>
+												<span class="pick-item-cuerpo">
+													<span class="pick-item-titulo">{linea.name}</span>
+													<span class="pick-item-meta">
+														Pendiente {linea.remaining} de {linea.quantity} · {formatMoney(linea.price)} c/u
+													</span>
+												</span>
+												<span class="pick-item-control">
+													<input
+														type="number"
+														class="cantidad-mini"
+														min="0"
+														max={linea.remaining}
+														step="1"
+														bind:value={linea.cantidad}
+														oninput={() => limitarCantidad(linea)}
+														disabled={!linea.on}
+														aria-label="Cantidad a facturar de {linea.name}"
+													/>
+												</span>
+												<span class="pick-item-importe">{formatMoney(Number(linea.cantidad || 0) * Number(linea.price))}</span>
+												{#if linea.on && Number(linea.cantidad) > 0}
+													<input type="hidden" name="qi_id" value={linea.id} />
+													<input type="hidden" name="qi_quantity" value={linea.cantidad} />
+												{/if}
+											</label>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</section>
+					{/if}
+				{:else if origen === 'directa'}
+					<section class="panel">
+						<SearchPicker
+							label="Cliente"
+							icon="user"
+							required
+							name="client_id"
+							placeholder="Buscar cliente por nombre…"
+							items={data.clients}
+							bind:value={clienteDirecta}
+							getMain={(c) => c.name}
+							getSub={(c) => [c.document_id, c.phone].filter(Boolean).join(' · ')}
+						/>
+					</section>
+
+					<section class="panel">
+						<div class="page-header" style="margin-bottom:12px;">
+							<h2 class="titulo-seccion" style="margin:0;">Líneas de la factura</h2>
+							<span class="cuenta">{lineas.length}</span>
+						</div>
+
+						<div class="agregar-tipos" role="group" aria-label="Agregar una línea">
+							<button type="button" class="tipo-btn" onclick={() => abrirModal('service')}>
+								<Icon name="stock" size={18} />Servicio
+							</button>
+							<button type="button" class="tipo-btn" onclick={() => abrirModal('item')}>
+								<Icon name="stock" size={18} />Artículo
+							</button>
+							<button type="button" class="tipo-btn" onclick={() => abrirModal('manual')}>
+								<Icon name="penLine" size={18} />Línea manual
+							</button>
+						</div>
+
+						{#if lineas.length === 0}
+							<p class="empty-state">Agregue un servicio, un artículo del inventario o un cargo libre.</p>
+						{:else}
+							<ul class="pick-list">
+								{#each lineas as linea (linea.uid)}
+									<li>
+										<div class="pick-item linea-card">
+											<span class="pick-item-cuerpo">
+												<span class="pick-item-titulo">
+													{linea.description}
+													{#if linea.code}<span class="linea-card-tag">({linea.code})</span>{/if}
+												</span>
+												<span class="pick-item-meta">
+													{linea.kind === 'service' ? 'Servicio' : linea.kind === 'item' ? 'Artículo' : 'Manual'}
+													· {linea.quantity} × {formatMoney(linea.price)}
+												</span>
+											</span>
+											<span class="pick-item-importe">{formatMoney(Number(linea.quantity) * Number(linea.price))}</span>
+											<button
+												type="button"
+												class="btn-icono"
+												onclick={() => quitarLinea(linea.uid)}
+												aria-label="Quitar línea"
+											>
+												<Icon name="trash" size={16} />
+											</button>
+										</div>
+										<input type="hidden" name="line_kind" value={linea.kind} />
+										<input type="hidden" name="line_ref_id" value={linea.ref_id ?? ''} />
+										<input type="hidden" name="line_description" value={linea.description ?? ''} />
+										<input type="hidden" name="line_quantity" value={linea.quantity} />
+										<input type="hidden" name="line_price" value={linea.price} />
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</section>
+				{/if}
+			</div>
+
+			<aside class="detail-side">
+				<section class="panel">
+					<div class="form-grid">
+						<div class="form-field">
+							<label for="date">Fecha</label>
+							<input id="date" name="date" type="date" bind:value={fecha} />
+						</div>
+						<div class="form-field">
+							<label for="discount">Descuento</label>
+							<FormattedNumberField id="discount" name="discount" min={0} bind:value={descuento} />
+						</div>
+						<div class="form-field">
+							<label for="tax_amount">ITBIS</label>
+							<FormattedNumberField id="tax_amount" name="tax_amount" min={0} bind:value={impuesto} />
+						</div>
+						<div class="form-field full">
+							<label for="notes">Notas</label>
+							<input id="notes" name="notes" bind:value={notas} />
+						</div>
+					</div>
+				</section>
+
+				<section class="panel">
+					<div class="totals">
+						<div class="total-row"><span>Subtotal</span><span>{formatMoney(subtotal)}</span></div>
+						<div class="total-row"><span>Descuento</span><span>−{formatMoney(rebaja)}</span></div>
+						<div class="total-row"><span>ITBIS</span><span>{formatMoney(impuestoNum)}</span></div>
+						<div class="total-row total-row--final"><span>Total</span><span>{formatMoney(total)}</span></div>
+					</div>
+
+					{#if excede}
+						<div class="alert-error" role="alert" style="margin-top:12px;">
+							El descuento no puede superar el subtotal.
+						</div>
+					{/if}
+
+					<div class="form-actions" style="margin-top:16px;">
+						<a class="btn-secondary" href="/invoices">Cancelar</a>
+						<button type="submit" class="btn-primary" disabled={!puedeEmitir}>Emitir factura</button>
+					</div>
+				</section>
+			</aside>
+		</div>
+
+		<div class="barra-movil">
+			<span class="barra-movil-total">{formatMoney(total)}</span>
+			<button type="submit" class="btn-primary" disabled={!puedeEmitir}>Emitir factura</button>
+		</div>
+	</form>
+{/if}
+
+<Modal
+	bind:open={modalAbierto}
+	title={modalTipo ? TITULOS_MODAL[modalTipo] : ''}
+	size="sm"
+	hojaMovil
+	onclose={cerrarModal}
+>
+	{#if modalTipo === 'manual'}
+		<div class="form-grid">
+			<div class="form-field full">
+				<label for="modal-desc">Descripción *</label>
+				<input id="modal-desc" maxlength="120" bind:value={modalDescripcion} placeholder="Recargo por transporte" />
+			</div>
+			<div class="form-field">
+				<label for="modal-cant">Cantidad</label>
+				<input id="modal-cant" type="number" min="1" step="1" bind:value={modalCantidad} />
+			</div>
+			<div class="form-field">
+				<label for="modal-precio">Precio unitario</label>
+				<FormattedNumberField id="modal-precio" min={0} bind:value={modalPrecio} />
+			</div>
+		</div>
+	{:else if modalTipo}
+		<div class="buscador-wrap">
+			<input
+				class="buscador"
+				type="search"
+				bind:value={modalBusqueda}
+				placeholder={modalTipo === 'item' ? 'Buscar artículo…' : 'Buscar servicio…'}
+			/>
+		</div>
+		<ul class="catalog-list">
+			{#each catalogoModal.filter((c) => !modalBusqueda.trim() || c.name.toLowerCase().includes(modalBusqueda.toLowerCase())) as opcion (opcion.id)}
+				<li>
+					<button
+						type="button"
+						class="catalog-item"
+						class:catalog-item--added={modalElegido?.id === opcion.id}
+						onclick={() => elegirEnModal(opcion)}
+					>
+						<span>{opcion.name}</span>
+						<span class="catalog-item-meta">
+							{#if opcion.internal_code}<span>{opcion.internal_code}</span>{/if}
+							<span>{formatMoney(opcion.rental_price ?? opcion.price)}</span>
+						</span>
+					</button>
+				</li>
+			{:else}
+				<li class="empty-state">Sin resultados.</li>
+			{/each}
+		</ul>
+
+		{#if modalElegido}
+			<div class="form-grid" style="margin-top:12px;">
+				<div class="form-field">
+					<label for="modal-cant">Cantidad</label>
+					<input id="modal-cant" type="number" min="1" step="1" bind:value={modalCantidad} />
+				</div>
+				<div class="form-field">
+					<label for="modal-precio">Precio unitario</label>
+					<FormattedNumberField id="modal-precio" min={0} bind:value={modalPrecio} />
+				</div>
+			</div>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button type="button" class="btn-secondary" onclick={cerrarModal}><Icon name="x" size={16} />Cancelar</button>
+		<button
+			type="button"
+			class="btn-primary"
+			onclick={agregarLinea}
+			disabled={modalTipo === 'manual' ? !modalDescripcion.trim() : !modalElegido}
+		>
+			<Icon name="check" size={16} />Agregar
+		</button>
+	{/snippet}
+</Modal>
+
 <style>
-	.sec-title {
+	.titulo-seccion {
 		margin: 0 0 var(--sp-3);
 		font-size: var(--font-md);
 	}
 
-	.check {
-		width: 2.5rem;
+	.cuenta {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 1.5rem;
+		padding: 0 var(--sp-2);
+		border-radius: var(--radius-pill);
+		background: var(--accent-subtle);
+		color: var(--accent-active);
+		font-size: var(--font-xs);
+		font-weight: 700;
 	}
 
-	.num {
-		text-align: right;
-		white-space: nowrap;
+	.pick-item--boton {
+		width: 100%;
+		border: none;
+		background: var(--bg-surface);
+		font: inherit;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.cantidad-mini {
+		width: 4.5rem;
+		padding: var(--sp-1) var(--sp-2);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+		text-align: center;
+		font: inherit;
+	}
+
+	.agregar-tipos {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-4);
+	}
+
+	.tipo-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--sp-2);
+		min-height: 44px;
+		border: 1px dashed var(--border-strong);
+		border-radius: var(--border-radius);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--font-sm);
+		cursor: pointer;
+	}
+
+	.tipo-btn:hover {
+		border-style: solid;
+		border-color: var(--accent-border);
+		background: var(--accent-subtle);
+	}
+
+	/* `.pick-item` por defecto espera casilla+cuerpo+importe (3 columnas
+	   auto/1fr/auto); una línea libre no lleva casilla, lleva un botón de
+	   quitar en su lugar -mismo número de columnas, orden distinto-. */
+	.linea-card {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		cursor: default;
+	}
+
+	.linea-card-tag {
+		font-weight: 400;
+		color: var(--text-secondary);
+	}
+
+	.btn-icono {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border: none;
+		border-radius: var(--border-radius-sm);
+		background: none;
+		color: var(--text-secondary);
+		cursor: pointer;
+	}
+
+	.btn-icono:hover {
+		background: var(--bg-hover);
+		color: var(--danger-text);
+	}
+
+	.buscador-wrap {
+		margin-bottom: var(--sp-3);
+	}
+
+	.buscador {
+		width: 100%;
+		font-family: inherit;
+		font-size: var(--font-sm);
+		padding: var(--sp-2) var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--border-radius-sm);
+		background: var(--bg-input);
+		color: var(--text-primary);
+	}
+
+	.buscador:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: var(--focus-ring);
+	}
+
+	.barra-movil {
+		display: none;
+	}
+
+	@media (max-width: 900px) {
+		.agregar-tipos {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.barra-movil {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--sp-3);
+			position: sticky;
+			bottom: 0;
+			z-index: 20;
+			margin-top: var(--sp-4);
+			padding: var(--sp-3) var(--content-padding);
+			background: var(--bg-surface);
+			border-top: 1px solid var(--border);
+			box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+		}
+
+		.barra-movil-total {
+			font-size: var(--font-lg);
+			font-weight: 700;
+		}
+
+		.barra-movil .btn-primary {
+			flex: 1;
+			justify-content: center;
+		}
+
+		.detail-side .form-actions {
+			display: none;
+		}
 	}
 </style>

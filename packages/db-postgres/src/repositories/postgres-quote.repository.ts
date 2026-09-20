@@ -362,6 +362,7 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 			[companyId, quoteId, itemId]
 		);
 		if (!current.rows[0]) throw new Error(`Quote item ${itemId} not found.`);
+		await this.assertItemNotBilled(companyId, itemId);
 
 		const row = current.rows[0];
 		const quantity = data.quantity ?? Number(row.quantity || 0);
@@ -395,11 +396,33 @@ export class PostgresQuoteRepository implements TenantQuoteRepository {
 	}
 
 	async removeItem(ctx: RepositoryContext, quoteId: ESRId, itemId: ESRId): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		await this.assertItemNotBilled(companyId, itemId);
 		await this.pool.query(
 			'DELETE FROM quotation_items WHERE company_id = $1 AND quotation_id = $2 AND id = $3',
-			[requireCompanyId(ctx), quoteId, itemId]
+			[companyId, quoteId, itemId]
 		);
 		await this.syncTotals(ctx, quoteId);
+	}
+
+	/**
+	 * Una linea con enlace activo en `invoice_quotation_items` ya se facturo
+	 * DIRECTO -total o parcialmente-. `SqliteQuoteRepository.save()` borra y
+	 * reinserta todas las lineas en cada guardado, lo que desengancharia el
+	 * ledger en silencio -los ids cambian y el enlace quedaria huerfano o
+	 * apuntando a otra linea distinta-; aqui el guardado es por linea, asi que
+	 * basta con rechazar la operacion sobre la linea afectada.
+	 */
+	private async assertItemNotBilled(companyId: string, itemId: ESRId): Promise<void> {
+		const facturada = await this.pool.query(
+			`SELECT 1 FROM invoice_quotation_items iqi
+			 JOIN quotation_items qi ON qi.id = iqi.quotation_item_id AND qi.company_id = $1
+			 WHERE qi.id = $2 AND iqi.is_active = 1 LIMIT 1`,
+			[companyId, itemId]
+		);
+		if (facturada.rows[0]) {
+			throw new Error('Esa línea ya está facturada: anule la factura para poder modificarla.');
+		}
 	}
 
 	async syncTotals(ctx: RepositoryContext, quoteId: ESRId, client?: pg.PoolClient): Promise<Quote> {

@@ -32,6 +32,8 @@ export * from './quotes/use-cases';
 export * from './payments/repositories';
 export * from './payments/use-cases';
 
+export * from './invoices/use-cases';
+
 export * from './incidents/repositories';
 export * from './incidents/use-cases';
 

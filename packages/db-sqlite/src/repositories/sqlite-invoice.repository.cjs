@@ -4,6 +4,12 @@ const {
   runQuery,
   withTransaction
 } = require('../connection.cjs');
+const {
+  calculateQuoteTotals,
+  invoiceDraftErrorMessage,
+  validateInvoiceDraft,
+  validateQuoteCanInvoiceDirectly
+} = require('@esr/core');
 
 /**
  * Facturas.
@@ -62,16 +68,34 @@ const SERVICE_NOT_BILLED = `
   )
 `;
 
+/** Cuanto de una linea de cotizacion cubre ya alguna factura viva. */
+const QUOTE_LINE_BILLED_QTY = `COALESCE((
+  SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+  WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1
+), 0)`;
+
+/**
+ * Lo que queda por facturar de una linea de cotizacion.
+ *
+ * A diferencia de `SERVICE_NOT_BILLED` -un si/no-, una cotizacion se factura
+ * POR PARTES: lo que importa es la cantidad que sobra, no si alguna vez se
+ * facturo algo de esa linea.
+ */
+const QUOTE_LINE_REMAINING = `(qi.quantity - ${QUOTE_LINE_BILLED_QTY})`;
+const QUOTE_LINE_NOT_BILLED = `${QUOTE_LINE_REMAINING} > 0`;
+
 const INVOICE_COLUMNS = `
   inv.*,
   c.name AS client_name,
-  wo.id  AS order_ref
+  wo.id  AS order_ref,
+  q.quote_number
 `;
 
 const INVOICE_JOINS = `
   FROM invoices inv
   LEFT JOIN clients c      ON c.id = inv.client_id
   LEFT JOIN work_orders wo ON wo.id = inv.work_order_id
+  LEFT JOIN quotations q   ON q.id = inv.quotation_id
 `;
 
 class SqliteInvoiceRepository {
@@ -96,6 +120,10 @@ class SqliteInvoiceRepository {
     if (filters.work_order_id) {
       where.push('inv.work_order_id = ?');
       params.push(filters.work_order_id);
+    }
+    if (filters.quotation_id) {
+      where.push('inv.quotation_id = ?');
+      params.push(filters.quotation_id);
     }
     if (filters.search) {
       where.push('(inv.invoice_number LIKE ? OR c.name LIKE ?)');
@@ -165,6 +193,31 @@ class SqliteInvoiceRepository {
        WHERE inv.id = ?`,
       [id]
     );
+  }
+
+  /**
+   * Todo lo que el PDF necesita, en una sola llamada. Mismo contrato que el
+   * `/document` de Cloud: cabecera con las referencias resueltas y lineas.
+   *
+   * `order_number` se SINTETIZA -Desktop no tiene esa columna en
+   * `work_orders`-, con el mismo formato que ya usa el resto de la app
+   * (`numero(wo)` en `work_orders/+page.svelte`).
+   */
+  async findForDocument(invoiceId) {
+    const invoice = await this.findById(invoiceId);
+    if (!invoice) return null;
+    const items = await this.listItems(invoiceId);
+    const saldo = round2(Number(invoice.total || 0) - Number(invoice.paid || 0));
+
+    return {
+      invoice: {
+        ...invoice,
+        client_document: invoice.client_document_id ?? null,
+        order_number: invoice.work_order_id ? `WO-${String(invoice.work_order_id).padStart(5, '0')}` : null,
+        balance: saldo > 0 ? saldo : 0
+      },
+      items
+    };
   }
 
   async listItems(invoiceId) {
@@ -265,6 +318,79 @@ class SqliteInvoiceRepository {
     );
   }
 
+  /**
+   * Lineas de una cotizacion con cantidad pendiente de facturar DIRECTO.
+   *
+   * Deja fuera las lineas de paquete heredadas (`package_id` sin `item_id` ni
+   * `service_id`): son el mismo caso que ya descarta la importacion a una
+   * orden, y no tienen nada que facturar por si solas.
+   */
+  async listBillableQuotationItems(quotationId) {
+    return await getQuery(
+      // `quotation_items` en SQLite no tiene columna `name` -a diferencia de
+      // Postgres-: el nombre siempre sale del articulo o del servicio.
+      `SELECT qi.id, qi.item_id, qi.service_id,
+              COALESCE(i.name, s.name) AS name, i.internal_code,
+              qi.quantity,
+              (${QUOTE_LINE_BILLED_QTY}) AS billed_quantity,
+              (${QUOTE_LINE_REMAINING}) AS remaining,
+              qi.price,
+              COALESCE(qi.discount_rate, 0) AS discount_rate,
+              COALESCE(qi.tax_rate, 0) AS tax_rate
+       FROM quotation_items qi
+       LEFT JOIN items i ON i.id = qi.item_id
+       LEFT JOIN services s ON s.id = qi.service_id
+       WHERE qi.quotation_id = ?
+         AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL)
+         AND ${QUOTE_LINE_NOT_BILLED}
+       ORDER BY qi.id`,
+      [quotationId]
+    );
+  }
+
+  /** Cotizaciones aprobadas con algo pendiente de facturar directo. Espejo de `listOrdersWithBillable`. */
+  async listQuotationsWithBillable({ since } = {}) {
+    const params = [];
+    let filtroFecha = '';
+    if (since) {
+      filtroFecha = 'AND q.date >= ?';
+      params.push(since);
+    }
+
+    const pendientes = `(SELECT COUNT(*) FROM quotation_items qi
+      WHERE qi.quotation_id = q.id AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL) AND ${QUOTE_LINE_NOT_BILLED})`;
+    const totalPendiente = `(SELECT COALESCE(SUM(${QUOTE_LINE_REMAINING} * qi.price), 0) FROM quotation_items qi
+      WHERE qi.quotation_id = q.id AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL) AND ${QUOTE_LINE_NOT_BILLED})`;
+
+    return await getQuery(
+      `SELECT q.id, q.quote_number, q.client_id, c.name AS client_name, q.date,
+              (${pendientes}) AS pendientes,
+              (${totalPendiente}) AS total_pendiente
+       FROM quotations q
+       LEFT JOIN clients c ON c.id = q.client_id
+       WHERE q.status = 'aprobada' AND q.is_active = 1
+         AND (${pendientes}) > 0 ${filtroFecha}
+       ORDER BY q.id DESC
+       LIMIT 200`,
+      params
+    );
+  }
+
+  /** Los enlaces de cotizacion de la factura, los liberados por una anulacion incluidos. */
+  async listQuotationItems(invoiceId) {
+    return await getQuery(
+      `SELECT iqi.id, iqi.invoice_id, iqi.quotation_item_id, iqi.quantity, iqi.is_active,
+              COALESCE(i.name, s.name) AS name
+       FROM invoice_quotation_items iqi
+       JOIN quotation_items qi ON qi.id = iqi.quotation_item_id
+       LEFT JOIN items i ON i.id = qi.item_id
+       LEFT JOIN services s ON s.id = qi.service_id
+       WHERE iqi.invoice_id = ?
+       ORDER BY iqi.id`,
+      [invoiceId]
+    );
+  }
+
   /** La factura viva que cubre una entrega, si la hay. */
   async findActiveByConduce(conduceId) {
     return await getSingleQuery(
@@ -336,118 +462,279 @@ class SqliteInvoiceRepository {
 
   // ── Escritura ───────────────────────────────────────────────────────────
 
-  async create({
-    work_order_id,
-    conduce_ids = [],
-    service_line_ids = [],
-    date,
-    due_date,
-    discount = 0,
-    tax_amount = 0,
-    notes
-  } = {}) {
-    if (!work_order_id) throw new Error('Falta la orden de trabajo.');
-    const elegidos = (conduce_ids || []).map(Number).filter(Boolean);
-    const serviciosElegidos = (service_line_ids || []).map(Number).filter(Boolean);
-    if (!elegidos.length && !serviciosElegidos.length) {
-      throw new Error('Elija al menos una entrega o un servicio para facturar.');
-    }
+  /**
+   * Emite una factura desde cualquiera de sus tres origenes posibles -ver
+   * `InvoiceDraft` en `@esr/core`-: orden (`work_order`), cotizacion
+   * facturada DIRECTO y por partes (`quotation`), o factura libre (`free`).
+   *
+   * `withTransaction` ya serializa TODAS las transacciones de la app en una
+   * cola -"solo hay una transaccion viva a la vez"-, asi que a diferencia de
+   * Postgres no hace falta ningun `SELECT ... FOR UPDATE`: no hay dos
+   * emisiones corriendo a la vez que puedan repartirse de mas la misma
+   * cantidad pendiente.
+   */
+  async create(input = {}) {
+    const check = validateInvoiceDraft(input);
+    if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
 
     return await withTransaction(async () => {
-      // Se releen DENTRO de la transaccion. Entre que se pinto la pantalla y se
-      // pulso el boton, otra emision pudo llevarse una entrega o un servicio.
-      const lineas = [];
-      if (elegidos.length) {
-        const disponibles = await this.listBillableConduces(work_order_id);
-        const porId = new Set(disponibles.map((c) => Number(c.id)));
-        if (elegidos.some((id) => !porId.has(id))) {
-          throw new Error(
-            'Alguna de las entregas elegidas ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
-          );
-        }
-        lineas.push(...(await this.txAggregateLines(elegidos)));
-      }
+      const { source } = input;
+      const prepared =
+        source.kind === 'work_order'
+          ? await this.prepareFromWorkOrder(source)
+          : source.kind === 'quotation'
+            ? await this.prepareFromQuotation(source)
+            : await this.prepareFree(source);
 
-      let serviciosAFacturar = [];
-      if (serviciosElegidos.length) {
-        const disponibles = await this.listBillableServices(work_order_id);
-        const porId = new Map(disponibles.map((s) => [Number(s.id), s]));
-        if (serviciosElegidos.some((id) => !porId.has(id))) {
-          throw new Error(
-            'Alguno de los servicios elegidos ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
-          );
-        }
-        serviciosAFacturar = serviciosElegidos.map((id) => porId.get(id));
-      }
-
-      if (!lineas.length && !serviciosAFacturar.length) {
-        throw new Error('Lo elegido no tiene ninguna línea que facturar.');
-      }
-
-      const subtotal = round2(
-        lineas.reduce((suma, l) => suma + l.total, 0) +
-          serviciosAFacturar.reduce(
-            (suma, s) => suma + round2(Number(s.quantity) * Number(s.price)),
-            0
-          )
-      );
-      const rebaja = round2(Math.max(0, Number(discount) || 0));
-      const impuesto = round2(Math.max(0, Number(tax_amount) || 0));
-      if (rebaja > subtotal) throw new Error('El descuento no puede superar el subtotal.');
-      const total = round2(subtotal - rebaja + impuesto);
-
-      const orden = await getSingleQuery(
-        'SELECT id, client_id FROM work_orders WHERE id = ?',
-        [work_order_id]
-      );
-      if (!orden) throw new Error('La orden de trabajo no existe.');
+      // Una sola formula para los tres caminos, la misma que la cotizacion.
+      const totales = calculateQuoteTotals(prepared.lines);
+      const rebaja = round2(totales.discount + Math.max(0, Number(input.discount) || 0));
+      const impuesto = round2(totales.tax_amount + Math.max(0, Number(input.tax_amount) || 0));
+      if (rebaja > totales.subtotal) throw new Error('El descuento no puede superar el subtotal.');
 
       const factura = await this.txInsertHeaderWithNumber({
-        work_order_id,
-        client_id: orden.client_id,
-        date,
-        due_date,
-        subtotal,
+        work_order_id: prepared.work_order_id,
+        quotation_id: prepared.quotation_id,
+        client_id: prepared.client_id,
+        date: input.date,
+        due_date: input.due_date,
+        subtotal: totales.subtotal,
         discount: rebaja,
         tax_amount: impuesto,
-        total,
-        notes
+        total: round2(totales.subtotal - rebaja + impuesto),
+        notes: input.notes
       });
 
-      for (const linea of lineas) {
+      for (const linea of prepared.lines) {
         await runQuery(
-          `INSERT INTO invoice_items (invoice_id, item_id, description, quantity, price, total)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [factura.id, linea.item_id, linea.description, linea.quantity, linea.price, linea.total]
+          `INSERT INTO invoice_items
+             (invoice_id, item_id, service_id, description, quantity, price, total, discount_rate, tax_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            factura.id,
+            linea.item_id,
+            linea.service_id,
+            linea.description,
+            linea.quantity,
+            linea.price,
+            round2(linea.quantity * linea.price),
+            linea.discount_rate,
+            linea.tax_rate
+          ]
         );
-      }
-
-      // Una linea de Servicio no viene de un conduce -no es tangible-, asi que
-      // se inserta directo y se enlaza por `invoice_work_order_items`, el
-      // mismo mecanismo de "un enlace activo a la vez" que usan las entregas.
-      for (const servicio of serviciosAFacturar) {
-        const cantidad = round2(servicio.quantity);
-        const precio = round2(servicio.price);
-        await runQuery(
-          `INSERT INTO invoice_items (invoice_id, service_id, description, quantity, price, total)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [factura.id, servicio.service_id, servicio.name, cantidad, precio, round2(cantidad * precio)]
-        );
-        await this.linkWorkOrderItem(factura.id, servicio.id);
       }
 
       // Los enlaces van DENTRO de la transaccion: son la invariante que impide
-      // facturar dos veces la misma entrega. Escribirlos fuera abriria la
-      // ventana del doble clic.
-      for (const conduceId of elegidos) {
+      // facturar dos veces lo mismo. Escribirlos fuera abriria la ventana del
+      // doble clic.
+      for (const conduceId of prepared.links.conduces) {
         await runQuery(
           'INSERT INTO invoice_conduces (invoice_id, conduce_id, is_active) VALUES (?, ?, 1)',
           [factura.id, conduceId]
         );
       }
+      for (const workOrderItemId of prepared.links.workOrderItems) {
+        await this.linkWorkOrderItem(factura.id, workOrderItemId);
+      }
+      for (const linea of prepared.links.quotationItems) {
+        await this.linkQuotationItem(factura.id, linea.id, linea.quantity);
+      }
 
       return factura;
     });
+  }
+
+  /** Origen Orden: el camino de siempre, sin cambios de comportamiento. */
+  async prepareFromWorkOrder(source) {
+    const elegidos = (source.conduce_ids || []).map(Number).filter(Boolean);
+    const serviciosElegidos = (source.service_line_ids || []).map(Number).filter(Boolean);
+
+    // Se releen DENTRO de la transaccion. Entre que se pinto la pantalla y se
+    // pulso el boton, otra emision pudo llevarse una entrega o un servicio.
+    const lineas = [];
+    if (elegidos.length) {
+      const disponibles = await this.listBillableConduces(source.work_order_id);
+      const porId = new Set(disponibles.map((c) => Number(c.id)));
+      if (elegidos.some((id) => !porId.has(id))) {
+        throw new Error(
+          'Alguna de las entregas elegidas ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
+        );
+      }
+      for (const linea of await this.txAggregateLines(elegidos)) {
+        lineas.push({
+          item_id: linea.item_id,
+          service_id: null,
+          description: linea.description,
+          quantity: linea.quantity,
+          price: linea.price,
+          discount_rate: 0,
+          tax_rate: 0
+        });
+      }
+    }
+
+    let serviciosAFacturar = [];
+    if (serviciosElegidos.length) {
+      const disponibles = await this.listBillableServices(source.work_order_id);
+      const porId = new Map(disponibles.map((s) => [Number(s.id), s]));
+      if (serviciosElegidos.some((id) => !porId.has(id))) {
+        throw new Error(
+          'Alguno de los servicios elegidos ya se facturó o dejó de estar disponible. Vuelva a cargar la pantalla.'
+        );
+      }
+      serviciosAFacturar = serviciosElegidos.map((id) => porId.get(id));
+    }
+
+    // Un Servicio NO se fusiona con otro aunque coincidan nombre y precio:
+    // cada linea de la orden se factura por separado, una por una.
+    for (const servicio of serviciosAFacturar) {
+      lineas.push({
+        item_id: null,
+        service_id: servicio.service_id,
+        description: servicio.name,
+        quantity: round2(servicio.quantity),
+        price: round2(servicio.price),
+        discount_rate: 0,
+        tax_rate: 0
+      });
+    }
+
+    if (!lineas.length) throw new Error('Lo elegido no tiene ninguna línea que facturar.');
+
+    const orden = await getSingleQuery(
+      'SELECT id, client_id FROM work_orders WHERE id = ?',
+      [source.work_order_id]
+    );
+    if (!orden) throw new Error('La orden de trabajo no existe.');
+
+    return {
+      client_id: orden.client_id,
+      work_order_id: source.work_order_id,
+      quotation_id: null,
+      lines: lineas,
+      links: { conduces: elegidos, workOrderItems: serviciosElegidos, quotationItems: [] }
+    };
+  }
+
+  /**
+   * Origen Cotizacion: facturacion DIRECTA, sin orden, y POR PARTES.
+   *
+   * El precio, el descuento y el impuesto se copian TAL CUAL de la
+   * cotizacion -es el acuerdo comercial que el cliente ya aprobo, no se
+   * re-cotiza-. Solo la cantidad puede ser menor que la de la linea
+   * original: es justo lo que habilita facturar una parte ahora y el resto
+   * despues.
+   */
+  async prepareFromQuotation(source) {
+    const quote = await getSingleQuery(
+      'SELECT id, client_id, status FROM quotations WHERE id = ?',
+      [source.quotation_id]
+    );
+    if (!quote) throw new Error('La cotización no existe.');
+
+    const disponibles = await this.listBillableQuotationItems(source.quotation_id);
+    const porId = new Map(disponibles.map((row) => [Number(row.id), row]));
+
+    const check = validateQuoteCanInvoiceDirectly(quote, disponibles);
+    if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
+
+    const lineas = [];
+    const enlaces = [];
+    for (const elegida of source.lines || []) {
+      const fila = porId.get(Number(elegida.quotation_item_id));
+      const cantidad = round2(Number(elegida.quantity));
+      if (!fila || cantidad <= 0 || cantidad > Number(fila.remaining)) {
+        throw new Error(
+          'Alguna de las líneas elegidas ya se facturó o cambió de cantidad. Vuelva a cargar la pantalla.'
+        );
+      }
+
+      lineas.push({
+        item_id: fila.item_id,
+        service_id: fila.service_id,
+        description: fila.name,
+        quantity: cantidad,
+        price: round2(fila.price),
+        discount_rate: Number(fila.discount_rate) || 0,
+        tax_rate: Number(fila.tax_rate) || 0
+      });
+      enlaces.push({ id: fila.id, quantity: cantidad });
+    }
+
+    return {
+      client_id: quote.client_id,
+      work_order_id: null,
+      quotation_id: source.quotation_id,
+      lines: lineas,
+      links: { conduces: [], workOrderItems: [], quotationItems: enlaces }
+    };
+  }
+
+  /**
+   * Origen libre: sin cotizacion ni orden. Verifica que cada articulo o
+   * servicio posteado de verdad existe -ESR Pro es de un solo inquilino, asi
+   * que no hace falta reverificar pertenencia de empresa como en Cloud, pero
+   * si que el id sea real y este activo-. Un cargo manual (ni `item_id` ni
+   * `service_id`) no tiene nada que verificar: su unico dato es el texto que
+   * trae.
+   *
+   * Deliberadamente NO reserva stock ni crea ningun rastro de entrega para
+   * un Articulo facturado aqui: la factura nunca ha tocado el inventario y
+   * esta no es la excepcion.
+   */
+  async prepareFree(source) {
+    const cliente = await getSingleQuery('SELECT id FROM clients WHERE id = ?', [source.client_id]);
+    if (!cliente) throw new Error('El cliente no existe.');
+
+    const nombresArticulo = new Map();
+    const nombresServicio = new Map();
+    const lineas = [];
+
+    for (const linea of source.lines || []) {
+      let descripcion = String(linea.description || '').trim() || null;
+
+      if (linea.item_id) {
+        const clave = String(linea.item_id);
+        if (!nombresArticulo.has(clave)) {
+          const item = await getSingleQuery('SELECT id, name, is_active FROM items WHERE id = ?', [linea.item_id]);
+          if (!item) throw new Error('Uno de los artículos no existe.');
+          if (Number(item.is_active) !== 1) {
+            throw new Error(`El artículo "${item.name}" está inactivo o archivado y no puede facturarse.`);
+          }
+          nombresArticulo.set(clave, item.name);
+        }
+        descripcion = nombresArticulo.get(clave);
+      } else if (linea.service_id) {
+        const clave = String(linea.service_id);
+        if (!nombresServicio.has(clave)) {
+          const service = await getSingleQuery('SELECT id, name, is_active FROM services WHERE id = ?', [linea.service_id]);
+          if (!service) throw new Error('Uno de los servicios no existe.');
+          if (Number(service.is_active) !== 1) {
+            throw new Error(`El servicio "${service.name}" está inactivo o archivado y no puede facturarse.`);
+          }
+          nombresServicio.set(clave, service.name);
+        }
+        descripcion = nombresServicio.get(clave);
+      }
+
+      lineas.push({
+        item_id: linea.item_id || null,
+        service_id: linea.service_id || null,
+        description: descripcion,
+        quantity: round2(Number(linea.quantity)),
+        price: round2(Number(linea.price)),
+        discount_rate: Number(linea.discount_rate) || 0,
+        tax_rate: Number(linea.tax_rate) || 0
+      });
+    }
+
+    return {
+      client_id: cliente.id,
+      work_order_id: null,
+      quotation_id: null,
+      lines: lineas,
+      links: { conduces: [], workOrderItems: [], quotationItems: [] }
+    };
   }
 
   /** Vincula una linea de Servicio facturada. Espejo de la insercion en `invoice_conduces`. */
@@ -455,6 +742,14 @@ class SqliteInvoiceRepository {
     await runQuery(
       'INSERT INTO invoice_work_order_items (invoice_id, work_order_item_id, is_active) VALUES (?, ?, 1)',
       [invoiceId, workOrderItemId]
+    );
+  }
+
+  /** Vincula una linea de cotizacion facturada DIRECTO, con cuanto se factura. */
+  async linkQuotationItem(invoiceId, quotationItemId, quantity) {
+    await runQuery(
+      'INSERT INTO invoice_quotation_items (invoice_id, quotation_item_id, quantity, is_active) VALUES (?, ?, ?, 1)',
+      [invoiceId, quotationItemId, quantity]
     );
   }
 
@@ -477,13 +772,14 @@ class SqliteInvoiceRepository {
       try {
         const res = await runQuery(
           `INSERT INTO invoices
-            (invoice_seq, invoice_number, work_order_id, client_id, date, due_date,
+            (invoice_seq, invoice_number, work_order_id, quotation_id, client_id, date, due_date,
              status, subtotal, discount, tax_amount, total, notes, is_active)
-           VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, 'emitida', ?, ?, ?, ?, ?, 1)`,
+           VALUES (?, ?, ?, ?, ?, COALESCE(?, date('now')), ?, 'emitida', ?, ?, ?, ?, ?, 1)`,
           [
             seq,
             numero,
             data.work_order_id || null,
+            data.quotation_id || null,
             data.client_id || null,
             data.date || null,
             data.due_date || null,
@@ -526,6 +822,7 @@ class SqliteInvoiceRepository {
 
       await runQuery('UPDATE invoice_conduces SET is_active = 0 WHERE invoice_id = ?', [id]);
       await runQuery('UPDATE invoice_work_order_items SET is_active = 0 WHERE invoice_id = ?', [id]);
+      await runQuery('UPDATE invoice_quotation_items SET is_active = 0 WHERE invoice_id = ?', [id]);
 
       const voidedPayments = await paymentRepository.txVoidByInvoice(id, motivo);
       return { id, voidedPayments };
@@ -543,4 +840,12 @@ class SqliteInvoiceRepository {
   }
 }
 
-module.exports = { SqliteInvoiceRepository, BILLABLE_CONDUCE_SQL, SERVICE_NOT_BILLED, round2 };
+module.exports = {
+  SqliteInvoiceRepository,
+  BILLABLE_CONDUCE_SQL,
+  SERVICE_NOT_BILLED,
+  QUOTE_LINE_BILLED_QTY,
+  QUOTE_LINE_REMAINING,
+  QUOTE_LINE_NOT_BILLED,
+  round2
+};

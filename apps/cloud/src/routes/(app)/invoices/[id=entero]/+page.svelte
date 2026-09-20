@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import {
 		formatDate,
 		formatMoney,
@@ -10,7 +11,13 @@
 		todayISO
 	} from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
-	import { FormattedNumberField, Icon } from '@esr/ui';
+	import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
+	// Subruta `/formatters`, NO la raiz de `@esr/reports`: la raiz reexporta
+	// `generateQuotationPDF` y compañia, que importan jsPDF a nivel de modulo, y
+	// un import asi en un componente Svelte se evalua TAMBIEN en el servidor,
+	// donde `Blob`/`URL.createObjectURL` no existen. `invoiceItemLabel` es solo
+	// texto y no necesita nada de eso.
+	import { invoiceItemLabel } from '@esr/reports/formatters';
 	import { can } from '$lib/can';
 	import { dangerModal } from '$lib/stores/dangerModal';
 	import { toasts } from '$lib/stores/toasts';
@@ -71,12 +78,48 @@
 
 	/** Archivar retira de circulación; no borra. Es un eje distinto del anulado. */
 	const archivada = $derived(data.invoice.is_active === RECORD_STATE.ARCHIVED);
+
+	/* ── Imprimir ──────────────────────────────────────────────────────────
+	 * Mismo patrón que la orden y la cotización: el servidor manda los datos Y
+	 * registra `document.printed`, y el PDF se arma en cliente con jsPDF.
+	 */
+	let verPdf = $state(false);
+	let pdfUrl = $state('');
+	let pdfNombre = $state('factura.pdf');
+	let generando = $state(false);
+
+	async function imprimir() {
+		if (generando) return;
+		generando = true;
+		pdfUrl = '';
+		verPdf = true;
+		try {
+			const res = await fetch(`${page.url.pathname}/document`, { method: 'POST' });
+			if (!res.ok) throw new Error('El servidor rechazó la petición.');
+			const { company, invoice: fila, items: lineas } = await res.json();
+			// Import DINÁMICO: jsPDF pesa ~400 KB, y en SSR un import de nivel
+			// superior se evalúa también en el servidor, donde `Blob` y
+			// `URL.createObjectURL` no existen.
+			const { generateInvoicePDF } = await import('@esr/reports/invoices');
+			const { url, filename } = generateInvoicePDF(fila, lineas, 'preview', company);
+			pdfUrl = url;
+			pdfNombre = filename;
+		} catch (/** @type {any} */ e) {
+			verPdf = false;
+			dangerModal.show(`No se pudo generar el documento. ${e?.message ?? ''}`.trim());
+		} finally {
+			generando = false;
+		}
+	}
 </script>
 
 <section class="panel">
 	<div class="page-header">
 		<h1>Factura {data.invoice.invoice_number}</h1>
 		<div class="page-header-actions">
+			<button type="button" class="btn-secondary" onclick={imprimir} disabled={generando}>
+				<Icon name="printer" size={16} />Imprimir
+			</button>
 			{#if data.cobrable && can('invoices.cancel')}
 				<button type="button" class="btn-danger" onclick={() => (anulando = true)}>
 					Anular factura
@@ -131,6 +174,16 @@
 			</strong>
 			<span>Orden</span>
 		</div>
+		{#if data.invoice.quotation_id}
+			<div class="metric">
+				<strong>
+					<a href="/quotes/{data.invoice.quotation_id}">
+						{data.invoice.quote_number || `#${data.invoice.quotation_id}`}
+					</a>
+				</strong>
+				<span>Cotización</span>
+			</div>
+		{/if}
 		<div class="metric"><strong>{formatDate(data.invoice.date)}</strong><span>Fecha</span></div>
 		{#if archivada}
 			<div class="metric">
@@ -165,7 +218,7 @@
 		<tbody>
 			{#each data.items as item (item.id)}
 				<tr>
-					<td>{item.description || item.item_id || '—'}</td>
+					<td>{invoiceItemLabel(item)}</td>
 					<td>{item.internal_code || '—'}</td>
 					<td class="num">{item.quantity}</td>
 					<td class="num">{formatMoney(item.price)}</td>
@@ -182,6 +235,12 @@
 				<tr>
 					<td colspan="4" class="num">Descuento</td>
 					<td class="num">−{formatMoney(data.invoice.discount)}</td>
+				</tr>
+			{/if}
+			{#if Number(data.invoice.tax_amount) > 0}
+				<tr>
+					<td colspan="4" class="num">ITBIS</td>
+					<td class="num">{formatMoney(data.invoice.tax_amount)}</td>
 				</tr>
 			{/if}
 			<tr class="fila-total">
@@ -348,6 +407,8 @@
 		<button type="submit" form="anular-form" class="btn-danger">Anular factura</button>
 	{/snippet}
 </Modal>
+
+<PdfPreviewModal bind:show={verPdf} {pdfUrl} filename={pdfNombre} title="Vista previa de la factura" />
 
 <style>
 	.sec-title {

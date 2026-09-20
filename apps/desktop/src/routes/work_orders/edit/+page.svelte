@@ -68,8 +68,24 @@
         if (cl) selectClient(cl);
       }
 
-      const qItems = await window.api.db.get(
-        'SELECT item_id, package_id, service_id, quantity, price FROM quotation_items WHERE quotation_id = ?',
+      // La cantidad restada -no `qi.quantity` a secas- es lo que ya se facturo
+      // DIRECTO de esta cotizacion (ver `invoice_quotation_items`): si viajara
+      // completa a la orden, esa parte se entregaria, conduciria y facturaria
+      // OTRA VEZ por el camino normal. Una linea de paquete heredada nunca se
+      // factura directo -no tiene `item_id` ni `service_id`-, asi que su resta
+      // siempre da 0 y su cantidad llega intacta.
+      const qItems = await window.api.db.get(`
+        SELECT qi.item_id, qi.package_id, qi.service_id, qi.price,
+               (qi.quantity - COALESCE((
+                 SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+                 WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1
+               ), 0)) AS quantity
+        FROM quotation_items qi
+        WHERE qi.quotation_id = ?
+          AND (qi.quantity - COALESCE((
+                SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+                WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1
+              ), 0)) > 0`,
         [currentWO.quotation_id]
       );
       woItems = [];

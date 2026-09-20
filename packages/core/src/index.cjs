@@ -207,6 +207,108 @@ function calculateQuoteTotals(items) {
   return { subtotal, discount, tax_amount, total: round2(subtotal - discount + tax_amount) };
 }
 
+/**
+ * Gemelo de `src/quotes/use-cases.ts`. Lo necesita `sqlite-invoice.repository.cjs`
+ * para rechazar una factura directa de una cotizacion que no este `aprobada`,
+ * o que ya se haya facturado por completo.
+ */
+function validateQuoteCanInvoiceDirectly(quote, billableLines) {
+  if (quote.status !== 'aprobada') return { ok: false, error: 'quote.must_be_approved_to_invoice' };
+  if (!billableLines.length) return { ok: false, error: 'quote.nothing_billable' };
+  return { ok: true, value: true };
+}
+
+/**
+ * Gemelo de `src/invoices/use-cases.ts`. Ver alli el porque de cada regla: el
+ * comentario no se repite aqui para no arriesgarse a que las dos copias
+ * diverjan en la EXPLICACION mientras el codigo se mantiene igual a mano.
+ */
+function invoiceLineKind(line) {
+  if (line.item_id != null) return 'item';
+  if (line.service_id != null) return 'service';
+  return 'manual';
+}
+
+function validateInvoiceDraft(draft) {
+  const { source } = draft;
+
+  if (source.kind === 'work_order') {
+    if (!source.work_order_id) return { ok: false, error: 'invoice.order.required' };
+    if (!source.conduce_ids.length && !(source.service_line_ids && source.service_line_ids.length)) {
+      return { ok: false, error: 'invoice.order.lines_required' };
+    }
+  } else if (source.kind === 'quotation') {
+    if (!source.quotation_id) return { ok: false, error: 'invoice.quotation.required' };
+    if (!source.lines.length) return { ok: false, error: 'invoice.quotation.lines_required' };
+    for (const linea of source.lines) {
+      const cantidad = Number(linea.quantity);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) return { ok: false, error: 'invoice.line.quantity_invalid' };
+    }
+  } else if (source.kind === 'free') {
+    if (!source.client_id) return { ok: false, error: 'invoice.client.required' };
+    if (!source.lines.length) return { ok: false, error: 'invoice.lines.required' };
+
+    for (const linea of source.lines) {
+      const tieneArticulo = Boolean(linea.item_id);
+      const tieneServicio = Boolean(linea.service_id);
+      if (tieneArticulo && tieneServicio) return { ok: false, error: 'invoice.line.both_refs' };
+      if (!tieneArticulo && !tieneServicio && !String(linea.description || '').trim()) {
+        return { ok: false, error: 'invoice.line.unidentified' };
+      }
+
+      const cantidad = Number(linea.quantity);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) return { ok: false, error: 'invoice.line.quantity_invalid' };
+      const precio = Number(linea.price);
+      if (!Number.isFinite(precio) || precio < 0) return { ok: false, error: 'invoice.line.price_invalid' };
+
+      if (linea.discount_rate != null) {
+        const tasa = Number(linea.discount_rate);
+        if (!Number.isFinite(tasa) || tasa < 0 || tasa > 100) return { ok: false, error: 'invoice.line.rate_invalid' };
+      }
+      if (linea.tax_rate != null) {
+        const tasa = Number(linea.tax_rate);
+        if (!Number.isFinite(tasa) || tasa < 0) return { ok: false, error: 'invoice.line.rate_invalid' };
+      }
+    }
+  } else {
+    return { ok: false, error: 'invoice.source.invalid' };
+  }
+
+  if (draft.discount != null) {
+    const descuento = Number(draft.discount);
+    if (!Number.isFinite(descuento) || descuento < 0) return { ok: false, error: 'invoice.discount.invalid' };
+  }
+  if (draft.tax_amount != null) {
+    const impuesto = Number(draft.tax_amount);
+    if (!Number.isFinite(impuesto) || impuesto < 0) return { ok: false, error: 'invoice.discount.invalid' };
+  }
+
+  return { ok: true, value: true };
+}
+
+const INVOICE_DRAFT_ERRORS = {
+  'invoice.order.required': 'Falta la orden de trabajo.',
+  'invoice.order.lines_required': 'Elija al menos una entrega o un servicio para facturar.',
+  'invoice.quotation.required': 'Falta la cotización.',
+  'invoice.quotation.lines_required': 'Elija al menos una línea de la cotización para facturar.',
+  'invoice.client.required': 'Elija el cliente.',
+  'invoice.lines.required': 'Agregue al menos una línea a la factura.',
+  'invoice.line.both_refs': 'Una línea no puede ser artículo y servicio a la vez.',
+  'invoice.line.unidentified': 'Escriba una descripción para la línea manual.',
+  'invoice.line.quantity_invalid': 'Las cantidades tienen que ser mayores que cero.',
+  'invoice.line.price_invalid': 'Los precios no pueden ser negativos.',
+  'invoice.line.rate_invalid': 'Las tasas de descuento e impuesto no son válidas.',
+  'invoice.discount.invalid': 'El descuento y el impuesto no pueden ser negativos.',
+  'invoice.source.invalid': 'La factura no indica un origen válido.',
+  'quote.must_be_approved_to_invoice': 'Solo se puede facturar directamente una cotización aprobada.',
+  'quote.nothing_billable': 'Esta cotización ya está facturada por completo.',
+  'quote_item.already_billed': 'Esa línea ya está facturada: anule la factura para poder modificarla.'
+};
+
+function invoiceDraftErrorMessage(code) {
+  return INVOICE_DRAFT_ERRORS[code || ''] || 'No se pudo emitir la factura.';
+}
+
 module.exports = {
   calculateQuoteLineAmounts,
   calculateQuoteLineTotal,
@@ -216,6 +318,8 @@ module.exports = {
   formatInsufficientStockDetail,
   getIncidentSeverityTone,
   getIncidentStatusBadgeKind,
+  invoiceDraftErrorMessage,
+  invoiceLineKind,
   isSerializedInventoryItem,
   normalizeSerializedInventoryInput,
   normalizeSerializedRentalLine,
@@ -224,6 +328,8 @@ module.exports = {
   shouldReserveStock,
   uniqueSerialLines,
   validateIncidentDraft,
+  validateInvoiceDraft,
+  validateQuoteCanInvoiceDirectly,
   validateSerialCatalogInput,
   validateSerializedRentalLines
 };

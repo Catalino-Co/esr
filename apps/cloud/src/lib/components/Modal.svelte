@@ -16,6 +16,9 @@
 		title,
 		/** 'sm' una columna | 'md' dos columnas | 'lg' tres. */
 		size = 'md',
+		/** Pantalla completa en movil -ver el `<style>`-. Para dialogos de "agregar
+		 *  algo" que en un telefono no caben como tarjeta centrada. */
+		hojaMovil = false,
 		onclose = null,
 		children,
 		footer = null
@@ -94,6 +97,7 @@
 			class="modal"
 			class:modal-sm={size === 'sm'}
 			class:modal-lg={size === 'lg'}
+			class:modal--hoja={hojaMovil}
 			role="dialog"
 			aria-modal="true"
 			aria-label={title}
@@ -128,5 +132,29 @@
 	   quitarle el margen que el navegador le pone por ser un encabezado. */
 	.modal-title {
 		margin: 0;
+	}
+
+	/* Pantalla completa en movil, solo para quien pide `hojaMovil`. `svh` y no
+	   `vh`: en iOS `vh` cuenta la barra de navegador, y el dialogo quedaba mas
+	   alto que la ventana visible. Sin animacion: el desplazamiento de un
+	   dialogo de 560px se ve como un salto raro a pantalla completa. */
+	@media (max-width: 560px) {
+		.modal--hoja {
+			width: 100%;
+			max-width: none;
+			height: 100svh;
+			max-height: 100svh;
+			border-radius: 0;
+			animation: none;
+		}
+		.modal--hoja .modal-footer {
+			padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+		}
+		/* Los botones del pie los manda `footer()`, un snippet de quien llama:
+		   sus elementos no llevan el scope de ESTE componente. */
+		.modal--hoja .modal-footer :global(> *) {
+			flex: 1;
+			justify-content: center;
+		}
 	}
 </style>

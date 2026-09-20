@@ -48,3 +48,33 @@ export function quoteDocumentFilename(quotation) {
   const limpio = quoteDocumentNumber(quotation).replace(/[^\w-]/g, '');
   return `Cotizacion_${limpio || 'sin-numero'}.pdf`;
 }
+
+/**
+ * Etiqueta de una linea de FACTURA.
+ *
+ * Casi `quoteItemLabel`, pero no se puede reutilizar tal cual: una linea de
+ * factura guarda su texto en `description`, no en `name` -y una factura
+ * ademas tiene un tercer caso que una cotizacion no tiene: el CARGO MANUAL,
+ * ni articulo ni servicio, cuyo unico dato es ese texto y que por eso no
+ * lleva ningun prefijo -es justo lo que lo distingue de los otros dos-.
+ */
+export function invoiceItemLabel(line) {
+  const nombre = String(line?.description ?? '').trim() || 'Sin descripción';
+  if (line?.service_id != null) return `[Servicio] ${nombre}`;
+  if (line?.item_id == null) return nombre;
+  const codigo = String(line?.internal_code ?? '').trim();
+  return codigo ? `${nombre} (${codigo})` : nombre;
+}
+
+/** Numero visible de una factura. Espejo de `quoteDocumentNumber`. */
+export function invoiceDocumentNumber(invoice) {
+  const numero = String(invoice?.invoice_number ?? '').trim();
+  if (numero) return numero;
+  return `#${String(invoice?.id ?? '').padStart(5, '0')}`;
+}
+
+/** Nombre de fichero seguro para el PDF de una factura. */
+export function invoiceDocumentFilename(invoice) {
+  const limpio = invoiceDocumentNumber(invoice).replace(/[^\w-]/g, '');
+  return `Factura_${limpio || 'sin-numero'}.pdf`;
+}

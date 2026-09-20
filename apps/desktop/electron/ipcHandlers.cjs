@@ -101,14 +101,21 @@ function setupIpcHandlers() {
     facturacion.searchInvoices(termino, limite)
   );
   ipcMain.handle('invoices:findById', (event, id) => facturacion.findInvoice(id));
+  ipcMain.handle('invoices:findForDocument', (event, id) => facturacion.findInvoiceForDocument(id));
   ipcMain.handle('invoices:listItems', (event, id) => facturacion.listInvoiceItems(id));
   ipcMain.handle('invoices:listConduces', (event, id) => facturacion.listInvoiceConduces(id));
   ipcMain.handle('invoices:listBillable', (event, woId) => facturacion.listBillableConduces(woId));
   ipcMain.handle('invoices:listBillableServices', (event, woId) =>
     facturacion.listBillableServices(woId)
   );
+  ipcMain.handle('invoices:listBillableQuotationItems', (event, quotationId) =>
+    facturacion.listBillableQuotationItems(quotationId)
+  );
   ipcMain.handle('invoices:listOrdersWithBillable', (event, options) =>
     facturacion.listOrdersWithBillable(options)
+  );
+  ipcMain.handle('invoices:listQuotationsWithBillable', (event, options) =>
+    facturacion.listQuotationsWithBillable(options)
   );
   ipcMain.handle('invoices:findByConduce', (event, id) => facturacion.findInvoiceByConduce(id));
   ipcMain.handle('invoices:previewLines', (event, ids) => facturacion.previewInvoiceLines(ids));

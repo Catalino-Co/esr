@@ -198,6 +198,29 @@ export function validateQuoteCanConvert(quote: Pick<Quote, 'status'>, items: Quo
 	return ok(true);
 }
 
+/**
+ * Facturar una cotizacion DIRECTAMENTE, sin pasar por una orden.
+ *
+ * Solo `aprobada`: un borrador no es un acuerdo todavia, y una `convertida`
+ * ya mudo sus lineas pendientes a una orden -alli se cobran por su propio
+ * camino (conduces/servicios), facturarla otra vez directo la duplicaria-.
+ * No hace falta repetir la rama `=== 'convertida'` de `validateQuoteCanConvert`:
+ * aqui es inalcanzable, porque el `!== 'aprobada'` de arriba ya la atrapa.
+ *
+ * `billableLines` son las lineas de la cotizacion que TODAVIA tienen cantidad
+ * pendiente de facturar (`quantity - lo ya facturado > 0`) -no las lineas
+ * crudas de la cotizacion-, para que una cotizacion ya facturada por completo
+ * tambien se rechace aunque su estado siga en `aprobada`.
+ */
+export function validateQuoteCanInvoiceDirectly(
+	quote: Pick<Quote, 'status'>,
+	billableLines: readonly unknown[]
+): UseCaseResult<true> {
+	if (quote.status !== 'aprobada') return fail('quote.must_be_approved_to_invoice');
+	if (!billableLines.length) return fail('quote.nothing_billable');
+	return ok(true);
+}
+
 export function validateQuoteCanEdit(quote: Pick<Quote, 'status'>): UseCaseResult<true> {
 	if (quote.status === 'convertida' || quote.status === 'cancelada') {
 		return fail('quote.cannot_edit_status');

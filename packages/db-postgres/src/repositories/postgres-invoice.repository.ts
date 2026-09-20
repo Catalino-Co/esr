@@ -1,6 +1,6 @@
 import type { RecordStateFilter, RepositoryContext } from '@esr/core';
 import { requireCompanyId } from '@esr/core';
-import type { ESRId, Invoice, InvoiceConduce, InvoiceItem } from '@esr/schemas';
+import type { ESRId, Invoice, InvoiceConduce, InvoiceItem, InvoiceQuotationItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
 import { appendStateFilter } from './state-filter';
@@ -13,6 +13,7 @@ export type InvoiceListFilters = {
 	status?: string;
 	client_id?: ESRId;
 	work_order_id?: ESRId;
+	quotation_id?: ESRId;
 	/** Numero de factura o nombre de cliente. */
 	search?: string;
 	/** `YYYY-MM-DD`, ambos inclusive. Ver el docblock de `list()`. */
@@ -28,18 +29,20 @@ export type InvoiceListFilters = {
  * acepta string y redondea a dos decimales.
  */
 const INVOICE_COLUMNS = `
-	inv.id, inv.company_id, inv.invoice_number, inv.work_order_id, inv.client_id,
+	inv.id, inv.company_id, inv.invoice_number, inv.work_order_id, inv.quotation_id, inv.client_id,
 	inv.date, inv.status,
-	inv.subtotal::text AS subtotal, inv.discount::text AS discount, inv.total::text AS total,
+	inv.subtotal::text AS subtotal, inv.discount::text AS discount,
+	inv.tax_amount::text AS tax_amount, inv.total::text AS total,
 	inv.notes, inv.cancelled_at, inv.cancel_reason, inv.is_active,
 	inv.created_at, inv.updated_at,
-	c.name AS client_name, wo.order_number
+	c.name AS client_name, wo.order_number, q.quote_number
 `;
 
 const INVOICE_JOINS = `
 	FROM invoices inv
 	LEFT JOIN clients c ON c.id = inv.client_id AND c.company_id = inv.company_id
 	LEFT JOIN work_orders wo ON wo.id = inv.work_order_id AND wo.company_id = inv.company_id
+	LEFT JOIN quotations q ON q.id = inv.quotation_id AND q.company_id = inv.company_id
 `;
 
 /** Solo las entregas se facturan: una devolucion no se cobra. */
@@ -64,6 +67,22 @@ const SERVICE_NOT_BILLED = `NOT EXISTS (
 	SELECT 1 FROM invoice_work_order_items iwi
 	WHERE iwi.work_order_item_id = woi.id AND iwi.is_active = 1
 )`;
+
+/** Cuanto de una linea de cotizacion cubre ya alguna factura viva. */
+const QUOTE_LINE_BILLED_QTY = `COALESCE((
+	SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+	WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1
+), 0)`;
+
+/**
+ * Lo que queda por facturar de una linea de cotizacion.
+ *
+ * A diferencia de `NOT_BILLED`/`SERVICE_NOT_BILLED` -que son un si/no-, una
+ * cotizacion se factura POR PARTES: lo que importa es la cantidad que
+ * sobra, no si alguna vez se facturo algo de esa linea.
+ */
+const QUOTE_LINE_REMAINING = `(qi.quantity - ${QUOTE_LINE_BILLED_QTY})`;
+const QUOTE_LINE_NOT_BILLED = `${QUOTE_LINE_REMAINING} > 0`;
 
 export class PostgresInvoiceRepository {
 	constructor(private readonly pool: pg.Pool = getPostgresPool()) {}
@@ -92,7 +111,7 @@ export class PostgresInvoiceRepository {
 		const where = ['inv.company_id = $1'];
 		appendStateFilter(params, where, filters.state, 'inv.');
 
-		for (const field of ['status', 'client_id', 'work_order_id'] as const) {
+		for (const field of ['status', 'client_id', 'work_order_id', 'quotation_id'] as const) {
 			const value = filters[field];
 			if (value !== undefined && value !== null && value !== '') {
 				params.push(value);
@@ -171,6 +190,7 @@ export class PostgresInvoiceRepository {
 		const result = await this.db(client).query<InvoiceItem>(
 			`SELECT ii.id, ii.company_id, ii.invoice_id, ii.item_id, ii.service_id, ii.description,
 				ii.quantity::text AS quantity, ii.price::text AS price, ii.total::text AS total,
+				ii.discount_rate::text AS discount_rate, ii.tax_rate::text AS tax_rate,
 				i.internal_code
 			 FROM invoice_items ii
 			 LEFT JOIN items i ON i.id = ii.item_id AND i.company_id = ii.company_id
@@ -249,6 +269,167 @@ export class PostgresInvoiceRepository {
 		return result.rows;
 	}
 
+	/**
+	 * Lineas de una cotizacion con cantidad pendiente de facturar DIRECTO.
+	 *
+	 * Deja fuera las lineas de paquete heredadas (`package_id` sin `item_id` ni
+	 * `service_id`): son el mismo caso que ya descarta la conversion a orden, y
+	 * no tienen nada que facturar por si solas.
+	 */
+	async listBillableQuotationItems(
+		ctx: RepositoryContext,
+		quotationId: ESRId,
+		client?: pg.PoolClient
+	): Promise<
+		Array<{
+			id: ESRId;
+			item_id: ESRId | null;
+			service_id: ESRId | null;
+			name: string | null;
+			internal_code: string | null;
+			quantity: string;
+			billed_quantity: string;
+			remaining: string;
+			price: string;
+			discount_rate: string;
+			tax_rate: string;
+		}>
+	> {
+		const result = await this.db(client).query(
+			`SELECT qi.id, qi.item_id, qi.service_id,
+				COALESCE(qi.name, i.name, s.name) AS name, i.internal_code,
+				qi.quantity::text AS quantity,
+				(${QUOTE_LINE_BILLED_QTY})::text AS billed_quantity,
+				(${QUOTE_LINE_REMAINING})::text AS remaining,
+				qi.price::text AS price,
+				COALESCE(qi.discount_rate, 0)::text AS discount_rate,
+				COALESCE(qi.tax_rate, 0)::text AS tax_rate
+			 FROM quotation_items qi
+			 LEFT JOIN items i ON i.id = qi.item_id AND i.company_id = qi.company_id
+			 LEFT JOIN services s ON s.id = qi.service_id AND s.company_id = qi.company_id
+			 WHERE qi.company_id = $1 AND qi.quotation_id = $2
+			   AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL)
+			   AND ${QUOTE_LINE_NOT_BILLED}
+			 ORDER BY qi.id`,
+			[requireCompanyId(ctx), quotationId]
+		);
+		return result.rows;
+	}
+
+	/**
+	 * Bloquea las lineas elegidas hasta el fin de la transaccion.
+	 *
+	 * Es lo que impide que dos emisiones simultaneas de la misma cotizacion se
+	 * repartan mas cantidad de la que en realidad queda -el indice de
+	 * `invoice_quotation_items` no es unico, asi que sin este lock la carrera
+	 * la ganaria quien llegue de ultimo, no quien de verdad tenia cupo-.
+	 */
+	async lockQuotationItems(
+		ctx: RepositoryContext,
+		quotationItemIds: readonly ESRId[],
+		client: pg.PoolClient
+	): Promise<void> {
+		if (!quotationItemIds.length) return;
+		await client.query(
+			`SELECT id FROM quotation_items WHERE company_id = $1 AND id = ANY($2::bigint[]) FOR UPDATE`,
+			[requireCompanyId(ctx), quotationItemIds]
+		);
+	}
+
+	/** Vincula una linea de cotizacion facturada DIRECTO, con cuanto se factura. Espejo de `linkWorkOrderItem`. */
+	async linkQuotationItem(
+		ctx: RepositoryContext,
+		invoiceId: ESRId,
+		quotationItemId: ESRId,
+		quantity: number,
+		client?: pg.PoolClient
+	): Promise<void> {
+		await this.db(client).query(
+			`INSERT INTO invoice_quotation_items (company_id, invoice_id, quotation_item_id, quantity, is_active)
+			 VALUES ($1, $2, $3, $4, 1)`,
+			[requireCompanyId(ctx), invoiceId, quotationItemId, quantity]
+		);
+	}
+
+	/** Los enlaces de cotizacion de la factura, los liberados por una anulacion incluidos. */
+	async listQuotationItems(
+		ctx: RepositoryContext,
+		invoiceId: ESRId,
+		client?: pg.PoolClient
+	): Promise<InvoiceQuotationItem[]> {
+		const result = await this.db(client).query<InvoiceQuotationItem>(
+			`SELECT iqi.id, iqi.invoice_id, iqi.quotation_item_id, iqi.quantity::text AS quantity, iqi.is_active,
+				COALESCE(qi.name, i.name, s.name) AS name
+			 FROM invoice_quotation_items iqi
+			 JOIN quotation_items qi ON qi.id = iqi.quotation_item_id AND qi.company_id = iqi.company_id
+			 LEFT JOIN items i ON i.id = qi.item_id AND i.company_id = qi.company_id
+			 LEFT JOIN services s ON s.id = qi.service_id AND s.company_id = qi.company_id
+			 WHERE iqi.company_id = $1 AND iqi.invoice_id = $2
+			 ORDER BY iqi.id`,
+			[requireCompanyId(ctx), invoiceId]
+		);
+		return result.rows;
+	}
+
+	/**
+	 * Cuanto se ha facturado DIRECTO de cada linea de una cotizacion.
+	 *
+	 * La usa `QuoteConversionService.convertToWorkOrder` para restar lo ya
+	 * facturado antes de crear la orden con lo que queda -sin esto, esa
+	 * cantidad se entregaria, conduciria y facturaria otra vez por el camino
+	 * normal-.
+	 */
+	async listBilledQuantitiesByQuotation(
+		ctx: RepositoryContext,
+		quotationId: ESRId,
+		client?: pg.PoolClient
+	): Promise<Map<string, number>> {
+		const result = await this.db(client).query<{ quotation_item_id: string; quantity: string }>(
+			`SELECT iqi.quotation_item_id, SUM(iqi.quantity)::text AS quantity
+			 FROM invoice_quotation_items iqi
+			 JOIN quotation_items qi ON qi.id = iqi.quotation_item_id AND qi.company_id = iqi.company_id
+			 WHERE iqi.company_id = $1 AND qi.quotation_id = $2 AND iqi.is_active = 1
+			 GROUP BY iqi.quotation_item_id`,
+			[requireCompanyId(ctx), quotationId]
+		);
+		return new Map(result.rows.map((row) => [String(row.quotation_item_id), Number(row.quantity)]));
+	}
+
+	/** Cotizaciones aprobadas con algo pendiente de facturar directo. Espejo de `listOrdersWithBillable`. */
+	async listQuotationsWithBillable(
+		ctx: RepositoryContext
+	): Promise<
+		Array<{
+			id: ESRId;
+			quote_number: string | null;
+			client_id: ESRId | null;
+			client_name: string | null;
+			date: string | null;
+			pendientes: number;
+			total_pendiente: string;
+		}>
+	> {
+		const pendientes = `(SELECT COUNT(*) FROM quotation_items qi
+			WHERE qi.quotation_id = q.id AND qi.company_id = q.company_id
+			  AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL) AND ${QUOTE_LINE_NOT_BILLED})`;
+		const totalPendiente = `(SELECT COALESCE(SUM(${QUOTE_LINE_REMAINING} * qi.price), 0) FROM quotation_items qi
+			WHERE qi.quotation_id = q.id AND qi.company_id = q.company_id
+			  AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL) AND ${QUOTE_LINE_NOT_BILLED})`;
+		const result = await this.db().query(
+			`SELECT q.id, q.quote_number, q.client_id, c.name AS client_name, q.date,
+				(${pendientes})::int AS pendientes,
+				(${totalPendiente})::text AS total_pendiente
+			 FROM quotations q
+			 LEFT JOIN clients c ON c.id = q.client_id AND c.company_id = q.company_id
+			 WHERE q.company_id = $1 AND q.status = 'aprobada' AND q.is_active = 1
+			   AND (${pendientes}) > 0
+			 ORDER BY q.id DESC
+			 LIMIT 200`,
+			[requireCompanyId(ctx)]
+		);
+		return result.rows;
+	}
+
 	/** Ordenes con alguna entrega o servicio sin facturar. Alimenta el selector de /invoices/new. */
 	async listOrdersWithBillable(
 		ctx: RepositoryContext
@@ -290,10 +471,12 @@ export class PostgresInvoiceRepository {
 		data: {
 			invoice_number: string;
 			work_order_id?: ESRId | null;
+			quotation_id?: ESRId | null;
 			client_id?: ESRId | null;
 			date?: string | null;
 			subtotal: number;
 			discount: number;
+			tax_amount: number;
 			total: number;
 			notes?: string | null;
 		},
@@ -301,18 +484,20 @@ export class PostgresInvoiceRepository {
 	): Promise<Invoice> {
 		const result = await this.db(client).query<Invoice>(
 			`INSERT INTO invoices
-				(company_id, invoice_number, work_order_id, client_id, date, status,
-				 subtotal, discount, total, notes, is_active)
-			 VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE::TEXT), 'emitida', $6, $7, $8, $9, 1)
+				(company_id, invoice_number, work_order_id, quotation_id, client_id, date, status,
+				 subtotal, discount, tax_amount, total, notes, is_active)
+			 VALUES ($1, $2, $3, $4, $5, COALESCE($6, CURRENT_DATE::TEXT), 'emitida', $7, $8, $9, $10, $11, 1)
 			 RETURNING id, invoice_number, total::text AS total`,
 			[
 				requireCompanyId(ctx),
 				data.invoice_number,
 				data.work_order_id ?? null,
+				data.quotation_id ?? null,
 				data.client_id ?? null,
 				data.date || null,
 				data.subtotal,
 				data.discount,
+				data.tax_amount,
 				data.total,
 				data.notes ?? null
 			]
@@ -329,15 +514,20 @@ export class PostgresInvoiceRepository {
 			description?: string | null;
 			quantity: number;
 			price: number;
+			discount_rate?: number;
+			tax_rate?: number;
 		},
 		client?: pg.PoolClient
 	): Promise<void> {
 		await this.db(client).query(
 			// Los ::numeric no son decorativos: sin ellos PostgreSQL no sabe de que
 			// tipo es `$6 * $7` —dos parametros sin tipo— y responde
-			// «operator is not unique: unknown * unknown».
-			`INSERT INTO invoice_items (company_id, invoice_id, item_id, service_id, description, quantity, price, total)
-			 VALUES ($1, $2, $3, $4, $5, $6::numeric, $7::numeric, $6::numeric * $7::numeric)`,
+			// «operator is not unique: unknown * unknown». `total` sigue siendo el
+			// BRUTO (cantidad x precio): el descuento/impuesto de linea se derivan
+			// de `discount_rate`/`tax_rate` al leer, con `calculateQuoteLineAmounts`.
+			`INSERT INTO invoice_items
+				(company_id, invoice_id, item_id, service_id, description, quantity, price, total, discount_rate, tax_rate)
+			 VALUES ($1, $2, $3, $4, $5, $6::numeric, $7::numeric, $6::numeric * $7::numeric, $8, $9)`,
 			[
 				requireCompanyId(ctx),
 				invoiceId,
@@ -345,7 +535,9 @@ export class PostgresInvoiceRepository {
 				line.service_id ?? null,
 				line.description ?? null,
 				line.quantity,
-				line.price
+				line.price,
+				line.discount_rate ?? 0,
+				line.tax_rate ?? 0
 			]
 		);
 	}
@@ -406,6 +598,11 @@ export class PostgresInvoiceRepository {
 		);
 		await this.db(client).query(
 			`UPDATE invoice_work_order_items SET is_active = 0
+			 WHERE company_id = $1 AND invoice_id = $2`,
+			[companyId, id]
+		);
+		await this.db(client).query(
+			`UPDATE invoice_quotation_items SET is_active = 0
 			 WHERE company_id = $1 AND invoice_id = $2`,
 			[companyId, id]
 		);

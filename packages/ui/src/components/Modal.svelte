@@ -2,6 +2,9 @@
   export let show = false;
   export let title = "Modal Title";
   export let maxWidth = "500px";
+  /** Pantalla completa en movil -ver el `<style>`-. Para dialogos de "agregar
+   *  algo" que en un telefono no caben como tarjeta centrada. */
+  export let hojaMovil = false;
 
   function close() {
     show = false;
@@ -12,7 +15,8 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop" on:click={close}>
-    <div class="modal-content" style="max-width: {maxWidth}; width: 100%;" on:click|stopPropagation>
+    <div class="modal-content" class:modal-content--hoja={hojaMovil}
+         style="max-width: {maxWidth}; width: 100%;" on:click|stopPropagation>
       <div class="modal-header">
         <h3 class="modal-title">{title}</h3>
         <button class="modal-close" on:click={close} aria-label="Cerrar">&times;</button>
@@ -84,5 +88,27 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pantalla completa en movil, solo para quien pide `hojaMovil`. `svh` y no
+     `vh`: en iOS `vh` cuenta la barra de navegador. Sin animacion: el
+     desplazamiento de un dialogo pequeño se ve como un salto raro a pantalla
+     completa. */
+  @media (max-width: 560px) {
+    .modal-content--hoja {
+      max-width: none !important;
+      width: 100%;
+      height: 100svh;
+      max-height: 100svh;
+      border-radius: 0;
+      animation: none;
+    }
+    .modal-content--hoja .modal-footer {
+      flex-wrap: wrap;
+    }
+    .modal-content--hoja .modal-footer > :global(*) {
+      flex: 1;
+      justify-content: center;
+    }
   }
 </style>

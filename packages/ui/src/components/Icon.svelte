@@ -91,7 +91,34 @@
     // Agregar. La cruz de Lucide, para un boton de icono solo que lleva a un
     // alta -en la ficha del articulo, hacia el modal "Nuevo articulo" del
     // listado-, sin repetir la etiqueta del boton que abre ese mismo modal.
-    plus: ['M12 5v14', 'M5 12h14']
+    plus: ['M12 5v14', 'M5 12h14'],
+    // Orden de trabajo: la tablilla con sujetapapeles. Selector de origen de
+    // "Nueva factura" -"Desde una orden"-.
+    clipboard: [
+      'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2',
+      'M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z'
+    ],
+    // Cotizacion: la hoja con lineas de texto. Selector de origen de "Nueva
+    // factura" -"Desde una cotización"-.
+    fileText: [
+      'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z',
+      'M14 2v4a2 2 0 0 0 2 2h4',
+      'M10 9H8',
+      'M16 13H8',
+      'M16 17H8'
+    ],
+    // Escribir a mano: el lapiz. Selector de origen de "Nueva factura"
+    // -"Factura directa", sin cotizacion ni orden detras-.
+    penLine: [
+      'M12 20h9',
+      'M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z'
+    ],
+    // Cliente: la persona. Usado por el `SearchPicker` de cliente en "Nueva
+    // factura" -orden, cotizacion y directa- en las dos apps.
+    user: [
+      'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2',
+      'M16 7a4 4 0 1 1-8 0a4 4 0 0 1 8 0'
+    ]
   };
 
   export let name;

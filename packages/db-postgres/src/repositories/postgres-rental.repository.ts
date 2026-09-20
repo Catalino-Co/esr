@@ -1,5 +1,5 @@
 import type { RecordState, RentalOrderListFilters, RepositoryContext, TenantCreateRentalOrderInput, TenantRentalOrderRepository } from '@esr/core';
-import { DEFAULT_RECORD_STATE, RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
+import { calculateQuoteTotals, DEFAULT_RECORD_STATE, RECORD_STATE, requireCompanyId, todayISO } from '@esr/core';
 import type { ESRId, Quote, QuoteItem, RentalOrder, RentalOrderItem } from '@esr/schemas';
 import type pg from 'pg';
 import { getPostgresPool } from '../connection';
@@ -42,6 +42,12 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 		const companyId = requireCompanyId(ctx);
 		const db = this.queryClient(client);
 		const orderNumber = await this.nextOrderNumber(ctx, client);
+		// Los totales se RECALCULAN sobre `items`, no se copian de `quote`: desde
+		// que una cotizacion se puede facturar DIRECTO por partes, `quote.total`
+		// describe el ORIGINAL completo, no necesariamente lo que de verdad se
+		// convierte aqui -quien llama (`QuoteConversionService`) ya filtro fuera
+		// lo que se facturo antes de llegar-.
+		const totales = calculateQuoteTotals(items);
 		const result = await db.query<RentalOrder>(
 			`INSERT INTO work_orders
 				(company_id, client_id, event_id, quotation_id, order_number, date,
@@ -55,10 +61,10 @@ export class PostgresRentalRepository implements TenantRentalOrderRepository {
 				quote.id,
 				orderNumber,
 				quote.date || todayISO(),
-				quote.subtotal ?? 0,
-				quote.discount ?? 0,
-				quote.tax_amount ?? 0,
-				quote.total ?? 0,
+				totales.subtotal,
+				totales.discount,
+				totales.tax_amount,
+				totales.total,
 				quote.notes || null,
 				'confirmado'
 			]
