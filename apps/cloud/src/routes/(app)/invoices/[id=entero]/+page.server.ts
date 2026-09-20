@@ -1,23 +1,15 @@
 import { error, fail } from '@sveltejs/kit';
-import {
-	canVoidPayment,
-	RECORD_STATE,
-	summarizePayments,
-	todayISO,
-	validatePaymentAmount
-} from '@esr/core';
+import { canVoidPayment, summarizePayments, todayISO, validatePaymentAmount } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import {
+	getCustomerRepository,
 	getInvoiceRepository,
 	getInvoiceService,
 	getPaymentRepository
 } from '$lib/server/repositories';
 import { requirePermission } from '$lib/server/permissions';
 import { toTenantContext } from '$lib/server/tenant';
-
-/** Una factura anulada no admite cobros nuevos. */
-const CANCELLED = 'anulada';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const { companyId } = requirePermission(locals, 'invoices.view');
@@ -26,10 +18,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const invoice = await getInvoiceRepository().findById(ctx, params.id);
 	if (!invoice) error(404, 'Factura no encontrada');
 
-	const [items, conduces, payments] = await Promise.all([
+	const [items, conduces, payments, customer] = await Promise.all([
 		getInvoiceRepository().listItems(ctx, params.id),
 		getInvoiceRepository().listConduces(ctx, params.id),
-		getPaymentRepository().listForInvoice(ctx, params.id)
+		getPaymentRepository().listForInvoice(ctx, params.id),
+		invoice.client_id ? getCustomerRepository().findById(ctx, invoice.client_id) : Promise.resolve(null)
 	]);
 
 	return {
@@ -37,8 +30,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		items,
 		conduces,
 		payments,
+		customer,
 		summary: summarizePayments(invoice.total, payments),
-		cobrable: invoice.status !== CANCELLED
+		// Un borrador todavia no es un compromiso firme: antes el corte era solo
+		// «no anulada», ahora tiene que estar ademas emitida. Ni un borrador ni
+		// una anulada admiten cobro.
+		cobrable: invoice.status === 'emitida'
 	};
 };
 
@@ -50,8 +47,8 @@ export const actions: Actions = {
 
 		const invoice = await getInvoiceRepository().findById(ctx, event.params.id);
 		if (!invoice) error(404, 'Factura no encontrada');
-		if (invoice.status === CANCELLED) {
-			return fail(400, { error: 'Una factura anulada no admite cobros.' });
+		if (invoice.status !== 'emitida') {
+			return fail(400, { error: 'Solo se puede registrar un cobro en una factura emitida.' });
 		}
 
 		const values = {
@@ -159,34 +156,30 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * Estado de CIRCULACION, que es otro eje que el de negocio: una factura
-	 * anulada sigue estando activa —se consulta— hasta que se archiva. Nunca
-	 * borra: la fila permanece.
+	 * Un borrador pasa a ser una factura firme: numeracion definitiva y ya no
+	 * editable. El servicio es quien valida que tenga lineas y lo que haga
+	 * falta; aqui solo se traduce su rechazo a un mensaje de formulario.
 	 */
-	setState: async (event) => {
-		const { companyId } = requirePermission(event.locals, 'invoices.archive');
+	finalize: async (event) => {
+		const { companyId } = requirePermission(event.locals, 'invoices.finalize');
 		const ctx = toTenantContext(companyId);
-		const form = await event.request.formData();
-		const state = Number(form.get('state'));
-
-		const permitidos: number[] = [RECORD_STATE.ACTIVE, RECORD_STATE.INACTIVE, RECORD_STATE.ARCHIVED];
-		if (!permitidos.includes(state)) {
-			return fail(400, { error: 'Estado no válido.' });
+		let resultado;
+		try {
+			resultado = await getInvoiceService().finalize(ctx, event.params.id);
+		} catch (err) {
+			return fail(400, { error: (err as Error).message });
 		}
 
-		const invoice = await getInvoiceRepository().findById(ctx, event.params.id);
-		if (!invoice) error(404, 'Factura no encontrada');
-
-		await getInvoiceRepository().setState(ctx, event.params.id, state);
-
 		await recordAuditLog(event, {
-			action: state === RECORD_STATE.ARCHIVED ? 'invoice.archived' : 'invoice.restored',
+			action: 'invoice.finalized',
 			entity_type: 'invoice',
 			entity_id: String(event.params.id),
-			description: `Factura ${invoice.invoice_number} pasó a estado ${state}`,
-			metadata: { state }
+			description: `Factura ${resultado.invoice_number} finalizada`
 		});
 
-		return { success: state === RECORD_STATE.ARCHIVED ? 'Factura archivada.' : 'Factura restaurada.' };
+		// Mensaje explicito y no `true`: el mismo `$effect` que muestra el error
+		// de esta pantalla tambien enseña `form.success` en un toast, y el resto
+		// de las acciones de este archivo ya devuelven una frase, no un booleano.
+		return { success: 'Factura finalizada.' };
 	}
 };

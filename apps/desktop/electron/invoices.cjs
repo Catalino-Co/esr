@@ -32,14 +32,22 @@ module.exports = {
   findInvoiceForDocument: envolver((id) => invoices.findForDocument(id)),
   listInvoiceItems: envolver((id) => invoices.listItems(id)),
   listInvoiceConduces: envolver((id) => invoices.listConduces(id)),
-  listBillableConduces: envolver((workOrderId) => invoices.listBillableConduces(workOrderId)),
-  listBillableServices: envolver((workOrderId) => invoices.listBillableServices(workOrderId)),
-  listBillableQuotationItems: envolver((quotationId) => invoices.listBillableQuotationItems(quotationId)),
+  // `options` es NUEVO y opcional -hoy solo lo manda la pantalla de editar un
+  // borrador, con `{ alsoClaimedByInvoiceId }`- para que la lista de lo
+  // facturable tambien traiga lo que YA reclamo ese borrador y no solo lo que
+  // sigue libre. Sin el, el repositorio se comporta como siempre.
+  listBillableConduces: envolver((workOrderId, options) => invoices.listBillableConduces(workOrderId, options)),
+  listBillableServices: envolver((workOrderId, options) => invoices.listBillableServices(workOrderId, options)),
+  listBillableQuotationItems: envolver((quotationId, options) =>
+    invoices.listBillableQuotationItems(quotationId, options)
+  ),
   listOrdersWithBillable: envolver((options) => invoices.listOrdersWithBillable(options)),
   listQuotationsWithBillable: envolver((options) => invoices.listQuotationsWithBillable(options)),
   findInvoiceByConduce: envolver((conduceId) => invoices.findActiveByConduce(conduceId)),
   previewInvoiceLines: envolver((conduceIds) => invoices.previewLines(conduceIds)),
   createInvoice: envolver((input) => invoices.create(input)),
+  updateDraftInvoice: envolver((id, input) => invoices.updateDraft(id, input)),
+  finalizeInvoice: envolver((id) => invoices.finalize(id)),
   // La anulacion necesita el repositorio de cobros porque los anula dentro de su
   // misma transaccion.
   cancelInvoice: envolver((id, reason) => invoices.cancel(id, reason, payments)),

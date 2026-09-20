@@ -1,4 +1,4 @@
-import type { ESRId, InvoiceItem } from '@esr/schemas';
+import type { ESRId, Invoice, InvoiceItem } from '@esr/schemas';
 import { fail, ok, type UseCaseResult } from '../shared/result';
 
 /**
@@ -142,6 +142,39 @@ export function validateInvoiceDraft(draft: InvoiceDraft): UseCaseResult<true> {
 	return ok(true);
 }
 
+/** Solo un borrador se puede editar: emitida y anulada son terminales. */
+export function validateInvoiceCanEdit(invoice: Pick<Invoice, 'status'>): UseCaseResult<true> {
+	if (invoice.status !== 'borrador') return fail('invoice.cannot_edit_status');
+	return ok(true);
+}
+
+/**
+ * El origen de una factura queda fijo desde la creacion (ver docblock de
+ * `InvoiceSourceDraft`); editar un borrador no lo puede cambiar de uno a
+ * otro, solo las lineas/cantidades DENTRO del mismo origen.
+ */
+export function validateInvoiceSourceUnchanged(
+	invoice: Pick<Invoice, 'work_order_id' | 'quotation_id'>,
+	source: InvoiceSourceDraft
+): UseCaseResult<true> {
+	const mismoOrigen =
+		(source.kind === 'work_order' && Boolean(invoice.work_order_id)) ||
+		(source.kind === 'quotation' && Boolean(invoice.quotation_id)) ||
+		(source.kind === 'free' && !invoice.work_order_id && !invoice.quotation_id);
+	if (!mismoOrigen) return fail('invoice.source.immutable');
+	return ok(true);
+}
+
+/** Finalizar exige un borrador con al menos una linea. Espejo de `validateQuoteCanApprove`. */
+export function validateInvoiceCanFinalize(
+	invoice: Pick<Invoice, 'status'>,
+	lineCount: number
+): UseCaseResult<true> {
+	if (invoice.status !== 'borrador') return fail('invoice.cannot_finalize_status');
+	if (!lineCount) return fail('invoice.lines.required');
+	return ok(true);
+}
+
 /** Mensajes de `validateInvoiceDraft` y de las validaciones de cotizacion asociadas. */
 export const INVOICE_DRAFT_ERRORS: Record<string, string> = {
 	'invoice.order.required': 'Falta la orden de trabajo.',
@@ -157,6 +190,9 @@ export const INVOICE_DRAFT_ERRORS: Record<string, string> = {
 	'invoice.line.rate_invalid': 'Las tasas de descuento e impuesto no son válidas.',
 	'invoice.discount.invalid': 'El descuento y el impuesto no pueden ser negativos.',
 	'invoice.source.invalid': 'La factura no indica un origen válido.',
+	'invoice.cannot_edit_status': 'Solo una factura en borrador se puede editar.',
+	'invoice.cannot_finalize_status': 'Solo una factura en borrador se puede finalizar.',
+	'invoice.source.immutable': 'El origen de una factura no se puede cambiar al editar un borrador.',
 	'quote.must_be_approved_to_invoice': 'Solo se puede facturar directamente una cotización aprobada.',
 	'quote.nothing_billable': 'Esta cotización ya está facturada por completo.',
 	'quote_item.already_billed': 'Esa línea ya está facturada: anule la factura para poder modificarla.'

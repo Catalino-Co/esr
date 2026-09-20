@@ -9,10 +9,16 @@ import type { ESRId, Nullable } from './shared';
  * ninguno de los dos -factura libre, solo cliente y lineas escritas a mano-.
  * El conduce sigue siendo la nota de entrega; la factura es lo que se cobra.
  *
- * Solo dos estados. «Cobrada» no se guarda: se deriva de los pagos, y guardarlo
- * lo condenaria a desincronizarse del saldo real.
+ * Tres estados, no dos. Nace `borrador` -editable: se le pueden cambiar las
+ * lineas, el cliente (si es libre) y los ajustes de cabecera mientras nadie
+ * la trate como definitiva- y una accion aparte ("Finalizar factura") la
+ * deja `emitida`, que sigue siendo el unico estado que admite cobros y a
+ * partir del cual ya no se edita. `anulada` se alcanza desde cualquiera de
+ * los otros dos -anular un borrador es como se descarta, sin inventar un
+ * concepto nuevo de "descartar"-. «Cobrada» sigue sin guardarse: se deriva
+ * de los pagos, y guardarlo la condenaria a desincronizarse del saldo real.
  */
-export type InvoiceStatus = 'emitida' | 'anulada' | string;
+export type InvoiceStatus = 'borrador' | 'emitida' | 'anulada' | string;
 
 export type Invoice = {
 	id?: Nullable<ESRId>;

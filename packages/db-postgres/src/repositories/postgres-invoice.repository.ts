@@ -228,21 +228,45 @@ export class PostgresInvoiceRepository {
 	async listBillableConduces(
 		ctx: RepositoryContext,
 		workOrderId: ESRId,
-		client?: pg.PoolClient
+		client?: pg.PoolClient,
+		options?: { alsoClaimedByInvoiceId?: ESRId }
 	): Promise<
 		Array<{ id: ESRId; note_number: string; date: string | null; total: string; lineas: number }>
 	> {
+		const params: unknown[] = [requireCompanyId(ctx), workOrderId];
+		// Igual que `NOT_BILLED`, pero sin contar como "ya facturado" lo que
+		// reclama la PROPIA factura que se esta editando -para que su pantalla de
+		// edicion pueda seguir mostrando sus propias entregas ya elegidas-.
+		let notBilled = NOT_BILLED;
+		// `already_claimed`: sin esto, la pantalla de edicion no tiene forma de
+		// distinguir "disponible de verdad" de "disponible solo porque es mio":
+		// ambos casos aparecen en la lista por el `notBilled` de arriba. Reusa el
+		// mismo parametro -misma factura- que la exclusion.
+		let alreadyClaimedExpr = 'false';
+		if (options?.alsoClaimedByInvoiceId) {
+			params.push(options.alsoClaimedByInvoiceId);
+			const idx = params.length;
+			notBilled = `NOT EXISTS (
+				SELECT 1 FROM invoice_conduces ic
+				WHERE ic.conduce_id = co.id AND ic.is_active = 1 AND ic.invoice_id <> $${idx}
+			)`;
+			alreadyClaimedExpr = `EXISTS (
+				SELECT 1 FROM invoice_conduces ic2
+				WHERE ic2.conduce_id = co.id AND ic2.is_active = 1 AND ic2.invoice_id = $${idx}
+			)`;
+		}
 		const result = await this.db(client).query(
 			`SELECT co.id, co.note_number, co.date, co.total::text AS total,
-				(SELECT COUNT(*) FROM conduce_items ci WHERE ci.conduce_id = co.id)::int AS lineas
+				(SELECT COUNT(*) FROM conduce_items ci WHERE ci.conduce_id = co.id)::int AS lineas,
+				${alreadyClaimedExpr} AS already_claimed
 			 FROM conduces co
 			 WHERE co.company_id = $1
 			   AND co.work_order_id = $2
 			   AND ${DELIVERY_ONLY}
 			   AND co.status <> 'anulado'
-			   AND ${NOT_BILLED}
+			   AND ${notBilled}
 			 ORDER BY co.id`,
-			[requireCompanyId(ctx), workOrderId]
+			params
 		);
 		return result.rows;
 	}
@@ -255,16 +279,35 @@ export class PostgresInvoiceRepository {
 	async listBillableServices(
 		ctx: RepositoryContext,
 		workOrderId: ESRId,
-		client?: pg.PoolClient
+		client?: pg.PoolClient,
+		options?: { alsoClaimedByInvoiceId?: ESRId }
 	): Promise<Array<{ id: ESRId; service_id: ESRId; name: string; quantity: string; price: string }>> {
+		const params: unknown[] = [requireCompanyId(ctx), workOrderId];
+		// Espejo de la excepcion de `listBillableConduces`: lo que la PROPIA
+		// factura en edicion ya reclamo no cuenta como "ya facturado" para ella.
+		let serviceNotBilled = SERVICE_NOT_BILLED;
+		let alreadyClaimedExpr = 'false';
+		if (options?.alsoClaimedByInvoiceId) {
+			params.push(options.alsoClaimedByInvoiceId);
+			const idx = params.length;
+			serviceNotBilled = `NOT EXISTS (
+				SELECT 1 FROM invoice_work_order_items iwi
+				WHERE iwi.work_order_item_id = woi.id AND iwi.is_active = 1 AND iwi.invoice_id <> $${idx}
+			)`;
+			alreadyClaimedExpr = `EXISTS (
+				SELECT 1 FROM invoice_work_order_items iwi2
+				WHERE iwi2.work_order_item_id = woi.id AND iwi2.is_active = 1 AND iwi2.invoice_id = $${idx}
+			)`;
+		}
 		const result = await this.db(client).query(
 			`SELECT woi.id, woi.service_id, s.name,
-				woi.quantity::text AS quantity, woi.price::text AS price
+				woi.quantity::text AS quantity, woi.price::text AS price,
+				${alreadyClaimedExpr} AS already_claimed
 			 FROM work_order_items woi
 			 JOIN services s ON s.id = woi.service_id AND s.company_id = woi.company_id
-			 WHERE woi.company_id = $1 AND woi.work_order_id = $2 AND ${SERVICE_NOT_BILLED}
+			 WHERE woi.company_id = $1 AND woi.work_order_id = $2 AND ${serviceNotBilled}
 			 ORDER BY woi.id`,
-			[requireCompanyId(ctx), workOrderId]
+			params
 		);
 		return result.rows;
 	}
@@ -279,7 +322,8 @@ export class PostgresInvoiceRepository {
 	async listBillableQuotationItems(
 		ctx: RepositoryContext,
 		quotationId: ESRId,
-		client?: pg.PoolClient
+		client?: pg.PoolClient,
+		options?: { alsoClaimedByInvoiceId?: ESRId }
 	): Promise<
 		Array<{
 			id: ESRId;
@@ -295,12 +339,36 @@ export class PostgresInvoiceRepository {
 			tax_rate: string;
 		}>
 	> {
+		const params: unknown[] = [requireCompanyId(ctx), quotationId];
+		// Espejo de la excepcion de `listBillableConduces`: lo que la PROPIA
+		// factura en edicion ya reclamo de esta linea no resta de "lo pendiente".
+		let billedQty = QUOTE_LINE_BILLED_QTY;
+		// `claimed_quantity`: cuanto de esta linea reclama YA esta factura en
+		// concreto -distinto de `remaining`, que es cuanto podria reclamar en
+		// total contando lo suyo como libre-. Sin esto la pantalla de edicion no
+		// puede pre-rellenar la cantidad de una linea que ya tenia elegida.
+		let claimedQtyExpr = '0';
+		if (options?.alsoClaimedByInvoiceId) {
+			params.push(options.alsoClaimedByInvoiceId);
+			const idx = params.length;
+			billedQty = `COALESCE((
+				SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+				WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1 AND iqi.invoice_id <> $${idx}
+			), 0)`;
+			claimedQtyExpr = `COALESCE((
+				SELECT SUM(iqi2.quantity) FROM invoice_quotation_items iqi2
+				WHERE iqi2.quotation_item_id = qi.id AND iqi2.is_active = 1 AND iqi2.invoice_id = $${idx}
+			), 0)`;
+		}
+		const remaining = `(qi.quantity - ${billedQty})`;
+		const notBilled = `${remaining} > 0`;
 		const result = await this.db(client).query(
 			`SELECT qi.id, qi.item_id, qi.service_id,
 				COALESCE(qi.name, i.name, s.name) AS name, i.internal_code,
 				qi.quantity::text AS quantity,
-				(${QUOTE_LINE_BILLED_QTY})::text AS billed_quantity,
-				(${QUOTE_LINE_REMAINING})::text AS remaining,
+				(${billedQty})::text AS billed_quantity,
+				(${remaining})::text AS remaining,
+				(${claimedQtyExpr})::text AS claimed_quantity,
 				qi.price::text AS price,
 				COALESCE(qi.discount_rate, 0)::text AS discount_rate,
 				COALESCE(qi.tax_rate, 0)::text AS tax_rate
@@ -309,9 +377,9 @@ export class PostgresInvoiceRepository {
 			 LEFT JOIN services s ON s.id = qi.service_id AND s.company_id = qi.company_id
 			 WHERE qi.company_id = $1 AND qi.quotation_id = $2
 			   AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL)
-			   AND ${QUOTE_LINE_NOT_BILLED}
+			   AND ${notBilled}
 			 ORDER BY qi.id`,
-			[requireCompanyId(ctx), quotationId]
+			params
 		);
 		return result.rows;
 	}
@@ -486,7 +554,7 @@ export class PostgresInvoiceRepository {
 			`INSERT INTO invoices
 				(company_id, invoice_number, work_order_id, quotation_id, client_id, date, status,
 				 subtotal, discount, tax_amount, total, notes, is_active)
-			 VALUES ($1, $2, $3, $4, $5, COALESCE($6, CURRENT_DATE::TEXT), 'emitida', $7, $8, $9, $10, $11, 1)
+			 VALUES ($1, $2, $3, $4, $5, COALESCE($6, CURRENT_DATE::TEXT), 'borrador', $7, $8, $9, $10, $11, 1)
 			 RETURNING id, invoice_number, total::text AS total`,
 			[
 				requireCompanyId(ctx),
@@ -569,6 +637,26 @@ export class PostgresInvoiceRepository {
 		);
 	}
 
+	/** Suelta TODO lo que la factura tenga reclamado -entregas, servicios, lineas de cotizacion-. Lo usa `cancel()` y `updateDraft()` (release-antes-de-reclamar). */
+	async releaseLinks(ctx: RepositoryContext, id: ESRId, client?: pg.PoolClient): Promise<void> {
+		const companyId = requireCompanyId(ctx);
+		await this.db(client).query(
+			`UPDATE invoice_conduces SET is_active = 0
+			 WHERE company_id = $1 AND invoice_id = $2`,
+			[companyId, id]
+		);
+		await this.db(client).query(
+			`UPDATE invoice_work_order_items SET is_active = 0
+			 WHERE company_id = $1 AND invoice_id = $2`,
+			[companyId, id]
+		);
+		await this.db(client).query(
+			`UPDATE invoice_quotation_items SET is_active = 0
+			 WHERE company_id = $1 AND invoice_id = $2`,
+			[companyId, id]
+		);
+	}
+
 	/**
 	 * Anula la factura y suelta sus entregas.
 	 *
@@ -591,21 +679,63 @@ export class PostgresInvoiceRepository {
 		);
 		if (!result.rows[0]) throw new Error(`La factura ${id} no existe o ya estaba anulada.`);
 
-		await this.db(client).query(
-			`UPDATE invoice_conduces SET is_active = 0
-			 WHERE company_id = $1 AND invoice_id = $2`,
-			[companyId, id]
+		await this.releaseLinks(ctx, id, client);
+		return result.rows[0];
+	}
+
+	/** Borra las lineas de un borrador antes de reescribirlas. Lo usa `updateDraft()`. */
+	async deleteItems(ctx: RepositoryContext, invoiceId: ESRId, client?: pg.PoolClient): Promise<void> {
+		await this.db(client).query(`DELETE FROM invoice_items WHERE company_id = $1 AND invoice_id = $2`, [
+			requireCompanyId(ctx),
+			invoiceId
+		]);
+	}
+
+	/** Reescribe la cabecera de un borrador. Solo aplica si sigue siendo `borrador`. */
+	async updateHeader(
+		ctx: RepositoryContext,
+		id: ESRId,
+		data: {
+			client_id?: ESRId | null;
+			date?: string | null;
+			subtotal: number;
+			discount: number;
+			tax_amount: number;
+			total: number;
+			notes?: string | null;
+		},
+		client?: pg.PoolClient
+	): Promise<Invoice> {
+		const result = await this.db(client).query<Invoice>(
+			`UPDATE invoices
+			 SET client_id = $3, date = $4, subtotal = $5, discount = $6, tax_amount = $7, total = $8, notes = $9, updated_at = NOW()
+			 WHERE company_id = $1 AND id = $2 AND status = 'borrador'
+			 RETURNING id, invoice_number, total::text AS total, status`,
+			[
+				requireCompanyId(ctx),
+				id,
+				data.client_id ?? null,
+				data.date || null,
+				data.subtotal,
+				data.discount,
+				data.tax_amount,
+				data.total,
+				data.notes ?? null
+			]
 		);
-		await this.db(client).query(
-			`UPDATE invoice_work_order_items SET is_active = 0
-			 WHERE company_id = $1 AND invoice_id = $2`,
-			[companyId, id]
+		if (!result.rows[0]) throw new Error(`La factura ${id} no existe o ya no es un borrador.`);
+		return result.rows[0];
+	}
+
+	/** Pasa el borrador a 'emitida', el unico estado que admite cobros. Espejo de `cancel()`. */
+	async finalize(ctx: RepositoryContext, id: ESRId, client?: pg.PoolClient): Promise<Invoice> {
+		const result = await this.db(client).query<Invoice>(
+			`UPDATE invoices SET status = 'emitida', updated_at = NOW()
+			 WHERE company_id = $1 AND id = $2 AND status = 'borrador'
+			 RETURNING id, invoice_number, total::text AS total, status`,
+			[requireCompanyId(ctx), id]
 		);
-		await this.db(client).query(
-			`UPDATE invoice_quotation_items SET is_active = 0
-			 WHERE company_id = $1 AND invoice_id = $2`,
-			[companyId, id]
-		);
+		if (!result.rows[0]) throw new Error(`La factura ${id} no existe o ya no es un borrador.`);
 		return result.rows[0];
 	}
 

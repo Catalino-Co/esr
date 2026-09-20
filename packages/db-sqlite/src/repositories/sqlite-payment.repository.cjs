@@ -43,8 +43,8 @@ class SqlitePaymentRepository {
         [invoice_id]
       );
       if (!factura) throw new Error('La factura no existe.');
-      if (factura.status === 'anulada') {
-        throw new Error('Una factura anulada no admite cobros.');
+      if (factura.status !== 'emitida') {
+        throw new Error('Solo una factura emitida admite cobros.');
       }
 
       const res = await runQuery(

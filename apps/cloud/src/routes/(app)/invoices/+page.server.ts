@@ -29,7 +29,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Sin `state`: el listado ya no ofrece el eje de circulacion, y sin el
 	// `appendStateFilter` del repositorio cae en `DEFAULT_RECORD_STATE`, que es
 	// «activas». Una factura se retira ANULANDOLA, que es su estado de negocio.
-	// Archivar/restaurar sigue en la ficha (`?/setState`), que no se toca.
+	// Archivar/restaurar ya no existe en ninguna parte de este modulo: la
+	// ficha quito ese boton, y con el la unica accion que dependia de `state`.
 	const invoices = await getInvoiceRepository().list(ctx, {
 		search,
 		status,

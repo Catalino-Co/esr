@@ -207,8 +207,12 @@
   }
 
   // Si `value` cambia desde FUERA -se limpia el formulario, se preselecciona
-  // algo tras cargar- el texto visible tiene que reflejarlo.
-  let ultimoValorExterno = value;
+  // algo tras cargar- el texto visible tiene que reflejarlo. El centinela (y
+  // no `value` mismo) es a proposito: si `ultimoValorExterno` arrancara
+  // igual a `value`, un `value` ya preseleccionado ANTES de montar -editar
+  // un borrador con cliente propio, por ejemplo- nunca dispararia esta
+  // reactividad, y la caja se veria vacia aunque `value` no lo estuviera.
+  let ultimoValorExterno = Symbol('sin-sincronizar');
   $: if (value !== ultimoValorExterno) {
     ultimoValorExterno = value;
     term = value ? getMain(value) : '';

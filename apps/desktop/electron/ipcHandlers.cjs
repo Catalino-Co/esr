@@ -104,12 +104,14 @@ function setupIpcHandlers() {
   ipcMain.handle('invoices:findForDocument', (event, id) => facturacion.findInvoiceForDocument(id));
   ipcMain.handle('invoices:listItems', (event, id) => facturacion.listInvoiceItems(id));
   ipcMain.handle('invoices:listConduces', (event, id) => facturacion.listInvoiceConduces(id));
-  ipcMain.handle('invoices:listBillable', (event, woId) => facturacion.listBillableConduces(woId));
-  ipcMain.handle('invoices:listBillableServices', (event, woId) =>
-    facturacion.listBillableServices(woId)
+  ipcMain.handle('invoices:listBillable', (event, woId, options) =>
+    facturacion.listBillableConduces(woId, options)
   );
-  ipcMain.handle('invoices:listBillableQuotationItems', (event, quotationId) =>
-    facturacion.listBillableQuotationItems(quotationId)
+  ipcMain.handle('invoices:listBillableServices', (event, woId, options) =>
+    facturacion.listBillableServices(woId, options)
+  );
+  ipcMain.handle('invoices:listBillableQuotationItems', (event, quotationId, options) =>
+    facturacion.listBillableQuotationItems(quotationId, options)
   );
   ipcMain.handle('invoices:listOrdersWithBillable', (event, options) =>
     facturacion.listOrdersWithBillable(options)
@@ -120,6 +122,8 @@ function setupIpcHandlers() {
   ipcMain.handle('invoices:findByConduce', (event, id) => facturacion.findInvoiceByConduce(id));
   ipcMain.handle('invoices:previewLines', (event, ids) => facturacion.previewInvoiceLines(ids));
   ipcMain.handle('invoices:create', (event, input) => facturacion.createInvoice(input));
+  ipcMain.handle('invoices:updateDraft', (event, id, input) => facturacion.updateDraftInvoice(id, input));
+  ipcMain.handle('invoices:finalize', (event, id) => facturacion.finalizeInvoice(id));
   ipcMain.handle('invoices:cancel', (event, id, reason) => facturacion.cancelInvoice(id, reason));
   ipcMain.handle('invoices:setState', (event, id, state) => facturacion.setInvoiceState(id, state));
 

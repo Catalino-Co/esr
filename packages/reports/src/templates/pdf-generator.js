@@ -16,7 +16,7 @@ import autoTable from 'jspdf-autotable';
 // workspace tal cual, sin interoperar, y el import de sus exportadas con nombre
 // revienta en desarrollo aunque `vite build` lo resuelva. Por eso la prueba de
 // maquetacion del PDF corre con `tsx` y no con Node pelado.
-import { calculateQuoteLineAmounts } from '@esr/core';
+import { calculateQuoteLineAmounts, DOCUMENT_TYPE_LABELS } from '@esr/core';
 import { fmt, fmtMoney, fmtN } from '../formatters/number.js';
 
 /**
@@ -402,7 +402,8 @@ export function generateWorkOrderPDF(wo, items, action = 'save', companyInfo = n
  * @param {any} invoice      La fila de `invoices`, con `client_name` y las
  *                           referencias opcionales (`order_number`,
  *                           `quote_number`, `client_document`,
- *                           `client_phone`, `client_address`, `paid`,
+ *                           `client_document_type`, `client_phone`,
+ *                           `client_email`, `client_address`, `paid`,
  *                           `balance`) ya resueltas por quien llama.
  * @param {any[]} items      Las lineas, con `discount_rate`/`tax_rate`.
  * @param {'save'|'preview'} action
@@ -435,8 +436,12 @@ export function generateInvoicePDF(invoice, items, action = 'save', companyInfo 
   doc.setFontSize(10);
   let yCliente = 61;
   doc.text(invoice.client_name || 'N/A', MARGEN_X, yCliente); yCliente += 5;
-  if (invoice.client_document) { doc.text(`RNC/Cédula: ${invoice.client_document}`, MARGEN_X, yCliente); yCliente += 5; }
+  if (invoice.client_document) {
+    const etiquetaDoc = DOCUMENT_TYPE_LABELS[invoice.client_document_type] ?? 'RNC/Cédula';
+    doc.text(`${etiquetaDoc}: ${invoice.client_document}`, MARGEN_X, yCliente); yCliente += 5;
+  }
   if (invoice.client_phone) { doc.text(`Tel: ${invoice.client_phone}`, MARGEN_X, yCliente); yCliente += 5; }
+  if (invoice.client_email) { doc.text(`Email: ${invoice.client_email}`, MARGEN_X, yCliente); yCliente += 5; }
   if (invoice.client_address) {
     const lineasDireccion = doc.splitTextToSize(invoice.client_address, 100);
     doc.text(lineasDireccion, MARGEN_X, yCliente);
@@ -444,12 +449,20 @@ export function generateInvoicePDF(invoice, items, action = 'save', companyInfo 
   }
 
   // El sello va ANTES de la tabla: `autoTable` fija su propio color por
-  // celda, asi que no hereda -ni ensucia- el rojo del sello.
+  // celda, asi que no hereda -ni ensucia- el color del sello.
   if (invoice.status === 'anulada') {
     doc.setFontSize(32);
     doc.setTextColor(200, 40, 40);
     doc.setFont('helvetica', 'bold');
     doc.text('ANULADA', anchoPagina(doc) / 2, 150, { angle: 35, align: 'center' });
+  } else if (invoice.status === 'borrador') {
+    // Gris y no rojo: un borrador es un estado normal del flujo, no un error
+    // -pero igual no puede confundirse con el documento final si alguien lo
+    // imprime antes de finalizarlo-.
+    doc.setFontSize(32);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BORRADOR', anchoPagina(doc) / 2, 150, { angle: 35, align: 'center' });
   }
 
   autoTable(doc, {

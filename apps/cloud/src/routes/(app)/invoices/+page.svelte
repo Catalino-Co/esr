@@ -8,6 +8,7 @@
 		formatDate,
 		formatDateAbsolute,
 		formatMoney,
+		invoiceStatusFilterOptions,
 		rangoDelPeriodo,
 		statusBadgeClass,
 		statusLabel
@@ -18,11 +19,9 @@
 
 	let { data } = $props();
 
-	const ESTADOS = [
-		{ value: '', label: 'Cualquier estado' },
-		{ value: 'emitida', label: 'Emitida' },
-		{ value: 'anulada', label: 'Anulada' }
-	];
+	// Incluye 'borrador' ahora que una factura puede nacer sin emitirse; el
+	// conjunto vive en `@esr/core` para no desincronizarse del estado real.
+	const ESTADOS = invoiceStatusFilterOptions();
 
 	/**
 	 * El saldo se calcula aquí y no en el servidor porque el listado ya trae

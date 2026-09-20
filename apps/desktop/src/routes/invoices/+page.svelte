@@ -8,6 +8,7 @@
     PERIODOS,
     PERIODO_LABELS,
     formatDateAbsolute,
+    invoiceStatusFilterOptions,
     parsePeriodo,
     periodoDeRango,
     rangoDelPeriodo,
@@ -34,11 +35,7 @@
    * defecto (activas).
    */
 
-  const ESTADOS = [
-    { value: '', label: 'Cualquier estado' },
-    { value: 'emitida', label: 'Emitida' },
-    { value: 'anulada', label: 'Anulada' }
-  ];
+  const ESTADOS = invoiceStatusFilterOptions();
 
   let statusFilter = '';
   let search = '';
@@ -326,9 +323,7 @@
               {/if}
             </td>
             <td>
-              <span class="badge {inv.status === 'anulada' ? 'badge-secondary' : 'badge-primary'}">
-                {inv.status.toUpperCase()}
-              </span>
+              <span class="badge {statusBadgeClass(inv.status)}">{statusLabel(inv.status)}</span>
             </td>
             <td style="text-align:right;white-space:nowrap;">
               <button class="btn-icon" title="Ver factura"

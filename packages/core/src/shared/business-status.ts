@@ -60,7 +60,7 @@ const STATUS: Record<string, StatusInfo> = {
 	// Facturas. Van en femenino y por eso no comparten clave con el conduce:
 	// `emitido` y `emitida` son dos entradas distintas a proposito.
 	emitida: { label: 'Emitida', tone: 'neutral' },
-	anulada: { label: 'Anulada', tone: 'danger' },
+	anulada: { label: 'Cancelada', tone: 'danger' },
 	facturada: { label: 'Facturada', tone: 'success' },
 	pendiente_de_facturar: { label: 'Pendiente de facturar', tone: 'warning' },
 

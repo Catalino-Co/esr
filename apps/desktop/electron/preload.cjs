@@ -46,11 +46,12 @@ contextBridge.exposeInMainWorld('api', {
     findForDocument: (id) => ipcRenderer.invoke('invoices:findForDocument', id),
     listItems: (id) => ipcRenderer.invoke('invoices:listItems', id),
     listConduces: (id) => ipcRenderer.invoke('invoices:listConduces', id),
-    listBillable: (workOrderId) => ipcRenderer.invoke('invoices:listBillable', workOrderId),
-    listBillableServices: (workOrderId) =>
-      ipcRenderer.invoke('invoices:listBillableServices', workOrderId),
-    listBillableQuotationItems: (quotationId) =>
-      ipcRenderer.invoke('invoices:listBillableQuotationItems', quotationId),
+    listBillable: (workOrderId, options) =>
+      ipcRenderer.invoke('invoices:listBillable', workOrderId, options),
+    listBillableServices: (workOrderId, options) =>
+      ipcRenderer.invoke('invoices:listBillableServices', workOrderId, options),
+    listBillableQuotationItems: (quotationId, options) =>
+      ipcRenderer.invoke('invoices:listBillableQuotationItems', quotationId, options),
     listOrdersWithBillable: (options) =>
       ipcRenderer.invoke('invoices:listOrdersWithBillable', options),
     listQuotationsWithBillable: (options) =>
@@ -58,6 +59,8 @@ contextBridge.exposeInMainWorld('api', {
     findByConduce: (conduceId) => ipcRenderer.invoke('invoices:findByConduce', conduceId),
     previewLines: (conduceIds) => ipcRenderer.invoke('invoices:previewLines', conduceIds),
     create: (input) => ipcRenderer.invoke('invoices:create', input),
+    updateDraft: (id, input) => ipcRenderer.invoke('invoices:updateDraft', id, input),
+    finalize: (id) => ipcRenderer.invoke('invoices:finalize', id),
     cancel: (id, reason) => ipcRenderer.invoke('invoices:cancel', id, reason),
     setState: (id, state) => ipcRenderer.invoke('invoices:setState', id, state)
   },

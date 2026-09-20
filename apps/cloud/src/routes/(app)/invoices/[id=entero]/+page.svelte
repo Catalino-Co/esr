@@ -1,15 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import {
-		formatDate,
-		formatMoney,
-		RECORD_STATE,
-		recordStateLabel,
-		statusBadgeClass,
-		statusLabel,
-		todayISO
-	} from '@esr/core';
+	import { DOCUMENT_TYPE_LABELS, formatDate, formatMoney, statusBadgeClass, statusLabel, todayISO } from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
 	import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
 	// Subruta `/formatters`, NO la raiz de `@esr/reports`: la raiz reexporta
@@ -76,9 +68,6 @@
 	/** Las entregas liberadas por una anulación se marcan, no se ocultan. */
 	const entregasVivas = $derived(data.conduces.filter((c) => c.is_active === 1));
 
-	/** Archivar retira de circulación; no borra. Es un eje distinto del anulado. */
-	const archivada = $derived(data.invoice.is_active === RECORD_STATE.ARCHIVED);
-
 	/* ── Imprimir ──────────────────────────────────────────────────────────
 	 * Mismo patrón que la orden y la cotización: el servidor manda los datos Y
 	 * registra `document.printed`, y el PDF se arma en cliente con jsPDF.
@@ -111,86 +100,163 @@
 			generando = false;
 		}
 	}
+
+	/* ── Ver PDF del documento origen (orden o cotización) ───────────────────
+	 * Mismo patrón que `imprimir()` de arriba, con su propio cuarteto de estado
+	 * -sufijo `Ref`- para no chocar con el visor de la factura. Una factura
+	 * viene de UNA orden o de UNA cotización, nunca las dos a la vez, así que
+	 * una sola función parametrizada basta para las dos.
+	 */
+	let verPdfRef = $state(false);
+	let pdfUrlRef = $state('');
+	let pdfNombreRef = $state('documento.pdf');
+	let generandoRef = $state(false);
+
+	/** @param {'orden' | 'cotizacion'} tipo */
+	async function imprimirRef(tipo) {
+		if (generandoRef) return;
+		generandoRef = true;
+		pdfUrlRef = '';
+		verPdfRef = true;
+		try {
+			if (tipo === 'orden') {
+				const res = await fetch(`/work-orders/${data.invoice.work_order_id}/document`, {
+					method: 'POST'
+				});
+				if (!res.ok) throw new Error('El servidor rechazó la petición.');
+				const { company, order: fila, items: lineas } = await res.json();
+				const { generateWorkOrderPDF } = await import('@esr/reports/rentals');
+				const { url, filename } = generateWorkOrderPDF(fila, lineas, 'preview', company);
+				pdfUrlRef = url;
+				pdfNombreRef = filename;
+			} else {
+				const res = await fetch(`/quotes/${data.invoice.quotation_id}/document`, {
+					method: 'POST'
+				});
+				if (!res.ok) throw new Error('El servidor rechazó la petición.');
+				const { company, quotation: fila, items: lineas } = await res.json();
+				const { generateQuotationPDF } = await import('@esr/reports/quotes');
+				const { url, filename } = generateQuotationPDF(fila, lineas, 'preview', company);
+				pdfUrlRef = url;
+				pdfNombreRef = filename;
+			}
+		} catch (/** @type {any} */ e) {
+			verPdfRef = false;
+			dangerModal.show(`No se pudo generar el documento. ${e?.message ?? ''}`.trim());
+		} finally {
+			generandoRef = false;
+		}
+	}
 </script>
 
-<section class="panel">
-	<div class="page-header">
+<!--
+	La cabecera reutiliza `.herramientas` de theme.css, igual que la ficha de
+	la orden: número y estado a la izquierda, la acción que toca según el
+	estado a la derecha, y Volver/Imprimir en un grupo de iconos aparte.
+-->
+<div class="herramientas">
+	<div class="titulo">
 		<h1>Factura {data.invoice.invoice_number}</h1>
-		<div class="page-header-actions">
-			<button type="button" class="btn-secondary" onclick={imprimir} disabled={generando}>
-				<Icon name="printer" size={16} />Imprimir
-			</button>
-			{#if data.cobrable && can('invoices.cancel')}
-				<button type="button" class="btn-danger" onclick={() => (anulando = true)}>
-					Anular factura
-				</button>
-			{/if}
-			{#if can('invoices.archive')}
-				<form method="POST" action="?/setState" use:enhance>
-					<input
-						type="hidden"
-						name="state"
-						value={archivada ? RECORD_STATE.ACTIVE : RECORD_STATE.ARCHIVED}
-					/>
-					<button type="submit" class="btn-secondary">
-						{archivada ? 'Restaurar' : 'Archivar'}
-					</button>
-				</form>
-			{/if}
-			<a class="btn-secondary" href="/invoices">Volver</a>
-		</div>
+		<span class="badge {statusBadgeClass(data.invoice.status)}">{statusLabel(data.invoice.status)}</span>
 	</div>
 
+	<div class="herramientas-datos">
+		{#if data.invoice.status === 'borrador'}
+			{#if can('invoices.update')}
+				<a class="btn-secondary" href="/invoices/{data.invoice.id}/edit">Editar</a>
+			{/if}
+			{#if can('invoices.finalize')}
+				<form method="POST" action="?/finalize" use:enhance>
+					<button type="submit" class="btn-primary">Finalizar factura</button>
+				</form>
+			{/if}
+		{/if}
+		{#if data.invoice.status !== 'anulada' && can('invoices.cancel')}
+			<button type="button" class="btn-danger" onclick={() => (anulando = true)}>
+				Anular factura
+			</button>
+		{/if}
 
+		<div class="grupo">
+			<a class="grupo-btn" href="/invoices" aria-label="Volver a facturas" title="Volver a facturas">
+				<Icon name="back" size={18} />
+			</a>
+			<button
+				type="button"
+				class="grupo-btn"
+				onclick={imprimir}
+				disabled={generando}
+				aria-label="Imprimir la factura"
+				title="Imprimir la factura"
+			>
+				<Icon name="printer" size={18} />
+			</button>
+		</div>
+	</div>
+</div>
 
-	<div class="grid" style="margin-bottom: 16px">
-		<div class="metric">
-			<strong>
-				<span class="badge {statusBadgeClass(data.invoice.status)}">
-					{statusLabel(data.invoice.status)}
-				</span>
-			</strong>
-			<span>Estado</span>
+<section class="panel">
+	<div class="info-rows">
+		<div class="info-row">
+			<span class="info-label">Fecha</span>
+			<span class="info-value">{formatDate(data.invoice.date)}</span>
 		</div>
-		<div class="metric">
-			<strong>
-				{#if data.invoice.client_id}
-					<a href="/customers/{data.invoice.client_id}">{data.invoice.client_name || '—'}</a>
-				{:else}
-					{data.invoice.client_name || '—'}
-				{/if}
-			</strong>
-			<span>Cliente</span>
-		</div>
-		<div class="metric">
-			<strong>
+		<div class="info-row">
+			<span class="info-label">Orden</span>
+			<span class="info-value">
 				{#if data.invoice.work_order_id}
-					<a href="/work-orders/{data.invoice.work_order_id}">
-						{data.invoice.order_number || `#${data.invoice.work_order_id}`}
-					</a>
+					{data.invoice.order_number || `#${data.invoice.work_order_id}`}
+					{#if can('work_orders.view')}
+						<button type="button" class="btn-link" onclick={() => imprimirRef('orden')}>Ver PDF</button>
+					{/if}
 				{:else}
 					—
 				{/if}
-			</strong>
-			<span>Orden</span>
+			</span>
 		</div>
 		{#if data.invoice.quotation_id}
-			<div class="metric">
-				<strong>
-					<a href="/quotes/{data.invoice.quotation_id}">
-						{data.invoice.quote_number || `#${data.invoice.quotation_id}`}
-					</a>
-				</strong>
-				<span>Cotización</span>
+			<div class="info-row">
+				<span class="info-label">Cotización</span>
+				<span class="info-value">
+					{data.invoice.quote_number || `#${data.invoice.quotation_id}`}
+					{#if can('quotes.view')}
+						<button type="button" class="btn-link" onclick={() => imprimirRef('cotizacion')}>Ver PDF</button>
+					{/if}
+				</span>
 			</div>
 		{/if}
-		<div class="metric"><strong>{formatDate(data.invoice.date)}</strong><span>Fecha</span></div>
-		{#if archivada}
-			<div class="metric">
-				<strong>{recordStateLabel(data.invoice.is_active)}</strong>
-				<span>Circulación</span>
+	</div>
+
+	<h2 class="sec-title" style="margin-top: var(--sp-5)">Cliente</h2>
+	<div class="sunken-card" style="margin-bottom: var(--sp-4)">
+		<div class="info-rows">
+			<div class="info-row">
+				<span class="info-label">Nombre</span>
+				<span class="info-value">
+					{#if data.invoice.client_id}
+						<a href="/customers/{data.invoice.client_id}">{data.invoice.client_name || '—'}</a>
+					{:else}
+						{data.invoice.client_name || '—'}
+					{/if}
+				</span>
 			</div>
-		{/if}
+			<div class="info-row">
+				<span class="info-label">Dirección</span>
+				<span class="info-value">{data.customer?.address || '—'}</span>
+			</div>
+			<div class="info-row">
+				<span class="info-label">{DOCUMENT_TYPE_LABELS[data.customer?.document_type] ?? 'Documento'}</span>
+				<span class="info-value">{data.customer?.document_id || '—'}</span>
+			</div>
+			<div class="info-row">
+				<span class="info-label">Teléfono</span>
+				<span class="info-value">{data.customer?.phone || '—'}</span>
+			</div>
+			<div class="info-row">
+				<span class="info-label">Email</span>
+				<span class="info-value">{data.customer?.email || '—'}</span>
+			</div>
+		</div>
 	</div>
 
 	{#if data.invoice.status === 'anulada'}
@@ -200,11 +266,15 @@
 		</div>
 	{/if}
 
+	{#if data.invoice.status === 'borrador'}
+		<p class="panel-hint">Esta factura es un borrador: sus líneas y datos todavía se pueden editar.</p>
+	{/if}
+
 	{#if data.invoice.notes}
 		<p><strong>Notas:</strong> {data.invoice.notes}</p>
 	{/if}
 
-	<h2 class="sec-title">Líneas</h2>
+	<h2 class="sec-title" style="margin-top: 24px">Líneas</h2>
 	<table class="data-table">
 		<thead>
 			<tr>
@@ -278,7 +348,7 @@
 </section>
 
 <!-- La factura es el documento que se cobra: su estado de cuenta vive aquí. -->
-<section class="panel">
+<section class="panel" style="margin-top: var(--sp-6)">
 	<div class="page-header">
 		<h2 class="sec-title">Estado de cuenta</h2>
 		<div class="page-header-actions">
@@ -301,7 +371,11 @@
 	</div>
 
 	{#if !data.cobrable}
-		<p class="panel-hint">Esta factura está anulada: no admite cobros nuevos.</p>
+		<p class="panel-hint">
+			{data.invoice.status === 'borrador'
+				? 'Esta factura es un borrador: finalícela para poder registrar cobros.'
+				: 'Esta factura está anulada: no admite cobros nuevos.'}
+		</p>
 	{/if}
 
 	{#if data.payments.length === 0}
@@ -409,8 +483,21 @@
 </Modal>
 
 <PdfPreviewModal bind:show={verPdf} {pdfUrl} filename={pdfNombre} title="Vista previa de la factura" />
+<PdfPreviewModal bind:show={verPdfRef} pdfUrl={pdfUrlRef} filename={pdfNombreRef} title="Vista previa del documento" />
 
 <style>
+	.titulo {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.titulo h1 {
+		margin: 0;
+		font-size: var(--font-xl);
+	}
+
 	.sec-title {
 		margin: 0 0 var(--sp-3);
 		font-size: var(--font-md);

@@ -54,8 +54,10 @@ export const POST: RequestHandler = async (event) => {
 			...invoice,
 			client_name: customer?.name ?? invoice.client_name ?? null,
 			client_document: customer?.document_id ?? null,
+			client_document_type: customer?.document_type ?? null,
 			client_phone: customer?.phone ?? null,
 			client_address: customer?.address ?? null,
+			client_email: customer?.email ?? null,
 			paid: summary.paid,
 			balance: summary.balance
 		},

@@ -67,6 +67,8 @@ export const PERMISSIONS = [
 	// entregas y es de donde cuelgan los cobros.
 	'invoices.view',
 	'invoices.create',
+	'invoices.update',
+	'invoices.finalize',
 	'invoices.cancel',
 	'invoices.archive',
 	'payments.register',
@@ -150,6 +152,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 
 	'invoices.view': 'Ver facturas',
 	'invoices.create': 'Emitir facturas',
+	'invoices.update': 'Editar borradores de factura',
+	'invoices.finalize': 'Finalizar facturas',
 	'invoices.cancel': 'Anular facturas',
 	'invoices.archive': 'Archivar facturas',
 	'payments.register': 'Registrar cobros',
@@ -230,6 +234,8 @@ export const PERMISSION_GROUPS: Array<{ label: string; permissions: Permission[]
 		permissions: [
 			'invoices.view',
 			'invoices.create',
+			'invoices.update',
+			'invoices.finalize',
 			'invoices.cancel',
 			'invoices.archive',
 			'payments.register',
@@ -325,6 +331,8 @@ const STAFF_PERMISSIONS: Permission[] = [
 	'checklists.save',
 	// Emitir la factura de una entrega ya hecha es operacion diaria; anularla no.
 	'invoices.create',
+	'invoices.update',
+	'invoices.finalize',
 	'payments.register',
 	'incidents.create'
 ];

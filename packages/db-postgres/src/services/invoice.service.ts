@@ -1,5 +1,6 @@
 import { calculateQuoteTotals, RECORD_STATE, round2, validateInvoiceDraft, type RepositoryContext } from '@esr/core';
 import { invoiceDraftErrorMessage, validateQuoteCanInvoiceDirectly } from '@esr/core';
+import { validateInvoiceCanEdit, validateInvoiceCanFinalize, validateInvoiceSourceUnchanged } from '@esr/core';
 import type { InvoiceDraft, InvoiceFreeSource, InvoiceOrderSource, InvoiceQuotationSource } from '@esr/core';
 import type { ESRId, Invoice } from '@esr/schemas';
 import type pg from 'pg';
@@ -149,6 +150,99 @@ export class InvoiceService {
 			const invoice = await this.invoices.cancel(ctx, invoiceId, reason, client);
 			const voidedPayments = await this.payments.voidByInvoice(ctx, invoiceId, client);
 			return { invoice, voidedPayments };
+		});
+	}
+
+	/**
+	 * Reescribe un borrador entero -cabecera y lineas, del origen que sea-.
+	 *
+	 * Mismo mecanismo que `create()`: suelta TODO lo que este borrador tenia
+	 * reclamado (mismo paso que `cancel()`), relee disponibilidad actual con los
+	 * mismos `prepareFrom*` sin modificar, y reclama de nuevo. Es reemplazo
+	 * COMPLETO, no un diff: el llamador siempre manda la seleccion entera
+	 * deseada, igual que ya hace `create()`.
+	 */
+	async updateDraft(ctx: RepositoryContext, invoiceId: ESRId, input: CreateInvoiceInput): Promise<Invoice> {
+		const check = validateInvoiceDraft(input);
+		if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
+
+		// Misma razon que en `create()`: la factura libre no compite por ningun
+		// contador compartido, asi que su verificacion de pertenencia va ANTES de
+		// la transaccion.
+		const freePrepared =
+			input.source.kind === 'free' ? await this.prepareFree(ctx, input.source) : null;
+
+		return withTransaction(async (client) => {
+			const invoice = await this.invoices.findById(ctx, invoiceId, client);
+			if (!invoice) throw new Error('La factura no existe en esta empresa.');
+
+			const editCheck = validateInvoiceCanEdit(invoice);
+			if (!editCheck.ok) throw new Error(invoiceDraftErrorMessage(editCheck.error));
+			const originCheck = validateInvoiceSourceUnchanged(invoice, input.source);
+			if (!originCheck.ok) throw new Error(invoiceDraftErrorMessage(originCheck.error));
+
+			// Release-antes-de-reclamar: suelta TODO lo que este borrador tenia
+			// reclamado para que `prepareFrom*` -sin modificar, los mismos que usa
+			// `create()`- lo vuelva a ver disponible al releer.
+			await this.invoices.releaseLinks(ctx, invoiceId, client);
+			await this.invoices.deleteItems(ctx, invoiceId, client);
+
+			const prepared: PreparedInvoice =
+				input.source.kind === 'work_order'
+					? await this.prepareFromWorkOrder(ctx, input.source, client)
+					: input.source.kind === 'quotation'
+						? await this.prepareFromQuotation(ctx, input.source, client)
+						: freePrepared!;
+
+			// Misma formula que `create()`.
+			const totals = calculateQuoteTotals(prepared.lines);
+			const discount = round2(totals.discount + Math.max(0, Number(input.discount ?? 0)));
+			const tax_amount = round2(totals.tax_amount + Math.max(0, Number(input.tax_amount ?? 0)));
+			if (discount > totals.subtotal) {
+				throw new Error('El descuento no puede superar el subtotal.');
+			}
+
+			const actualizada = await this.invoices.updateHeader(
+				ctx,
+				invoiceId,
+				{
+					client_id: prepared.client_id,
+					date: input.date ?? null,
+					subtotal: totals.subtotal,
+					discount,
+					tax_amount,
+					total: round2(totals.subtotal - discount + tax_amount),
+					notes: input.notes ?? null
+				},
+				client
+			);
+
+			for (const linea of prepared.lines) {
+				await this.invoices.insertItem(ctx, invoiceId, linea, client);
+			}
+			for (const conduceId of prepared.links.conduces) {
+				await this.invoices.linkConduce(ctx, invoiceId, conduceId, client);
+			}
+			for (const workOrderItemId of prepared.links.workOrderItems) {
+				await this.invoices.linkWorkOrderItem(ctx, invoiceId, workOrderItemId, client);
+			}
+			for (const linea of prepared.links.quotationItems) {
+				await this.invoices.linkQuotationItem(ctx, invoiceId, linea.id, linea.quantity, client);
+			}
+
+			return actualizada;
+		});
+	}
+
+	/** Finaliza el borrador: exige al menos una linea. Sin cascada -los enlaces ya se reclamaron en `create()`/`updateDraft()`-. */
+	async finalize(ctx: RepositoryContext, invoiceId: ESRId): Promise<Invoice> {
+		return withTransaction(async (client) => {
+			const invoice = await this.invoices.findById(ctx, invoiceId, client);
+			if (!invoice) throw new Error('La factura no existe en esta empresa.');
+			const items = await this.invoices.listItems(ctx, invoiceId, client);
+			const check = validateInvoiceCanFinalize(invoice, items.length);
+			if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
+			return this.invoices.finalize(ctx, invoiceId, client);
 		});
 	}
 

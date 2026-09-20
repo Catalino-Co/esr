@@ -8,6 +8,9 @@ const {
   calculateQuoteTotals,
   invoiceDraftErrorMessage,
   validateInvoiceDraft,
+  validateInvoiceCanEdit,
+  validateInvoiceCanFinalize,
+  validateInvoiceSourceUnchanged,
   validateQuoteCanInvoiceDirectly
 } = require('@esr/core');
 
@@ -182,9 +185,11 @@ class SqliteInvoiceRepository {
   async findById(id) {
     return await getSingleQuery(
       `SELECT ${INVOICE_COLUMNS},
-        c.document_id AS client_document_id,
-        c.address     AS client_address,
-        c.phone       AS client_phone,
+        c.document_id   AS client_document_id,
+        c.document_type AS client_document_type,
+        c.address       AS client_address,
+        c.phone         AS client_phone,
+        c.email         AS client_email,
         COALESCE((
           SELECT SUM(p.amount) FROM payments p
           WHERE p.invoice_id = inv.id AND p.status = 'pagado'
@@ -244,14 +249,44 @@ class SqliteInvoiceRepository {
     );
   }
 
-  async listBillableConduces(workOrderId) {
+  /**
+   * `options.alsoClaimedByInvoiceId`: no cuenta como "ya facturado" lo que
+   * reclama esa factura en concreto -la pantalla de edicion de un borrador
+   * necesita seguir viendo sus propias entregas ya elegidas en el picker-.
+   */
+  async listBillableConduces(workOrderId, options = {}) {
+    const alsoClaimed = options.alsoClaimedByInvoiceId || null;
+    let billable = BILLABLE_CONDUCE_SQL;
+    // `already_claimed`: sin esto la pantalla de edicion no puede distinguir
+    // "disponible de verdad" de "disponible solo porque es mio" -ambos casos
+    // pasan el `billable` de abajo-.
+    let alreadyClaimedExpr = '0';
+    if (alsoClaimed) {
+      billable = `
+        co.is_active = 1
+        AND co.status <> 'anulado'
+        AND NOT EXISTS (
+          SELECT 1 FROM invoice_conduces ic
+          WHERE ic.conduce_id = co.id AND ic.is_active = 1 AND ic.invoice_id <> ?
+        )
+      `;
+      alreadyClaimedExpr = `EXISTS (
+        SELECT 1 FROM invoice_conduces ic2
+        WHERE ic2.conduce_id = co.id AND ic2.is_active = 1 AND ic2.invoice_id = ?
+      )`;
+    }
+    // Orden POSICIONAL de los `?`, tal cual aparecen en el SQL final: el nuevo
+    // `already_claimed` va en el SELECT -antes del WHERE en el texto-, asi que
+    // su parametro es el PRIMERO, no el ultimo.
+    const params = alsoClaimed ? [alsoClaimed, workOrderId, alsoClaimed] : [workOrderId];
     return await getQuery(
       `SELECT co.id, co.date, co.total, co.discount, co.driver_or_vehicle,
-              (SELECT COUNT(*) FROM conduce_items ci WHERE ci.conduce_id = co.id) AS lineas
+              (SELECT COUNT(*) FROM conduce_items ci WHERE ci.conduce_id = co.id) AS lineas,
+              (${alreadyClaimedExpr}) AS already_claimed
        FROM conduces co
-       WHERE co.work_order_id = ? AND ${BILLABLE_CONDUCE_SQL}
+       WHERE co.work_order_id = ? AND ${billable}
        ORDER BY co.id`,
-      [workOrderId]
+      params
     );
   }
 
@@ -263,15 +298,36 @@ class SqliteInvoiceRepository {
    * El precio sale de `services.price`, NO de `work_order_items`: esa tabla
    * es solo lista de preparacion en SQLite y no tiene columna de precio, ni
    * siquiera para los articulos.
+   *
+   * `options.alsoClaimedByInvoiceId`: espejo de la excepcion de `listBillableConduces`.
    */
-  async listBillableServices(workOrderId) {
+  async listBillableServices(workOrderId, options = {}) {
+    const alsoClaimed = options.alsoClaimedByInvoiceId || null;
+    let serviceNotBilled = SERVICE_NOT_BILLED;
+    let alreadyClaimedExpr = '0';
+    if (alsoClaimed) {
+      serviceNotBilled = `
+        NOT EXISTS (
+          SELECT 1 FROM invoice_work_order_items iwi
+          WHERE iwi.work_order_item_id = woi.id AND iwi.is_active = 1 AND iwi.invoice_id <> ?
+        )
+      `;
+      alreadyClaimedExpr = `EXISTS (
+        SELECT 1 FROM invoice_work_order_items iwi2
+        WHERE iwi2.work_order_item_id = woi.id AND iwi2.is_active = 1 AND iwi2.invoice_id = ?
+      )`;
+    }
+    // Mismo orden posicional que `listBillableConduces`: already_claimed
+    // (SELECT) primero, work_order_id (WHERE) despues, la exclusion al final.
+    const params = alsoClaimed ? [alsoClaimed, workOrderId, alsoClaimed] : [workOrderId];
     return await getQuery(
-      `SELECT woi.id, woi.service_id, s.name, woi.quantity, s.price
+      `SELECT woi.id, woi.service_id, s.name, woi.quantity, s.price,
+              (${alreadyClaimedExpr}) AS already_claimed
        FROM work_order_items woi
        JOIN services s ON s.id = woi.service_id
-       WHERE woi.work_order_id = ? AND woi.service_id IS NOT NULL AND ${SERVICE_NOT_BILLED}
+       WHERE woi.work_order_id = ? AND woi.service_id IS NOT NULL AND ${serviceNotBilled}
        ORDER BY woi.id`,
-      [workOrderId]
+      params
     );
   }
 
@@ -324,16 +380,50 @@ class SqliteInvoiceRepository {
    * Deja fuera las lineas de paquete heredadas (`package_id` sin `item_id` ni
    * `service_id`): son el mismo caso que ya descarta la importacion a una
    * orden, y no tienen nada que facturar por si solas.
+   *
+   * `options.alsoClaimedByInvoiceId`: espejo de la excepcion de
+   * `listBillableConduces`, pero con una vuelta de tuerca. La expresion
+   * parametrizada de "cuanto ya se facturo" aparece CUATRO VECES en esta
+   * consulta -en `billed_quantity`, dentro de `remaining`, en
+   * `claimed_quantity` (cuanto reclama YA esta factura en concreto, para que
+   * la pantalla de edicion pueda pre-rellenar la cantidad), y otra vez dentro
+   * del `WHERE` via `remaining`-, mas `quotation_id` suelto en el medio.
+   * SQLite resuelve `?` POSICIONALMENTE y este archivo no usa los `?NNN` con
+   * nombre -mezclarlos con el resto del archivo, que es todo `?` a secas,
+   * invita a un desajuste peor-, asi que el orden en `params` sigue el mismo
+   * orden en que aparecen en el SQL final: 1) `billed_quantity`,
+   * 2) `remaining`, 3) `claimed_quantity`, 4) `qi.quotation_id = ?`, 5) el
+   * `WHERE` final (que vuelve a usar `remaining`).
    */
-  async listBillableQuotationItems(quotationId) {
+  async listBillableQuotationItems(quotationId, options = {}) {
+    const alsoClaimed = options.alsoClaimedByInvoiceId || null;
+    const billedQty = alsoClaimed
+      ? `COALESCE((
+          SELECT SUM(iqi.quantity) FROM invoice_quotation_items iqi
+          WHERE iqi.quotation_item_id = qi.id AND iqi.is_active = 1 AND iqi.invoice_id <> ?
+        ), 0)`
+      : QUOTE_LINE_BILLED_QTY;
+    const remaining = `(qi.quantity - ${billedQty})`;
+    const notBilled = `${remaining} > 0`;
+    const claimedQty = alsoClaimed
+      ? `COALESCE((
+          SELECT SUM(iqi2.quantity) FROM invoice_quotation_items iqi2
+          WHERE iqi2.quotation_item_id = qi.id AND iqi2.is_active = 1 AND iqi2.invoice_id = ?
+        ), 0)`
+      : '0';
+    const params = alsoClaimed
+      ? [alsoClaimed, alsoClaimed, alsoClaimed, quotationId, alsoClaimed]
+      : [quotationId];
+
     return await getQuery(
       // `quotation_items` en SQLite no tiene columna `name` -a diferencia de
       // Postgres-: el nombre siempre sale del articulo o del servicio.
       `SELECT qi.id, qi.item_id, qi.service_id,
               COALESCE(i.name, s.name) AS name, i.internal_code,
               qi.quantity,
-              (${QUOTE_LINE_BILLED_QTY}) AS billed_quantity,
-              (${QUOTE_LINE_REMAINING}) AS remaining,
+              (${billedQty}) AS billed_quantity,
+              (${remaining}) AS remaining,
+              (${claimedQty}) AS claimed_quantity,
               qi.price,
               COALESCE(qi.discount_rate, 0) AS discount_rate,
               COALESCE(qi.tax_rate, 0) AS tax_rate
@@ -342,9 +432,9 @@ class SqliteInvoiceRepository {
        LEFT JOIN services s ON s.id = qi.service_id
        WHERE qi.quotation_id = ?
          AND (qi.item_id IS NOT NULL OR qi.service_id IS NOT NULL)
-         AND ${QUOTE_LINE_NOT_BILLED}
+         AND ${notBilled}
        ORDER BY qi.id`,
-      [quotationId]
+      params
     );
   }
 
@@ -774,7 +864,7 @@ class SqliteInvoiceRepository {
           `INSERT INTO invoices
             (invoice_seq, invoice_number, work_order_id, quotation_id, client_id, date, due_date,
              status, subtotal, discount, tax_amount, total, notes, is_active)
-           VALUES (?, ?, ?, ?, ?, COALESCE(?, date('now')), ?, 'emitida', ?, ?, ?, ?, ?, 1)`,
+           VALUES (?, ?, ?, ?, ?, COALESCE(?, date('now')), ?, 'borrador', ?, ?, ?, ?, ?, 1)`,
           [
             seq,
             numero,
@@ -826,6 +916,117 @@ class SqliteInvoiceRepository {
 
       const voidedPayments = await paymentRepository.txVoidByInvoice(id, motivo);
       return { id, voidedPayments };
+    });
+  }
+
+  /**
+   * Reescribe un borrador entero -cabecera y lineas, del origen que sea-.
+   *
+   * Mismo mecanismo que `create()`: suelta TODO lo que este borrador tenia
+   * reclamado (mismo paso que `cancel()`), relee disponibilidad actual con los
+   * mismos `prepareFrom*` sin modificar, y reclama de nuevo. Es reemplazo
+   * COMPLETO, no un diff: quien llama siempre manda la seleccion entera
+   * deseada, igual que ya hace `create()`.
+   */
+  async updateDraft(id, input = {}) {
+    const check = validateInvoiceDraft(input);
+    if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
+
+    return await withTransaction(async () => {
+      const factura = await getSingleQuery(
+        'SELECT id, invoice_number, status, work_order_id, quotation_id FROM invoices WHERE id = ?',
+        [id]
+      );
+      if (!factura) throw new Error('La factura no existe.');
+
+      const editCheck = validateInvoiceCanEdit(factura);
+      if (!editCheck.ok) throw new Error(invoiceDraftErrorMessage(editCheck.error));
+      const originCheck = validateInvoiceSourceUnchanged(factura, input.source);
+      if (!originCheck.ok) throw new Error(invoiceDraftErrorMessage(originCheck.error));
+
+      // Release-antes-de-reclamar: mismo paso que `cancel()`, para que
+      // `prepareFrom*` -sin modificar- vuelva a ver disponible lo que este
+      // borrador tenia reclamado al releer.
+      await runQuery('UPDATE invoice_conduces SET is_active = 0 WHERE invoice_id = ?', [id]);
+      await runQuery('UPDATE invoice_work_order_items SET is_active = 0 WHERE invoice_id = ?', [id]);
+      await runQuery('UPDATE invoice_quotation_items SET is_active = 0 WHERE invoice_id = ?', [id]);
+      await runQuery('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
+
+      const { source } = input;
+      const prepared =
+        source.kind === 'work_order'
+          ? await this.prepareFromWorkOrder(source)
+          : source.kind === 'quotation'
+            ? await this.prepareFromQuotation(source)
+            : await this.prepareFree(source);
+
+      // Misma formula que `create()`.
+      const totales = calculateQuoteTotals(prepared.lines);
+      const rebaja = round2(totales.discount + Math.max(0, Number(input.discount) || 0));
+      const impuesto = round2(totales.tax_amount + Math.max(0, Number(input.tax_amount) || 0));
+      if (rebaja > totales.subtotal) throw new Error('El descuento no puede superar el subtotal.');
+      const total = round2(totales.subtotal - rebaja + impuesto);
+
+      const res = await runQuery(
+        `UPDATE invoices
+         SET client_id = ?, date = ?, subtotal = ?, discount = ?, tax_amount = ?, total = ?, notes = ?,
+             updated_at = datetime('now')
+         WHERE id = ? AND status = 'borrador'`,
+        [prepared.client_id, input.date || null, totales.subtotal, rebaja, impuesto, total, input.notes || null, id]
+      );
+      if (!res.changes) throw new Error(`La factura ${id} no existe o ya no es un borrador.`);
+
+      for (const linea of prepared.lines) {
+        await runQuery(
+          `INSERT INTO invoice_items
+             (invoice_id, item_id, service_id, description, quantity, price, total, discount_rate, tax_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            linea.item_id,
+            linea.service_id,
+            linea.description,
+            linea.quantity,
+            linea.price,
+            round2(linea.quantity * linea.price),
+            linea.discount_rate,
+            linea.tax_rate
+          ]
+        );
+      }
+
+      for (const conduceId of prepared.links.conduces) {
+        await runQuery(
+          'INSERT INTO invoice_conduces (invoice_id, conduce_id, is_active) VALUES (?, ?, 1)',
+          [id, conduceId]
+        );
+      }
+      for (const workOrderItemId of prepared.links.workOrderItems) {
+        await this.linkWorkOrderItem(id, workOrderItemId);
+      }
+      for (const linea of prepared.links.quotationItems) {
+        await this.linkQuotationItem(id, linea.id, linea.quantity);
+      }
+
+      return await this.findById(id);
+    });
+  }
+
+  /** Finaliza el borrador: exige al menos una linea. Sin cascada -los enlaces ya se reclamaron en `create()`/`updateDraft()`-. */
+  async finalize(id) {
+    return await withTransaction(async () => {
+      const factura = await getSingleQuery('SELECT id, status FROM invoices WHERE id = ?', [id]);
+      if (!factura) throw new Error('La factura no existe.');
+      const items = await this.listItems(id);
+      const check = validateInvoiceCanFinalize(factura, items.length);
+      if (!check.ok) throw new Error(invoiceDraftErrorMessage(check.error));
+
+      const res = await runQuery(
+        `UPDATE invoices SET status = 'emitida', updated_at = datetime('now') WHERE id = ? AND status = 'borrador'`,
+        [id]
+      );
+      if (!res.changes) throw new Error(`La factura ${id} no existe o ya no es un borrador.`);
+      return await this.findById(id);
     });
   }
 
