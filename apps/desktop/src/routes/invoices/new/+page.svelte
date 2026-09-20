@@ -193,8 +193,8 @@
     origen = nuevo;
   }
 
-  function cambiarOrigen() {
-    if (hayAlgoQuePerder() && !confirm('Se perderán las líneas elegidas. ¿Cambiar el origen de la factura?')) {
+  function nuevaFactura() {
+    if (hayAlgoQuePerder() && !confirm('Se perderán las líneas elegidas. ¿Empezar una factura nueva?')) {
       return;
     }
     goto('/invoices/new');
@@ -360,68 +360,76 @@
   }
 </script>
 
-<div class="card">
-  <div class="card-title">
-    <span>Nueva factura</span>
-    <button class="btn btn-secondary" on:click={() => goto('/invoices')}>← Volver</button>
+<div class="herramientas">
+  <div class="titulo">
+    <h1>Nueva factura</h1>
   </div>
-
-  <fieldset class="origen" class:origen--compacta={!!origen}>
-    <legend class="origen-legend">¿De dónde sale esta factura?</legend>
-    <div class="origen-opciones">
-      <label class="origen-card" class:origen-card--on={origen === 'orden'}>
-        <input
-          class="origen-radio"
-          type="radio"
-          name="origen_ui"
-          value="orden"
-          checked={origen === 'orden'}
-          on:change={() => elegirOrigenCard('orden')}
-        />
-        <span class="origen-icono"><Icon name="clipboard" size={22} /></span>
-        <span class="origen-texto">
-          <span class="origen-nombre">Desde una orden</span>
-          <span class="origen-desc">Cobrar entregas y servicios ya realizados.</span>
-        </span>
-        <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-      </label>
-      <label class="origen-card" class:origen-card--on={origen === 'cotizacion'}>
-        <input
-          class="origen-radio"
-          type="radio"
-          name="origen_ui"
-          value="cotizacion"
-          checked={origen === 'cotizacion'}
-          on:change={() => elegirOrigenCard('cotizacion')}
-        />
-        <span class="origen-icono"><Icon name="fileText" size={22} /></span>
-        <span class="origen-texto">
-          <span class="origen-nombre">Desde una cotización</span>
-          <span class="origen-desc">Facturar las líneas aprobadas, todas o una parte.</span>
-        </span>
-        <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-      </label>
-      <label class="origen-card" class:origen-card--on={origen === 'directa'}>
-        <input
-          class="origen-radio"
-          type="radio"
-          name="origen_ui"
-          value="directa"
-          checked={origen === 'directa'}
-          on:change={() => elegirOrigenCard('directa')}
-        />
-        <span class="origen-icono"><Icon name="penLine" size={22} /></span>
-        <span class="origen-texto">
-          <span class="origen-nombre">Factura directa</span>
-          <span class="origen-desc">Elija el cliente y escriba las líneas.</span>
-        </span>
-        <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-      </label>
+  <div class="herramientas-datos">
+    <button type="button" class="btn btn-primary btn-new" on:click={nuevaFactura}>Nueva factura</button>
+    <div class="grupo">
+      <a class="grupo-btn" href="/invoices" aria-label="Volver a facturas" title="Volver a facturas">
+        <Icon name="back" size={18} />
+      </a>
     </div>
-    {#if origen}
-      <button type="button" class="btn-link" on:click={cambiarOrigen}>Cambiar origen</button>
-    {/if}
-  </fieldset>
+  </div>
+</div>
+
+<div class="card">
+  {#if !origen}
+    <fieldset class="origen">
+      <legend class="origen-legend">¿De dónde sale esta factura?</legend>
+      <div class="origen-opciones">
+        <label class="origen-card" class:origen-card--on={origen === 'orden'}>
+          <input
+            class="origen-radio"
+            type="radio"
+            name="origen_ui"
+            value="orden"
+            checked={origen === 'orden'}
+            on:change={() => elegirOrigenCard('orden')}
+          />
+          <span class="origen-icono"><Icon name="clipboard" size={22} /></span>
+          <span class="origen-texto">
+            <span class="origen-nombre">Desde una orden</span>
+            <span class="origen-desc">Cobrar entregas y servicios ya realizados.</span>
+          </span>
+          <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+        </label>
+        <label class="origen-card" class:origen-card--on={origen === 'cotizacion'}>
+          <input
+            class="origen-radio"
+            type="radio"
+            name="origen_ui"
+            value="cotizacion"
+            checked={origen === 'cotizacion'}
+            on:change={() => elegirOrigenCard('cotizacion')}
+          />
+          <span class="origen-icono"><Icon name="fileText" size={22} /></span>
+          <span class="origen-texto">
+            <span class="origen-nombre">Desde una cotización</span>
+            <span class="origen-desc">Facturar las líneas aprobadas, todas o una parte.</span>
+          </span>
+          <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+        </label>
+        <label class="origen-card" class:origen-card--on={origen === 'directa'}>
+          <input
+            class="origen-radio"
+            type="radio"
+            name="origen_ui"
+            value="directa"
+            checked={origen === 'directa'}
+            on:change={() => elegirOrigenCard('directa')}
+          />
+          <span class="origen-icono"><Icon name="penLine" size={22} /></span>
+          <span class="origen-texto">
+            <span class="origen-nombre">Factura directa</span>
+            <span class="origen-desc">Elija el cliente y escriba las líneas.</span>
+          </span>
+          <span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+        </label>
+      </div>
+    </fieldset>
+  {/if}
 
   {#if cargando}
     <p style="color:var(--text-muted);margin-top:16px;">Cargando…</p>
@@ -769,6 +777,18 @@
 </Modal>
 
 <style>
+  .titulo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .titulo h1 {
+    margin: 0;
+    font-size: var(--font-xl);
+  }
+
   /* Mismo idioma de formulario que el resto de Desktop: `.info-row` de campos
      con `.form-control`, definidos en cada pagina. */
   .info-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }

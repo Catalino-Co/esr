@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { SELECTABLE_STATES, todayISO } from '@esr/core';
+import { RECORD_STATE, todayISO } from '@esr/core';
 import type { Actions, PageServerLoad } from './$types';
 import { recordAuditLog } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/permissions';
@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		getInvoiceRepository().listQuotationsWithBillable(ctx),
 		// Solo para la factura LIBRE: las otras dos rutas ya traen el cliente
 		// resuelto -de la orden, de la cotización-.
-		getCustomerRepository().list(ctx, { state: SELECTABLE_STATES, limit: 500, offset: 0 })
+		getCustomerRepository().list(ctx, { state: RECORD_STATE.ACTIVE, limit: 500, offset: 0 })
 	]);
 
 	const base = { hoy: todayISO(), items, services, orders, quotes, clients };

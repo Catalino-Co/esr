@@ -2260,30 +2260,6 @@
 		}
 	}
 
-	/* Una vez elegido el origen, las tarjetas se comprimen a una fila de
-	   pildoras compactas: recupera el espacio vertical que las descripciones
-	   ya no necesitan ocupar. */
-	.origen--compacta .origen-opciones {
-		grid-auto-flow: column;
-		grid-template-columns: none;
-	}
-
-	.origen--compacta .origen-card {
-		grid-template-columns: auto auto;
-		min-height: 44px;
-		padding: var(--sp-2) var(--sp-3);
-	}
-
-	.origen--compacta .origen-desc {
-		display: none;
-	}
-
-	@media (max-width: 900px) {
-		.origen--compacta .origen-opciones {
-			grid-auto-flow: row;
-		}
-	}
-
 	/* ─── Cabecera de la aplicacion ───────────────────────────────
 	   La barra superior con el titulo de la pantalla. Vive aqui, y no
 	   en cada app, por el mismo motivo que la barra lateral: las dos

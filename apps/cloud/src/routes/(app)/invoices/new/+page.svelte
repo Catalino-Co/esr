@@ -58,8 +58,8 @@
 		origen = nuevo;
 	}
 
-	function cambiarOrigen() {
-		if (hayAlgoQuePerder() && !confirm('Se perderán las líneas elegidas. ¿Cambiar el origen de la factura?')) {
+	function nuevaFactura() {
+		if (hayAlgoQuePerder() && !confirm('Se perderán las líneas elegidas. ¿Empezar una factura nueva?')) {
 			return;
 		}
 		irA('/invoices/new');
@@ -252,75 +252,81 @@
 	);
 </script>
 
-<section class="panel">
-	<div class="page-header">
+<div class="herramientas">
+	<div class="titulo">
 		<h1>Nueva factura</h1>
-		<div class="page-header-actions">
-			<a class="btn-secondary" href="/invoices">Volver</a>
+	</div>
+	<div class="herramientas-datos">
+		<button type="button" class="btn-primary btn-new" onclick={nuevaFactura}>Nueva factura</button>
+		<div class="grupo">
+			<a class="grupo-btn" href="/invoices" aria-label="Volver a facturas" title="Volver a facturas">
+				<Icon name="back" size={18} />
+			</a>
 		</div>
 	</div>
+</div>
 
-	{#if data.aviso}
-		<div class="alert-error" role="alert">{data.aviso}</div>
-	{/if}
+{#if data.aviso}
+	<div class="alert-error" role="alert">{data.aviso}</div>
+{/if}
 
-	<fieldset class="origen" class:origen--compacta={!!origen}>
-		<legend class="origen-legend">¿De dónde sale esta factura?</legend>
-		<div class="origen-opciones">
-			<label class="origen-card" class:origen-card--on={origen === 'orden'}>
-				<input
-					class="origen-radio"
-					type="radio"
-					name="origen_ui"
-					value="orden"
-					checked={origen === 'orden'}
-					onchange={() => elegirOrigenCard('orden')}
-				/>
-				<span class="origen-icono"><Icon name="clipboard" size={22} /></span>
-				<span class="origen-texto">
-					<span class="origen-nombre">Desde una orden</span>
-					<span class="origen-desc">Cobrar entregas y servicios ya realizados.</span>
-				</span>
-				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-			</label>
-			<label class="origen-card" class:origen-card--on={origen === 'cotizacion'}>
-				<input
-					class="origen-radio"
-					type="radio"
-					name="origen_ui"
-					value="cotizacion"
-					checked={origen === 'cotizacion'}
-					onchange={() => elegirOrigenCard('cotizacion')}
-				/>
-				<span class="origen-icono"><Icon name="fileText" size={22} /></span>
-				<span class="origen-texto">
-					<span class="origen-nombre">Desde una cotización</span>
-					<span class="origen-desc">Facturar las líneas aprobadas, todas o una parte.</span>
-				</span>
-				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-			</label>
-			<label class="origen-card" class:origen-card--on={origen === 'directa'}>
-				<input
-					class="origen-radio"
-					type="radio"
-					name="origen_ui"
-					value="directa"
-					checked={origen === 'directa'}
-					onchange={() => elegirOrigenCard('directa')}
-				/>
-				<span class="origen-icono"><Icon name="penLine" size={22} /></span>
-				<span class="origen-texto">
-					<span class="origen-nombre">Factura directa</span>
-					<span class="origen-desc">Elija el cliente y escriba las líneas.</span>
-				</span>
-				<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
-			</label>
-		</div>
-		{#if origen}
-			<button type="button" class="btn-link origen-cambiar" onclick={cambiarOrigen}>Cambiar origen</button>
-		{/if}
-	</fieldset>
-</section>
+{#if !origen}
+	<section class="panel">
+		<fieldset class="origen">
+			<legend class="origen-legend">¿De dónde sale esta factura?</legend>
+			<div class="origen-opciones">
+				<label class="origen-card" class:origen-card--on={origen === 'orden'}>
+					<input
+						class="origen-radio"
+						type="radio"
+						name="origen_ui"
+						value="orden"
+						checked={origen === 'orden'}
+						onchange={() => elegirOrigenCard('orden')}
+					/>
+					<span class="origen-icono"><Icon name="clipboard" size={22} /></span>
+					<span class="origen-texto">
+						<span class="origen-nombre">Desde una orden</span>
+						<span class="origen-desc">Cobrar entregas y servicios ya realizados.</span>
+					</span>
+					<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+				</label>
+				<label class="origen-card" class:origen-card--on={origen === 'cotizacion'}>
+					<input
+						class="origen-radio"
+						type="radio"
+						name="origen_ui"
+						value="cotizacion"
+						checked={origen === 'cotizacion'}
+						onchange={() => elegirOrigenCard('cotizacion')}
+					/>
+					<span class="origen-icono"><Icon name="fileText" size={22} /></span>
+					<span class="origen-texto">
+						<span class="origen-nombre">Desde una cotización</span>
+						<span class="origen-desc">Facturar las líneas aprobadas, todas o una parte.</span>
+					</span>
+					<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+				</label>
+				<label class="origen-card" class:origen-card--on={origen === 'directa'}>
+					<input
+						class="origen-radio"
+						type="radio"
+						name="origen_ui"
+						value="directa"
+						checked={origen === 'directa'}
+						onchange={() => elegirOrigenCard('directa')}
+					/>
+					<span class="origen-icono"><Icon name="penLine" size={22} /></span>
+					<span class="origen-texto">
+						<span class="origen-nombre">Factura directa</span>
+						<span class="origen-desc">Elija el cliente y escriba las líneas.</span>
+					</span>
+					<span class="origen-check" aria-hidden="true"><Icon name="check" size={16} /></span>
+				</label>
+			</div>
+		</fieldset>
+	</section>
+{/if}
 
 {#if origen}
 	<form method="POST" action={accionForm}>
@@ -715,6 +721,18 @@
 </Modal>
 
 <style>
+	.titulo {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.titulo h1 {
+		margin: 0;
+		font-size: var(--font-xl);
+	}
+
 	.titulo-seccion {
 		margin: 0 0 var(--sp-3);
 		font-size: var(--font-md);
