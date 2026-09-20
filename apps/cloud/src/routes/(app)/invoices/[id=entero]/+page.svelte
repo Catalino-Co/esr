@@ -1,7 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { DOCUMENT_TYPE_LABELS, formatDate, formatMoney, statusBadgeClass, statusLabel, todayISO } from '@esr/core';
+	import { DOCUMENT_TYPE_LABELS, formatDate, formatDateAbsolute, formatMoney, statusBadgeClass, statusLabel, todayISO } from '@esr/core';
 	import Modal from '$lib/components/Modal.svelte';
 	import { FormattedNumberField, Icon, PdfPreviewModal } from '@esr/ui';
 	// Subruta `/formatters`, NO la raiz de `@esr/reports`: la raiz reexporta
@@ -199,7 +199,7 @@
 	<div class="info-rows">
 		<div class="info-row">
 			<span class="info-label">Fecha</span>
-			<span class="info-value">{formatDate(data.invoice.date)}</span>
+			<span class="info-value">{formatDateAbsolute(data.invoice.date)}</span>
 		</div>
 		<div class="info-row">
 			<span class="info-label">Orden</span>
