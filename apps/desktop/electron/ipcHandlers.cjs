@@ -16,6 +16,7 @@ const {
 } = require('./settings.cjs');
 const facturacion = require('./invoices.cjs');
 const cotizaciones = require('./quotes.cjs');
+const catalogos = require('./catalogs.cjs');
 
 function setupIpcHandlers() {
   ipcMain.handle('db:run', async (event, sql, params) => {
@@ -145,6 +146,13 @@ function setupIpcHandlers() {
   ipcMain.handle('settings:updateDefaults', async (event, data) => {
     return await updateCompanyDefaults(data);
   });
+
+  // ── Catálogos: exportar / importar ──────────────────────────────────────
+  //
+  // La EXPORTACION no tiene canal propio: la pantalla de Ajustes lee cada
+  // catálogo por `db:get`, igual que el resto de las pantallas de Ajustes.
+  // Solo la IMPORTACION lo necesita: ver la cabecera de `catalogs.cjs`.
+  ipcMain.handle('catalogs:import', (event, payload) => catalogos.importCatalogs(payload));
 }
 
 module.exports = { setupIpcHandlers };

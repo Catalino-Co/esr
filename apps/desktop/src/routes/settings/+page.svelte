@@ -77,6 +77,12 @@
       path: '/settings/sectors'
     },
     {
+      title: 'Exportar / Importar catálogos',
+      description: 'Lleva tipos de evento, unidades, categorías, subcategorías y sectores a otra instalación o a ESR Cloud, o tráelos de vuelta.',
+      icon: ICONS.docs,
+      path: '/settings/catalogs-transfer'
+    },
+    {
       title: 'Tipos de Dirección',
       description: 'Clasifican las direcciones de servicio del cliente: sucursal, almacén, obra…',
       icon: ICONS.addressTypes,

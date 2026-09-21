@@ -109,6 +109,17 @@ export const settingsSections: SettingsSection[] = [
 		permission: 'settings.catalogs.manage'
 	},
 	{
+		href: '/settings/catalogs-transfer',
+		title: 'Exportar / Importar catálogos',
+		// No hay glifo de descarga/subida en este set: se reutiliza el de
+		// Generales, que ya representa "ajustes/operacion" sin sugerir un
+		// catalogo concreto de los cinco que esta pantalla combina.
+		icon: ICONS.settings,
+		description:
+			'Lleva tipos de evento, unidades, categorías, subcategorías y sectores comerciales de una instalación a otra.',
+		permission: 'settings.catalogs.manage'
+	},
+	{
 		href: '/settings/address-types',
 		title: 'Tipos de dirección',
 		icon: ICONS.addressTypes,

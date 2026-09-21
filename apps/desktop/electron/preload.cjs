@@ -74,5 +74,8 @@ contextBridge.exposeInMainWorld('api', {
     getCompany: () => ipcRenderer.invoke('settings:getCompany'),
     updateCompany: (data) => ipcRenderer.invoke('settings:updateCompany', data),
     updateDefaults: (data) => ipcRenderer.invoke('settings:updateDefaults', data)
+  },
+  catalogs: {
+    import: (payload) => ipcRenderer.invoke('catalogs:import', payload)
   }
 });
