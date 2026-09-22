@@ -15,6 +15,7 @@
 	"scripts": {
 		"migrate": "tsx src/migrate.ts",
 		"seed": "tsx src/seed.ts",
+		"seed:demo-b-catalog": "tsx src/seed-demo-b-catalog.ts",
 		"test:integration": "tsx src/integration-test.ts",
 		"lint": "echo \"db-postgres lint pending\"",
 		"check": "tsc --noEmit -p tsconfig.json",
