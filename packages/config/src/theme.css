@@ -1339,6 +1339,49 @@
 		color: var(--text-on-accent);
 	}
 
+	/* ─── Pestañas ─────────────────────────────────────────────────
+	   Para navegar entre paneles de contenido completos dentro de una
+	   misma tarjeta (Exportar/Importar, por ejemplo) -no para un filtro
+	   de una sola eleccion, que es el trabajo de `.grupo-btn--texto` de
+	   arriba (Mes/Trimestre/Año). Subrayado bajo la activa, sin fondo:
+	   un lenguaje visual distinto al de la pildora de filtros a
+	   proposito, para que no se confundan los dos usos. */
+	.tabs {
+		display: flex;
+		gap: var(--sp-2);
+		border-bottom: 1px solid var(--border);
+		margin-bottom: var(--sp-5);
+	}
+
+	.tab {
+		padding: var(--sp-3) var(--sp-4);
+		margin-bottom: -1px;
+		border: none;
+		border-bottom: 2px solid transparent;
+		background: none;
+		font: inherit;
+		font-weight: 600;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.tab:hover {
+		color: var(--text-primary);
+	}
+
+	.tab--activa {
+		color: var(--accent-active);
+		border-bottom-color: var(--accent);
+	}
+
+	.tab:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+		border-radius: var(--border-radius-sm);
+	}
+
 	/* El icono de recargar gira mientras se recarga. Un `span` intermedio y no
 	   el propio boton: girar el boton giraria tambien su anillo de foco. */
 	.girando {

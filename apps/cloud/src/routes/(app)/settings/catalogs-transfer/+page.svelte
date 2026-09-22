@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Icon } from '@esr/ui';
+	import { Icon, Tabs } from '@esr/ui';
 	import { dangerModal } from '$lib/stores/dangerModal';
 
 	let { data, form } = $props();
@@ -10,6 +10,12 @@
 	$effect(() => {
 		if (form?.error) dangerModal.show(form.error);
 	});
+
+	const PESTAÑAS = [
+		{ key: 'exportar', label: 'Exportar' },
+		{ key: 'importar', label: 'Importar' }
+	];
+	let pestaña = $state('exportar');
 
 	let recargando = $state(false);
 	async function recargar() {
@@ -156,123 +162,122 @@
 </div>
 
 <section class="panel">
-	<h2 class="titulo-seccion">Exportar</h2>
-	<p class="panel-hint">
-		Descarga un archivo JSON con los catálogos elegidos, listo para importarlo en otra instalación de
-		ESR -Cloud o Desktop-.
-	</p>
+	<Tabs tabs={PESTAÑAS} bind:active={pestaña} />
 
-	<form method="GET" action="{page.url.pathname}/export" class="transfer-form">
-		<div class="transfer-lista">
-			<label class="transfer-item transfer-item--todas">
-				<input type="checkbox" checked={exportTodasMarcadas} onchange={alternarExportTodas} />
-				<span>Seleccionar todas</span>
-			</label>
-			{#each ENTIDADES_EXPORT as entidad (entidad.key)}
-				<label class="transfer-item">
-					<input
-						type="checkbox"
-						name="entities"
-						value={entidad.key}
-						checked={exportElegidas.has(entidad.key)}
-						onchange={() => alternarExport(entidad.key)}
-					/>
-					<span>{entidad.label} ({data.counts[entidad.key]})</span>
-				</label>
-			{/each}
-		</div>
-		<div class="form-actions">
-			<button type="submit" class="btn-primary" disabled={exportElegidas.size === 0}>
-				<Icon name="stock" size={16} />Descargar catálogos
-			</button>
-		</div>
-	</form>
-</section>
+	{#if pestaña === 'exportar'}
+		<div role="tabpanel" id="panel-exportar" aria-labelledby="tab-exportar">
+			<p class="panel-hint">
+				Descarga un archivo JSON con los catálogos elegidos, listo para importarlo en otra instalación de
+				ESR -Cloud o Desktop-.
+			</p>
 
-<section class="panel">
-	<h2 class="titulo-seccion">Importar</h2>
-	<p class="panel-hint">
-		Sube un archivo JSON exportado desde otra instalación de ESR. Lo que ya exista en esta empresa
-		-comparando por nombre- se omite; solo se agrega lo nuevo.
-	</p>
-
-	<!-- Sin `name`: el archivo original nunca se serializa. Lo unico que viaja
-	     es su texto, ya leido, en el campo oculto de mas abajo. -->
-	<input bind:this={campoArchivo} type="file" accept="application/json" onchange={alElegirArchivo} hidden />
-
-	<div class="transfer-archivo">
-		<button type="button" class="btn-secondary" onclick={() => campoArchivo.click()}>
-			{archivoNombre ? 'Elegir otro archivo' : 'Elegir archivo…'}
-		</button>
-		{#if archivoNombre}<span class="transfer-archivo-nombre">{archivoNombre}</span>{/if}
-	</div>
-
-	{#if archivoError}
-		<div class="alert-error" role="alert">{archivoError}</div>
-	{/if}
-
-	{#if archivoParsed && entidadesArchivo.length > 0}
-		<form method="POST" action="?/import" class="transfer-form" use:enhance={alImportar}>
-			<input type="hidden" name="json_data" value={archivoTexto} />
-
-			<div class="transfer-lista">
-				<label class="transfer-item transfer-item--todas">
-					<input type="checkbox" checked={importTodasMarcadas} onchange={alternarImportTodas} />
-					<span>Seleccionar todas</span>
-				</label>
-				{#each entidadesArchivo as clave (clave)}
-					<label class="transfer-item">
-						<input
-							type="checkbox"
-							name="entities"
-							value={clave}
-							checked={importElegidas.has(clave)}
-							onchange={() => alternarImport(clave)}
-						/>
-						<span>
-							{ENTITY_LABELS[clave] ?? clave} ({archivoParsed.catalogos[clave].length} en el archivo)
-						</span>
+			<form method="GET" action="{page.url.pathname}/export" class="transfer-form">
+				<div class="transfer-lista">
+					<label class="transfer-item transfer-item--todas">
+						<input type="checkbox" checked={exportTodasMarcadas} onchange={alternarExportTodas} />
+						<span>Seleccionar todas</span>
 					</label>
-				{/each}
-			</div>
-
-			<div class="form-actions">
-				<button type="submit" class="btn-primary" disabled={importElegidas.size === 0}>
-					<Icon name="check" size={16} />Importar
-				</button>
-			</div>
-		</form>
-	{/if}
-
-	{#if form?.resultado}
-		<div class="alert-success transfer-resumen" role="status">
-			<div>
-				<strong>Importación completada.</strong>
-				<ul class="transfer-resumen-lista">
-					{#each Object.entries(form.resultado) as [clave, parte] (clave)}
-						<li>
-							{ENTITY_LABELS[clave] ?? clave}: {parte.agregados} agregado(s), {parte.omitidos} omitido(s).
-							{#if parte.errores.length}
-								<ul class="transfer-errores">
-									{#each parte.errores as err (err)}
-										<li>{err}</li>
-									{/each}
-								</ul>
-							{/if}
-						</li>
+					{#each ENTIDADES_EXPORT as entidad (entidad.key)}
+						<label class="transfer-item">
+							<input
+								type="checkbox"
+								name="entities"
+								value={entidad.key}
+								checked={exportElegidas.has(entidad.key)}
+								onchange={() => alternarExport(entidad.key)}
+							/>
+							<span>{entidad.label} ({data.counts[entidad.key]})</span>
+						</label>
 					{/each}
-				</ul>
+				</div>
+				<div class="form-actions">
+					<button type="submit" class="btn-primary" disabled={exportElegidas.size === 0}>
+						<Icon name="stock" size={16} />Descargar catálogos
+					</button>
+				</div>
+			</form>
+		</div>
+	{:else}
+		<div role="tabpanel" id="panel-importar" aria-labelledby="tab-importar">
+			<p class="panel-hint">
+				Sube un archivo JSON exportado desde otra instalación de ESR. Lo que ya exista en esta empresa
+				-comparando por nombre- se omite; solo se agrega lo nuevo.
+			</p>
+
+			<!-- Sin `name`: el archivo original nunca se serializa. Lo unico que viaja
+			     es su texto, ya leido, en el campo oculto de mas abajo. -->
+			<input bind:this={campoArchivo} type="file" accept="application/json" onchange={alElegirArchivo} hidden />
+
+			<div class="transfer-archivo">
+				<button type="button" class="btn-secondary" onclick={() => campoArchivo.click()}>
+					{archivoNombre ? 'Elegir otro archivo' : 'Elegir archivo…'}
+				</button>
+				{#if archivoNombre}<span class="transfer-archivo-nombre">{archivoNombre}</span>{/if}
 			</div>
+
+			{#if archivoError}
+				<div class="alert-error" role="alert">{archivoError}</div>
+			{/if}
+
+			{#if archivoParsed && entidadesArchivo.length > 0}
+				<form method="POST" action="?/import" class="transfer-form" use:enhance={alImportar}>
+					<input type="hidden" name="json_data" value={archivoTexto} />
+
+					<div class="transfer-lista">
+						<label class="transfer-item transfer-item--todas">
+							<input type="checkbox" checked={importTodasMarcadas} onchange={alternarImportTodas} />
+							<span>Seleccionar todas</span>
+						</label>
+						{#each entidadesArchivo as clave (clave)}
+							<label class="transfer-item">
+								<input
+									type="checkbox"
+									name="entities"
+									value={clave}
+									checked={importElegidas.has(clave)}
+									onchange={() => alternarImport(clave)}
+								/>
+								<span>
+									{ENTITY_LABELS[clave] ?? clave} ({archivoParsed.catalogos[clave].length} en el archivo)
+								</span>
+							</label>
+						{/each}
+					</div>
+
+					<div class="form-actions">
+						<button type="submit" class="btn-primary" disabled={importElegidas.size === 0}>
+							<Icon name="check" size={16} />Importar
+						</button>
+					</div>
+				</form>
+			{/if}
+
+			{#if form?.resultado}
+				<div class="alert-success transfer-resumen" role="status">
+					<div>
+						<strong>Importación completada.</strong>
+						<ul class="transfer-resumen-lista">
+							{#each Object.entries(form.resultado) as [clave, parte] (clave)}
+								<li>
+									{ENTITY_LABELS[clave] ?? clave}: {parte.agregados} agregado(s), {parte.omitidos} omitido(s).
+									{#if parte.errores.length}
+										<ul class="transfer-errores">
+											{#each parte.errores as err (err)}
+												<li>{err}</li>
+											{/each}
+										</ul>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </section>
 
 <style>
-	.titulo-seccion {
-		margin: 0 0 var(--sp-3);
-		font-size: var(--font-md);
-	}
-
 	.transfer-form {
 		display: flex;
 		flex-direction: column;

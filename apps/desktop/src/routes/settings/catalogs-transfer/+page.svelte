@@ -1,8 +1,14 @@
 <script>
   import { onMount } from 'svelte';
-  import { Icon, downloadBlob } from '@esr/ui';
+  import { Icon, Tabs, downloadBlob } from '@esr/ui';
   import { dangerModal } from '$lib/stores/dangerModal.js';
   import { unwrap } from '$lib/ipc';
+
+  const PESTAÑAS = [
+    { key: 'exportar', label: 'Exportar' },
+    { key: 'importar', label: 'Importar' }
+  ];
+  let pestaña = 'exportar';
 
   /**
    * Exportar / Importar catálogos.
@@ -208,125 +214,125 @@
 </div>
 
 <div class="card">
-  <div class="card-title">
-    <span>Exportar catálogos</span>
-  </div>
-  <p class="panel-hint">
-    Genera un archivo JSON con los catálogos elegidos, activos e inactivos (no archivados), para llevarlos a
-    otra instalación de ESR Pro o a ESR Cloud.
-  </p>
+  <Tabs tabs={PESTAÑAS} bind:active={pestaña} />
 
-  <label class="casilla">
-    <input
-      type="checkbox"
-      checked={todosExportMarcados}
-      on:change={(e) => marcarTodosExport(e.currentTarget.checked)}
-    />
-    <span>Seleccionar todas</span>
-  </label>
+  {#if pestaña === 'exportar'}
+    <div role="tabpanel" id="panel-exportar" aria-labelledby="tab-exportar">
+      <p class="panel-hint">
+        Genera un archivo JSON con los catálogos elegidos, activos e inactivos (no archivados), para llevarlos a
+        otra instalación de ESR Pro o a ESR Cloud.
+      </p>
 
-  <ul class="transfer-list">
-    {#each ENTIDADES as ent (ent.key)}
-      <li class="transfer-item">
-        <label>
-          <input type="checkbox" bind:checked={seleccionExport[ent.key]} />
-          <span class="transfer-item-nombre">{ent.label}</span>
-        </label>
-        <span class="transfer-item-cuenta">{conteos[ent.key] ?? '…'}</span>
-      </li>
-    {/each}
-  </ul>
+      <label class="casilla">
+        <input
+          type="checkbox"
+          checked={todosExportMarcados}
+          on:change={(e) => marcarTodosExport(e.currentTarget.checked)}
+        />
+        <span>Seleccionar todas</span>
+      </label>
 
-  {#if errorExport}
-    <div class="alert alert-danger">{errorExport}</div>
-  {/if}
-
-  <div class="acciones">
-    <button
-      type="button"
-      class="btn btn-primary"
-      disabled={generandoExport || ningunaExportMarcada}
-      on:click={descargarCatalogos}
-    >
-      <Icon name="stock" size={16} />{generandoExport ? 'Generando…' : 'Descargar catálogos'}
-    </button>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-title">
-    <span>Importar catálogos</span>
-  </div>
-  <p class="panel-hint">
-    Elija un archivo JSON generado por «Exportar catálogos» —de esta app o de ESR Cloud— para agregar sus
-    filas a este equipo. Los nombres duplicados se omiten, nunca se sobrescriben.
-  </p>
-
-  <input type="file" accept="application/json" on:change={onFileChange} />
-
-  {#if archivoNombre && !parsed}
-    <p class="panel-hint">Archivo elegido: {archivoNombre}</p>
-  {/if}
-
-  {#if parsed}
-    <p class="panel-hint">
-      Archivo «{archivoNombre}», generado el {parsed.generado_en ?? '—'} desde {parsed.origen ?? '—'}.
-    </p>
-
-    <label class="casilla">
-      <input
-        type="checkbox"
-        checked={todosImportMarcados}
-        on:change={(e) => marcarTodosImport(e.currentTarget.checked)}
-      />
-      <span>Seleccionar todas</span>
-    </label>
-
-    <ul class="transfer-list">
-      {#each clavesImport as key (key)}
-        <li class="transfer-item">
-          <label>
-            <input type="checkbox" bind:checked={seleccionImport[key]} />
-            <span class="transfer-item-nombre">{ETIQUETAS[key] ?? key}</span>
-          </label>
-          <span class="transfer-item-cuenta">{(parsed.catalogos[key] || []).length}</span>
-        </li>
-      {/each}
-    </ul>
-
-    <div class="acciones">
-      <button
-        type="button"
-        class="btn btn-primary"
-        disabled={importando || ningunaImportMarcada}
-        on:click={importar}
-      >
-        <Icon name="check" size={16} />{importando ? 'Importando…' : 'Importar'}
-      </button>
-    </div>
-  {/if}
-
-  {#if resultadoImport}
-    <div class="resultado">
-      <div class="card-title" style="margin-top:20px;">
-        <span>Resultado de la importación</span>
-      </div>
-      <ul class="resultado-list">
-        {#each Object.keys(resultadoImport) as key (key)}
-          {@const r = resultadoImport[key]}
-          <li class="resultado-item">
-            <span class="resultado-nombre">{ETIQUETAS[key] ?? key}</span>
-            <span class="resultado-cifras">{r.agregados} agregados, {r.omitidos} omitidos</span>
-            {#if r.errores?.length}
-              <ul class="resultado-errores">
-                {#each r.errores as msg}
-                  <li>{msg}</li>
-                {/each}
-              </ul>
-            {/if}
+      <ul class="transfer-list">
+        {#each ENTIDADES as ent (ent.key)}
+          <li class="transfer-item">
+            <label>
+              <input type="checkbox" bind:checked={seleccionExport[ent.key]} />
+              <span class="transfer-item-nombre">{ent.label}</span>
+            </label>
+            <span class="transfer-item-cuenta">{conteos[ent.key] ?? '…'}</span>
           </li>
         {/each}
       </ul>
+
+      {#if errorExport}
+        <div class="alert alert-danger">{errorExport}</div>
+      {/if}
+
+      <div class="acciones">
+        <button
+          type="button"
+          class="btn btn-primary"
+          disabled={generandoExport || ningunaExportMarcada}
+          on:click={descargarCatalogos}
+        >
+          <Icon name="stock" size={16} />{generandoExport ? 'Generando…' : 'Descargar catálogos'}
+        </button>
+      </div>
+    </div>
+  {:else}
+    <div role="tabpanel" id="panel-importar" aria-labelledby="tab-importar">
+      <p class="panel-hint">
+        Elija un archivo JSON generado por «Exportar catálogos» —de esta app o de ESR Cloud— para agregar sus
+        filas a este equipo. Los nombres duplicados se omiten, nunca se sobrescriben.
+      </p>
+
+      <input type="file" accept="application/json" on:change={onFileChange} />
+
+      {#if archivoNombre && !parsed}
+        <p class="panel-hint">Archivo elegido: {archivoNombre}</p>
+      {/if}
+
+      {#if parsed}
+        <p class="panel-hint">
+          Archivo «{archivoNombre}», generado el {parsed.generado_en ?? '—'} desde {parsed.origen ?? '—'}.
+        </p>
+
+        <label class="casilla">
+          <input
+            type="checkbox"
+            checked={todosImportMarcados}
+            on:change={(e) => marcarTodosImport(e.currentTarget.checked)}
+          />
+          <span>Seleccionar todas</span>
+        </label>
+
+        <ul class="transfer-list">
+          {#each clavesImport as key (key)}
+            <li class="transfer-item">
+              <label>
+                <input type="checkbox" bind:checked={seleccionImport[key]} />
+                <span class="transfer-item-nombre">{ETIQUETAS[key] ?? key}</span>
+              </label>
+              <span class="transfer-item-cuenta">{(parsed.catalogos[key] || []).length}</span>
+            </li>
+          {/each}
+        </ul>
+
+        <div class="acciones">
+          <button
+            type="button"
+            class="btn btn-primary"
+            disabled={importando || ningunaImportMarcada}
+            on:click={importar}
+          >
+            <Icon name="check" size={16} />{importando ? 'Importando…' : 'Importar'}
+          </button>
+        </div>
+      {/if}
+
+      {#if resultadoImport}
+        <div class="resultado">
+          <div class="card-title" style="margin-top:20px;">
+            <span>Resultado de la importación</span>
+          </div>
+          <ul class="resultado-list">
+            {#each Object.keys(resultadoImport) as key (key)}
+              {@const r = resultadoImport[key]}
+              <li class="resultado-item">
+                <span class="resultado-nombre">{ETIQUETAS[key] ?? key}</span>
+                <span class="resultado-cifras">{r.agregados} agregados, {r.omitidos} omitidos</span>
+                {#if r.errores?.length}
+                  <ul class="resultado-errores">
+                    {#each r.errores as msg}
+                      <li>{msg}</li>
+                    {/each}
+                  </ul>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
