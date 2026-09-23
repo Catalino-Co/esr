@@ -54,14 +54,8 @@ const groups = [
 		]
 	},
 	{
-		label: 'Logística',
+		label: 'Cobro',
 		sections: [
-			{
-				slug: 'conduces',
-				icon: ICONS.conduces,
-				title: 'Conduces',
-				summary: 'Conduces de entrega y devolución, checklists de salida y retorno.'
-			},
 			{
 				slug: 'facturas',
 				icon: ICONS.invoices,

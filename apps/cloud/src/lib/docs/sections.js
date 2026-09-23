@@ -66,23 +66,6 @@ const groups = [
 		]
 	},
 	{
-		label: 'Logística',
-		sections: [
-			{
-				slug: 'conduces',
-				icon: ICONS.conduces,
-				title: 'Conduces',
-				summary: 'Notas de entrega y devolución, numeración y checklists.'
-			},
-			{
-				slug: 'incidencias',
-				icon: ICONS.incidents,
-				title: 'Incidencias',
-				summary: 'Registrar daños, faltantes y notas operativas, y resolverlos.'
-			}
-		]
-	},
-	{
 		label: 'Cobro',
 		sections: [
 			{
@@ -90,6 +73,12 @@ const groups = [
 				icon: ICONS.invoices,
 				title: 'Facturas',
 				summary: 'Emitir la factura de una o varias entregas, cobrarla y anularla.'
+			},
+			{
+				slug: 'incidencias',
+				icon: ICONS.incidents,
+				title: 'Incidencias',
+				summary: 'Registrar daños, faltantes y notas operativas, y resolverlos.'
 			}
 		]
 	},

@@ -1,7 +1,7 @@
 ## Qué es ESR Pro
 
 ESR Pro es la aplicación de escritorio de ESR, el sistema para operar
-inventario, eventos, alquileres, cotizaciones, ordenes y conduces del flujo
+inventario, eventos, alquileres, cotizaciones, órdenes y facturas del flujo
 **Events Stock & Rentals**.
 
 Funciona sin conexión: los datos viven en una base SQLite en el propio equipo.
@@ -27,11 +27,12 @@ campos pide y cómo encaja en el flujo de trabajo general.
 
 ## Cómo está organizado
 
-El manual sigue el orden natural del trabajo, no el del menú:
+El manual agrupa las secciones por tema, en un orden cercano al del menú
+lateral:
 
 1. **Introducción** — esta sección y los primeros pasos.
 2. **Comercial** — de la cotización a la orden de trabajo.
-3. **Logística** — conduces, facturas, entregas, devoluciones e incidencias.
+3. **Cobro** — facturas, entregas, devoluciones e incidencias.
 4. **Operación** — los catálogos que alimentan todo: eventos, clientes, inventario y paquetes.
 5. **Análisis** — reportes.
 6. **Administración** — configuración y usuarios.
@@ -45,7 +46,7 @@ El recorrido habitual de principio a fin:
 
 ```
 Cliente → Evento → Cotización → Aprobación → Orden de trabajo
-→ Preparación → Conduce de entrega → Devolución → Cierre
+→ Preparación → Entrega → Devolución → Cierre
 ```
 
 Si algo sale mal en el camino —un equipo dañado o un faltante— se registra como

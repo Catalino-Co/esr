@@ -24,15 +24,15 @@ campos pide y cómo encaja en el flujo de trabajo general.
 
 ## Cómo está organizado
 
-El manual sigue el orden natural del trabajo, no el del menú:
+El manual agrupa las secciones por tema, en un orden cercano al del menú
+lateral:
 
 1. **Introducción** — esta sección y los primeros pasos.
 2. **Comercial** — de la cotización a la orden de trabajo.
-3. **Logística** — entregas, devoluciones e incidencias.
-4. **Cobro** — facturas y estado de cuenta.
-5. **Operación** — los catálogos que alimentan todo: eventos, clientes, inventario y paquetes.
-6. **Análisis** — reportes y auditoría.
-7. **Administración** — configuración, roles y la zona de peligro.
+3. **Cobro** — facturas, estado de cuenta e incidencias.
+4. **Operación** — los catálogos que alimentan todo: eventos, clientes, inventario y paquetes.
+5. **Análisis** — reportes y auditoría.
+6. **Administración** — configuración, roles y la zona de peligro.
 
 Las secciones marcadas como **En redacción** todavía no tienen texto: muestran
 el esquema previsto para que se sepa qué cubrirán.

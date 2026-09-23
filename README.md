@@ -1413,8 +1413,8 @@ El menu es **plano, sin titulos de seccion**, y sigue el mismo orden en las dos
 apps:
 
 ```text
-Dashboard, Cotizaciones, Ordenes, Conduces, Eventos, Clientes, Inventario,
-Reportes, Auditoria, Incidencias, Configuracion, Documentacion
+Dashboard, Cotizaciones, Ordenes, Facturas, Eventos, Clientes, Inventario,
+Paquetes, Servicios, Reportes, Incidencias, Configuracion, Documentacion
 ```
 
 ```text
@@ -1422,10 +1422,11 @@ apps/cloud/src/lib/navigation.ts   (filtra por permiso)
 apps/desktop/src/lib/navigation.js
 ```
 
-En Cloud cada entrada declara el permiso minimo que la hace visible; con
-`permission: null` la entrada se ve siempre (es el caso del manual). Desktop
-suma **Paquetes** junto a Inventario, que en Cloud todavia no existe, y no tiene
-Auditoria.
+Cada entrada declara el permiso minimo que la hace visible; con
+`permission: null` (Cloud) o sin `permission` (Desktop) la entrada se ve
+siempre (es el caso del manual). Desktop llama **Ajustes** a lo que en Cloud es
+**Configuracion**, mismo destino. El conduce no tiene entrada propia en
+ninguna de las dos apps: se llega desde la orden y desde la factura.
 
 ## Manual de Usuario
 
